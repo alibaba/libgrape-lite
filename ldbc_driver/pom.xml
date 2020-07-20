@@ -1,0 +1,332 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>science.atlarge.graphalytics</groupId>
+    <artifactId>graphalytics-platforms-libgrape</artifactId>
+    <version>0.3-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <scm>
+        <developerConnection>scm:git:git@github.com:alibaba/libgrape-lite.git</developerConnection>
+        <url>https://github.com/alibaba/libgrape-lite</url>
+    </scm>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <platform.name>libgrape</platform.name>
+        <graphalytics.version>1.0.0</graphalytics.version>
+        <log4j.version>2.5</log4j.version>
+        <fastutil.version>7.0.10</fastutil.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>science.atlarge.graphalytics</groupId>
+            <artifactId>graphalytics-core</artifactId>
+            <version>${graphalytics.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>science.atlarge.graphalytics</groupId>
+            <artifactId>graphalytics-core</artifactId>
+            <version>${graphalytics.version}</version>
+            <type>tar.gz</type>
+            <classifier>resources</classifier>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>science.atlarge.graphalytics</groupId>
+            <artifactId>graphalytics-validation</artifactId>
+            <version>${graphalytics.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>science.atlarge.graphalytics</groupId>
+            <artifactId>graphalytics-plugins-granula</artifactId>
+            <version>0.9.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+
+    </dependencies>
+
+
+    <profiles>
+        <profile>
+            <id>granula</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-shade-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>with-granula</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>shade</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactSet>
+                                        <excludes>
+                                            <exclude>*:*:*:resources</exclude>
+                                        </excludes>
+                                    </artifactSet>
+                                    <finalName>${project.artifactId}-${project.version}-granula</finalName>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>bin</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <descriptors>
+                                        <descriptor>src/main/assembly/bin-granula.xml</descriptor>
+                                    </descriptors>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+
+    <build>
+        <plugins>
+            <plugin>
+                <!-- Java compiler settings -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <source>1.7</source>
+                    <target>1.7</target>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <!-- Plugin for constructing fat jars -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>2.3</version>
+                <configuration>
+                    <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <minimizeJar>false</minimizeJar>
+                    <filters>
+                        <filter>
+                            <artifact>*.*</artifact>
+                            <excludes>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                    <transformers>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>reference.conf</resource>
+                        </transformer>
+                    </transformers>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>default</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>*:*:*:resources</exclude>
+                                    <exclude>org.apache.giraph:giraph-core-granula</exclude>
+                                </excludes>
+                            </artifactSet>
+                            <finalName>${project.artifactId}-${project.version}-default</finalName>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+
+            <plugin>
+                <!-- Plugin for creating distribution archives -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>2.5.3</version>
+                <configuration>
+                    <finalName>graphalytics-${graphalytics.version}-${platform.name}-${project.version}</finalName>
+                    <tarLongFileMode>posix</tarLongFileMode>
+                    <outputDirectory>${project.basedir}</outputDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>bin</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>src/main/assembly/bin.xml</descriptor>
+                            </descriptors>
+                            <finalName>graphalytics-${graphalytics.version}-${platform.name}-${project.version}
+                            </finalName>
+                            <tarLongFileMode>posix</tarLongFileMode>
+                            <outputDirectory>${project.basedir}</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <!-- Plugin for ensuring the presence of license information -->
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>2.10</version>
+                <configuration>
+                    <header>https://graphalytics.org/assets/copyright-notice-template</header>
+                    <properties>
+                        <owner>Delft University of Technology</owner>
+                        <project.inceptionYear>2015</project.inceptionYear>
+                    </properties>
+                    <excludes>
+                        <exclude>README</exclude>
+                        <exclude>LICENSE</exclude>
+                        <exclude>pom.xml</exclude>
+                        <exclude>src/test/resources/**</exclude>
+                        <exclude>src/main/resources/**</exclude>
+                        <exclude>src/main/assembly/**</exclude>
+                        <exclude>config-template/**</exclude>
+                        <exclude>**/*.txt</exclude>
+                    </excludes>
+                    <mapping>
+                        <java>SLASHSTAR_STYLE</java>
+                        <scala>SLASHSTAR_STYLE</scala>
+                        <cpp>SLASHSTAR_STYLE</cpp>
+                        <hpp>SLASHSTAR_STYLE</hpp>
+                    </mapping>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <!-- Maven release management -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>2.5.1</version>
+                <configuration>
+                    <tagNameFormat>v@{project.version}</tagNameFormat>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <pushChanges>false</pushChanges>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <!-- Unit tests management -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.9</version>
+            </plugin>
+
+            <plugin>
+                <!-- Integration tests management -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>2.13</version>
+                <configuration>
+                    <includes>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <excludes>
+                        <exclude>**/BreadthFirstSearchJobTestIT.java</exclude>
+                        <exclude>**/CommunityDetectionLPJobTestIT.java</exclude>
+                        <exclude>**/LocalClusteringCoefficientJobTestIT.java</exclude>
+                        <exclude>**/PageRankJobTestIT.java</exclude>
+                        <exclude>**/WeaklyConnectedComponentsJobTestIT.java</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>failsafe-integration-tests</id>
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>integration-test</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.3</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>
+                        </goals>
+                        <configuration>
+                            <doCheck>true</doCheck>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+
+        <resources>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+    </build>
+
+    <repositories>
+        <repository>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+                <checksumPolicy>fail</checksumPolicy>
+            </releases>
+            <id>graphalytics</id>
+            <name>Graphalytics</name>
+            <url>https://atlarge.ewi.tudelft.nl/graphalytics/mvn</url>
+            <layout>default</layout>
+        </repository>
+    </repositories>
+</project>

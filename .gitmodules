@@ -1,0 +1,3 @@
+[submodule "examples/gnn_sampler/thirdparty/cppkafka"]
+	path = examples/gnn_sampler/thirdparty/cppkafka
+	url = https://github.com/mfontanini/cppkafka.git

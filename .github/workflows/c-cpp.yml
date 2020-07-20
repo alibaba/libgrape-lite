@@ -1,0 +1,63 @@
+name: C++ CI
+
+on:
+  push:
+    branches:
+      - master
+      - 'ci/**' # for personal testing
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Cache maven packages
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Install Dependencies for Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update -y
+          sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev libboost-dev librdkafka-dev
+      - name: Install Dependencies for macOS
+        if: runner.os == 'macOS'
+        run: |
+          sudo scutil --set HostName my_computer.local
+          echo '127.0.0.1       my_computer.local' | sudo tee -a /etc/hosts
+          brew install mpich glog gflags boost librdkafka
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Debug
+          make cpplint
+          make
+      - name: App Test
+        if: runner.os == 'Linux'
+        run: |
+          ./misc/app_tests.sh
+      - name: Sampler Test
+        if: runner.os == 'Linux'
+        run: |
+          ./misc/sampler_test.sh
+      - name: Run LDBC
+        if: runner.os == 'Linux'
+        run: |
+          ./ldbc_driver/run_ldbc.sh ci
+      - name: Upload Coverage
+        if: runner.os == 'Linux'
+        uses: codecov/codecov-action@v1
+        with:
+          flags: app_tests

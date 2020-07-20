@@ -1,0 +1,59 @@
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+		  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		  xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2
+		  http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+	<id>bin</id>
+	<formats>
+		<format>tar.gz</format>
+	</formats>
+
+	<dependencySets><!--Core common files-->
+		<dependencySet>
+			<outputDirectory>.</outputDirectory>
+			<includes>
+				<include>*:resources</include>
+			</includes>
+			<unpack>true</unpack>
+			<unpackOptions>
+				<excludes>
+					<exclude>META-INF/**</exclude>
+				</excludes>
+			</unpackOptions>
+		</dependencySet>
+	</dependencySets>
+
+	<fileSets>
+		<fileSet><!--Platform source files-->
+			<directory>${project.basedir}/src</directory>
+			<outputDirectory>src</outputDirectory>
+		</fileSet>
+		<fileSet><!--Platform script files-->
+			<directory>${project.basedir}</directory>
+			<outputDirectory>.</outputDirectory>
+			<includes>
+				<include>bin/**</include>
+			</includes>
+		</fileSet>
+		<fileSet><!--Platform configuration files-->
+			<directory>${project.basedir}</directory>
+			<outputDirectory>.</outputDirectory>
+			<includes>
+				<include>config-template/**</include>
+			</includes>
+		</fileSet>
+	</fileSets>
+	<files>
+		<file><!--Platform ReadMe files-->
+			<source>${project.basedir}/README.md</source>
+			<outputDirectory>doc</outputDirectory>
+			<destName>README-graphalytics-${platform.name}.md</destName>
+		</file>
+		<file><!--Graphalytics platform driver JAR-->
+			<source>${project.basedir}/target/${project.artifactId}-${project.version}-default.jar</source>
+			<outputDirectory>lib</outputDirectory>
+			<destName>${project.artifactId}-${project.version}-default.jar</destName>
+		</file>
+	</files>
+
+
+</assembly>
