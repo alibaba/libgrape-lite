@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_CONTEXT_H_
-#define EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_CONTEXT_H_
+#ifndef EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_PARALLEL_CONTEXT_H_
+#define EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_PARALLEL_CONTEXT_H_
 
 #include <iomanip>
 
@@ -22,18 +22,18 @@ limitations under the License.
 
 namespace grape {
 /**
- * @brief Context for the batch version of PageRank.
+ * @brief Context for the auto-parallel version of PageRank.
  *
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class PageRankContext : public ContextBase<FRAG_T> {
+class PageRankParallelContext : public ContextBase<FRAG_T> {
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
  public:
-  void Init(const FRAG_T& frag, BatchShuffleMessageManager& messages,
-            double delta, int max_round) {
+  void Init(const FRAG_T& frag, ParallelMessageManager& messages, double delta,
+            int max_round) {
     auto inner_vertices = frag.InnerVertices();
     auto vertices = frag.Vertices();
     this->delta = delta;
@@ -42,9 +42,6 @@ class PageRankContext : public ContextBase<FRAG_T> {
     result.Init(vertices, 0.0);
     next_result.Init(vertices);
     step = 0;
-
-    avg_degree = static_cast<double>(frag.GetEdgeNum()) /
-                 static_cast<double>(frag.GetInnerVerticesNum());
 #ifdef PROFILING
     preprocess_time = 0;
     exec_time = 0;
@@ -80,15 +77,13 @@ class PageRankContext : public ContextBase<FRAG_T> {
   double postprocess_time = 0;
 #endif
 
-  vid_t total_dangling_vnum = 0;
-  vid_t graph_vnum;
+  vid_t dangling_vnum = 0;
   int step = 0;
   int max_round = 0;
   double delta = 0;
 
   double dangling_sum = 0.0;
-  double avg_degree = 0;
 };
 }  // namespace grape
 
-#endif  // EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_CONTEXT_H_
+#endif  // EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_PARALLEL_CONTEXT_H_

@@ -49,6 +49,7 @@ limitations under the License.
 #include "pagerank/pagerank_auto.h"
 #include "pagerank/pagerank_local.h"
 #include "pagerank/pagerank_local_parallel.h"
+#include "pagerank/pagerank_parallel.h"
 #include "sssp/sssp.h"
 #include "sssp/sssp_auto.h"
 #include "timer.h"
@@ -214,8 +215,15 @@ void Run() {
                                                       FLAGS_pr_d, FLAGS_pr_mr);
     } else if (name == "pagerank") {
       using GraphType = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                 LoadStrategy::kBothOutIn>;
+                                                 LoadStrategy::kOnlyOut>;
       using AppType = PageRank<GraphType>;
+      CreateAndQuery<GraphType, AppType, double, int>(comm_spec, efile, vfile,
+                                                      out_prefix, fnum, spec,
+                                                      FLAGS_pr_d, FLAGS_pr_mr);
+    } else if (name == "pagerank_parallel") {
+      using GraphType = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                                 LoadStrategy::kBothOutIn>;
+      using AppType = PageRankParallel<GraphType>;
       CreateAndQuery<GraphType, AppType, double, int>(comm_spec, efile, vfile,
                                                       out_prefix, fnum, spec,
                                                       FLAGS_pr_d, FLAGS_pr_mr);
