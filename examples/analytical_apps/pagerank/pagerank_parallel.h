@@ -34,9 +34,10 @@ namespace grape {
  */
 
 template <typename FRAG_T>
-class PageRankParallel : public ParallelAppBase<FRAG_T, PageRankParallelContext<FRAG_T>>,
-                 public Communicator,
-                 public ParallelEngine {
+class PageRankParallel
+    : public ParallelAppBase<FRAG_T, PageRankParallelContext<FRAG_T>>,
+      public Communicator,
+      public ParallelEngine {
  public:
   using vertex_t = typename FRAG_T::vertex_t;
   static constexpr MessageStrategy message_strategy =
@@ -44,7 +45,8 @@ class PageRankParallel : public ParallelAppBase<FRAG_T, PageRankParallelContext<
   static constexpr bool need_split_edges = true;
   static constexpr LoadStrategy load_strategy = LoadStrategy::kBothOutIn;
 
-  INSTALL_PARALLEL_WORKER(PageRankParallel<FRAG_T>, PageRankParallelContext<FRAG_T>, FRAG_T)
+  INSTALL_PARALLEL_WORKER(PageRankParallel<FRAG_T>,
+                          PageRankParallelContext<FRAG_T>, FRAG_T)
 
   PageRankParallel() {}
   void PEval(const fragment_t& frag, context_t& ctx,
