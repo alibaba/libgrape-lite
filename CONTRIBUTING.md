@@ -94,6 +94,6 @@ to us and thanks for your enthusiasm!
 [2]: https://github.com/alibaba/libgrape-lite/blob/master/LICENSE
 [3]: https://github.com/alibaba/libgrape-lite/blob/master/README.md
 [4]: https://github.com/alibaba/libgrape-lite/issues/new/choose
-[5]: CLA
+[5]: https://cla-assistant.io/alibaba/libgrape-lite
 [6]: https://alibaba.github.io/libgrape-lite
 [7]: https://github.com/alibaba/libgrape-lite/pulls
