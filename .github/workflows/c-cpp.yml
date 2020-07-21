@@ -1,13 +1,6 @@
 name: C++ CI
 
-on:
-  push:
-    branches:
-      - master
-      - 'ci/**' # for personal testing
-  pull_request:
-    branches:
-      - master
+on: [push, pull_request]
 
 jobs:
   build:

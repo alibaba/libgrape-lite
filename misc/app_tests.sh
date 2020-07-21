@@ -102,7 +102,10 @@ for np in ${proc_list}; do
     RunApp ${np} pagerank_local --pr_mr=10 --pr_d=0.85
     RunApp ${np} pagerank_local_parallel --pr_mr=10 --pr_d=0.85
 
-    RunApp ${np} pagerank --pr_mr=10 --pr_d=0.85 --directed
+    RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85
+    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
+    RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85 --directed
     EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR-directed
 
     RunApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85 --directed

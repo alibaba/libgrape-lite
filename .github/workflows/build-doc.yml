@@ -18,8 +18,11 @@ jobs:
           sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev libboost-dev librdkafka-dev doxygen
       - name: Build Doc
         run: |
-          cmake .
+          mkdir build
+          cd build
+          cmake ..
           make doc
+          cp ../misc/logo.png docs
       - name: Commit Doc
         run: |
           git config user.email github-actions@github.com
@@ -27,10 +30,10 @@ jobs:
           git branch -D gh-pages || true
           git checkout --orphan gh-pages
           shopt -s extglob
-          rm -rf !(docs)
+          rm -rf !(build)
           rm -rf .github .clang-format .gitattributes .gitmodules .gitignore
-          mv docs/* ./
-          rmdir docs
+          mv build/docs/* ./
+          rm -rf build
           git add .
           git commit -m "auto build from ${{ github.sha }}."
           git push -f origin gh-pages

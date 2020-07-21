@@ -12,7 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 #ifndef EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_H_
 #define EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_H_
 
@@ -23,177 +22,189 @@ limitations under the License.
 namespace grape {
 
 /**
- * @brief An implementation of PageRank, the version in LDBC, which can work
- * on both directed and undirected graphs.
+ * @brief An implementation of PageRank, which can work
+ * on undirected graphs.
  *
- * This version of PageRank inherits ParallelAppBase. Messages can be sent in
- * parallel with the evaluation process. This strategy improves performance by
- * overlapping the communication time and the evaluation time.
+ * This version of PageRank inherits BatchShuffleAppBase.
+ * Messages are generated in batches and received in-place.
  *
  * @tparam FRAG_T
  */
-
 template <typename FRAG_T>
-class PageRank : public ParallelAppBase<FRAG_T, PageRankContext<FRAG_T>>,
-                 public Communicator,
-                 public ParallelEngine {
+class PageRank
+    : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
+      public ParallelEngine,
+      public Communicator {
  public:
+  INSTALL_BATCH_SHUFFLE_WORKER(PageRank<FRAG_T>,
+                               PageRankContext<FRAG_T>, FRAG_T)
+
   using vertex_t = typename FRAG_T::vertex_t;
+  using vid_t = typename FRAG_T::vid_t;
+
+  static constexpr bool need_split_edges = true;
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
-  static constexpr bool need_split_edges = true;
-  static constexpr LoadStrategy load_strategy = LoadStrategy::kBothOutIn;
+  static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
 
-  INSTALL_PARALLEL_WORKER(PageRank<FRAG_T>, PageRankContext<FRAG_T>, FRAG_T)
+  PageRank() = default;
 
-  PageRank() {}
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
     auto inner_vertices = frag.InnerVertices();
-
-    size_t graph_vnum = frag.GetTotalVerticesNum();
-    messages.InitChannels(thread_num());
 
 #ifdef PROFILING
     ctx.exec_time -= GetCurrentTime();
 #endif
 
     ctx.step = 0;
-    double p = 1.0 / graph_vnum;
+    ctx.graph_vnum = frag.GetTotalVerticesNum();
+    vid_t dangling_vnum = 0;
+    double p = 1.0 / ctx.graph_vnum;
 
-    // assign initial ranks
-    ForEach(inner_vertices, [&ctx, &frag, p, &messages](int tid, vertex_t u) {
-      int EdgeNum = frag.GetOutgoingAdjList(u).Size();
-      ctx.degree[u] = EdgeNum;
-      if (EdgeNum > 0) {
-        ctx.result[u] = p / EdgeNum;
-        messages.SendMsgThroughOEdges<fragment_t, double>(frag, u,
-                                                          ctx.result[u], tid);
-      } else {
-        ctx.result[u] = p;
-      }
-    });
+    std::vector<vid_t> dangling_vnum_tid(thread_num(), 0);
+    ForEach(inner_vertices,
+            [&ctx, &frag, p, &dangling_vnum_tid](int tid, vertex_t u) {
+              int EdgeNum = frag.GetLocalOutDegree(u);
+              ctx.degree[u] = EdgeNum;
+              if (EdgeNum > 0) {
+                ctx.result[u] = p / EdgeNum;
+              } else {
+                ++dangling_vnum_tid[tid];
+                ctx.result[u] = p;
+              }
+              ctx.result[u] = EdgeNum > 0 ? p / EdgeNum : p;
+            });
+
+    for (auto vn : dangling_vnum_tid) {
+      dangling_vnum += vn;
+    }
+
+    Sum(dangling_vnum, ctx.total_dangling_vnum);
+    ctx.dangling_sum = p * ctx.total_dangling_vnum;
 
 #ifdef PROFILING
     ctx.exec_time += GetCurrentTime();
     ctx.postprocess_time -= GetCurrentTime();
 #endif
 
-    for (auto u : inner_vertices) {
-      if (ctx.degree[u] == 0) {
-        ++ctx.dangling_vnum;
-      }
-    }
-
-    double dangling_sum = p * static_cast<double>(ctx.dangling_vnum);
-
-    Sum(dangling_sum, ctx.dangling_sum);
-
+    messages.SyncInnerVertices<fragment_t, double>(frag, ctx.result,
+                                                   thread_num());
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();
 #endif
-    messages.ForceContinue();
   }
 
   void IncEval(const fragment_t& frag, context_t& ctx,
                message_manager_t& messages) {
     auto inner_vertices = frag.InnerVertices();
-
-    double dangling_sum = ctx.dangling_sum;
-
-    size_t graph_vnum = frag.GetTotalVerticesNum();
-
     ++ctx.step;
-    if (ctx.step > ctx.max_round) {
-      return;
-    }
+
+    double base = (1.0 - ctx.delta) / ctx.graph_vnum +
+                  ctx.delta * ctx.dangling_sum / ctx.graph_vnum;
+    ctx.dangling_sum = base * ctx.total_dangling_vnum;
 
 #ifdef PROFILING
     ctx.exec_time -= GetCurrentTime();
 #endif
 
-    double base =
-        (1.0 - ctx.delta) / graph_vnum + ctx.delta * dangling_sum / graph_vnum;
-
-    // pull ranks from neighbors
-    ForEach(inner_vertices, [&ctx, base, &frag](int tid, vertex_t u) {
-      if (ctx.degree[u] == 0) {
-        ctx.next_result[u] = base;
-      } else {
+    if (ctx.avg_degree > 10 && frag.fnum() > 1) {
+      // If fragment is dense and there are multiple fragments, receiving
+      // messages is overlapped with computation. Receiving and computing
+      // procedures are be splitted into multiple rounds. In each round,
+      // messages from a fragment are received and then processed.
+      ForEach(inner_vertices, [&ctx, &frag](int tid, vertex_t u) {
         double cur = 0;
-        auto es = frag.GetIncomingInnerVertexAdjList(u);
+        auto es = frag.GetOutgoingInnerVertexAdjList(u);
         for (auto& e : es) {
           cur += ctx.result[e.neighbor];
         }
         ctx.next_result[u] = cur;
-      }
-    });
+      });
 
+      for (fid_t i = 2; i < frag.fnum(); ++i) {
 #ifdef PROFILING
-    ctx.exec_time += GetCurrentTime();
-    ctx.preprocess_time -= GetCurrentTime();
+        ctx.preprocess_time -= GetCurrentTime();
 #endif
-
-    // process received ranks sent by other workers
-    {
-      messages.ParallelProcess<fragment_t, double>(
-          thread_num(), frag, [&ctx](int tid, vertex_t u, const double& msg) {
-            ctx.result[u] = msg;
-          });
-    }
-
+        fid_t src_fid = messages.UpdatePartialOuterVertices();
 #ifdef PROFILING
-    ctx.preprocess_time += GetCurrentTime();
-    ctx.exec_time -= GetCurrentTime();
+        ctx.preprocess_time += GetCurrentTime();
+        ctx.exec_time -= GetCurrentTime();
 #endif
-
-    // compute new ranks and send messages
-    if (ctx.step != ctx.max_round) {
-      ForEach(inner_vertices,
-              [&ctx, base, &frag, &messages](int tid, vertex_t u) {
-                if (ctx.degree[u] != 0) {
-                  double cur = ctx.next_result[u];
-                  auto es = frag.GetIncomingOuterVertexAdjList(u);
-                  for (auto& e : es) {
-                    cur += ctx.result[e.neighbor];
-                  }
-                  cur = (ctx.delta * cur + base) / ctx.degree[u];
-                  ctx.next_result[u] = cur;
-                  messages.SendMsgThroughOEdges<fragment_t, double>(
-                      frag, u, ctx.next_result[u], tid);
-                }
-              });
-    } else {
-      ForEach(inner_vertices, [&ctx, base, &frag](int tid, vertex_t u) {
-        if (ctx.degree[u] != 0) {
+        ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
           double cur = ctx.next_result[u];
-          auto es = frag.GetIncomingOuterVertexAdjList(u);
+          auto es = frag.GetOutgoingAdjList(u, src_fid);
           for (auto& e : es) {
             cur += ctx.result[e.neighbor];
           }
-          cur = (ctx.delta * cur + base) / ctx.degree[u];
           ctx.next_result[u] = cur;
+        });
+#ifdef PROFILING
+        ctx.exec_time += GetCurrentTime();
+#endif
+      }
+
+#ifdef PROFILING
+      ctx.preprocess_time -= GetCurrentTime();
+#endif
+      fid_t src_fid = messages.UpdatePartialOuterVertices();
+#ifdef PROFILING
+      ctx.preprocess_time += GetCurrentTime();
+      ctx.exec_time -= GetCurrentTime();
+#endif
+      ForEach(
+          inner_vertices, [src_fid, &frag, &ctx, base](int tid, vertex_t u) {
+            double cur = ctx.next_result[u];
+            auto es = frag.GetOutgoingAdjList(u, src_fid);
+            for (auto& e : es) {
+              cur += ctx.result[e.neighbor];
+            }
+            int en = frag.GetLocalOutDegree(u);
+            ctx.next_result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
+          });
+#ifdef PROFILING
+      ctx.exec_time += GetCurrentTime();
+#endif
+    } else {
+      // If the fragment is sparse or there is only one fragment, one round of
+      // iterating inner vertices is prefered.
+#ifdef PROFILING
+      ctx.preprocess_time -= GetCurrentTime();
+#endif
+      messages.UpdateOuterVertices();
+#ifdef PROFILING
+      ctx.preprocess_time += GetCurrentTime();
+      ctx.exec_time -= GetCurrentTime();
+#endif
+      ForEach(inner_vertices, [&ctx, &frag, base](int tid, vertex_t u) {
+        double cur = 0;
+        auto es = frag.GetOutgoingAdjList(u);
+        for (auto& e : es) {
+          cur += ctx.result[e.neighbor];
         }
+        int en = frag.GetLocalOutDegree(u);
+        ctx.next_result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
       });
+#ifdef PROFILING
+      ctx.exec_time += GetCurrentTime();
+#endif
     }
 
 #ifdef PROFILING
-    ctx.exec_time += GetCurrentTime();
     ctx.postprocess_time -= GetCurrentTime();
 #endif
+    if (ctx.step != ctx.max_round) {
+      messages.SyncInnerVertices<fragment_t, double>(frag, ctx.next_result,
+                                                     thread_num());
+    }
 
     ctx.result.Swap(ctx.next_result);
-
-    double new_dangling = base * static_cast<double>(ctx.dangling_vnum);
-
-    Sum(new_dangling, ctx.dangling_sum);
-
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();
 #endif
-    messages.ForceContinue();
   }
 };
 
 }  // namespace grape
+
 #endif  // EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_H_
