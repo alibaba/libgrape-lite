@@ -29,8 +29,8 @@ limitations under the License.
 
 /** Kafka consumer class
  *
- * A stream-data-get class based on cppkafka(a cpp wraper of librdkafka).
- * You can use this class to get stream data from one topic.
+ * A kafka consumer class based on librdkafka, can be to get streaming
+ * data from one kafka topic.
  */
 class KafkaConsumer {
  public:

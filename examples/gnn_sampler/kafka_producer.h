@@ -26,8 +26,8 @@ limitations under the License.
 
 /** Kafka producer class
  *
- * A stream-data-push class based on cppkafka (a cpp wraper of librdkafka).
- * You can use this class to produce stream data to one topic.
+ * A kafka producer class based on librdkafka, can be used to produce
+ * stream data to one topic.
  */
 class KafkaProducer {
  public:

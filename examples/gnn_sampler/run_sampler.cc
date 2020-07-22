@@ -26,7 +26,6 @@ limitations under the License.
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>
 #include <glog/logging.h>
-#include <boost/iostreams/stream.hpp>
 
 #include "append_only_edgecut_fragment.h"
 #include "flags.h"
