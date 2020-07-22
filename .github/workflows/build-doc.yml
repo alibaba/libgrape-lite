@@ -20,6 +20,7 @@ jobs:
         run: |
           cmake .
           make doc
+          cp ../misc/logo.png docs
       - name: Commit Doc
         run: |
           git config user.email github-actions@github.com
