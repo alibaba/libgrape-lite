@@ -71,7 +71,7 @@ class KafkaProducer {
         topic_, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY,
         static_cast<void*>(const_cast<char*>(message.c_str())) /* value */,
         message.size() /* size */, NULL, 0, 0 /* timestamp */,
-        NULL /* message header */, NULL /* delivery report */);
+        NULL /* delivery report */);
     if (err != RdKafka::ERR_NO_ERROR) {
       LOG(ERROR) << "Failed to output to kafka: " << RdKafka::err2str(err);
     }
