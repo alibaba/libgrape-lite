@@ -184,17 +184,16 @@ class KafkaConsumer {
         }
 
       case RdKafka::ERR__PARTITION_EOF:
-        LOG(INFO) << "Reached EOF on partition";
+        LOG(ERROR) << "Reached EOF on partition";
         return false;
 
       case RdKafka::ERR__UNKNOWN_TOPIC:
       case RdKafka::ERR__UNKNOWN_PARTITION:
-        LOG(INFO) << "Topic or partition error: " << message->errstr();
+        LOG(ERROR) << "Topic or partition error: " << message->errstr();
         return false;
 
       default:
-        /* Errors */
-        LOG(INFO) << "Unhandled kafka error: " << message->errstr();
+        LOG(ERROR) << "Unhandled kafka error: " << message->errstr();
         return false;
       }
     };
