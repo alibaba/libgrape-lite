@@ -248,7 +248,7 @@ DEALINGS IN THE SOFTWARE.
 
 -------------------------------------------------------------------------------
 
-cmake/{FindGFlags.cmake,FindGlog.cmake,FindJemalloc.cmake} is based on code
+cmake/{FindGFlags.cmake,FindGlog.cmake,FindJemalloc.cmake,FindRdkafka.cmake} is based on code
 from BVLC/Caffe, has the following license:
 
 COPYRIGHT
