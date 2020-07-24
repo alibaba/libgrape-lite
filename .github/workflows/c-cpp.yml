@@ -23,13 +23,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update -y
-          sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev libboost-dev librdkafka-dev
+          sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev
       - name: Install Dependencies for macOS
         if: runner.os == 'macOS'
         run: |
           sudo scutil --set HostName my_computer.local
           echo '127.0.0.1       my_computer.local' | sudo tee -a /etc/hosts
-          brew install mpich glog gflags boost librdkafka
+          brew install mpich glog gflags librdkafka
       - name: Build
         run: |
           mkdir build

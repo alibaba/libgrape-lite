@@ -26,7 +26,6 @@ limitations under the License.
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>
 #include <glog/logging.h>
-#include <boost/iostreams/stream.hpp>
 
 #include "append_only_edgecut_fragment.h"
 #include "flags.h"
@@ -94,7 +93,7 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<KafkaConsumer> consumer;
     std::shared_ptr<KafkaProducer> producer =
         std::make_shared<KafkaProducer>(FLAGS_broker_list, FLAGS_output_topic);
-    boost::iostreams::stream<KafkaSink> ostream(producer);
+    KafkaOutputStream ostream(producer);
     std::vector<std::string> edge_msgs;
     if (is_coordinator) {
       consumer = std::unique_ptr<KafkaConsumer>(new KafkaConsumer(
@@ -131,7 +130,6 @@ int main(int argc, char* argv[]) {
           job = std::unique_ptr<std::thread>(
               new std::thread([worker, &ostream]() {
                 worker->Output(ostream);
-                ostream.flush();
                 worker->Finalize();
               }));
         }

@@ -30,9 +30,8 @@ Here are the dependencies for optional features:
 
 Extra dependencies are required by examples:
 - [gflags](https://github.com/gflags/gflags) (>= 2.2.0);
-- [boost](https://www.boost.org/) (>= 1.58);
 - [Apache Kafka](https://github.com/apache/kafka) (>= 2.3.0);
-- [librdkafka](https://github.com/edenhill/librdkafka)(>1.4.0) as the dependency for [cppkafka](https://github.com/mfontanini/cppkafka) (included as a submodule).
+- [librdkafka](https://github.com/edenhill/librdkafka)(>= 0.11.3);
 
 
 ### Building libgrape-lite and examples
@@ -107,7 +106,6 @@ The latest version of online documentation can be found at [https://alibaba.gith
 
 - [flat_hash_map](https://github.com/skarupke/flat_hash_map), an efficient hashmap implementation;
 - [granula](https://github.com/atlarge-research/granula), a tool for gathering performance information for LDBC Benchmark;
-- [cppkafka](https://github.com/mfontanini/cppkafka), a C++ wrapper of librdkafka;
 - [xoroshiro](http://prng.di.unimi.it/), a pseudo-random number generator.
 
 

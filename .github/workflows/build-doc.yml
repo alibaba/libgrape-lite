@@ -15,7 +15,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev libboost-dev librdkafka-dev doxygen
+          sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev doxygen
       - name: Build Doc
         run: |
           mkdir build

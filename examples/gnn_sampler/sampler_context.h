@@ -76,19 +76,13 @@ class SamplerContext : public grape::ContextBase<FRAG_T> {
 
   void Output(const FRAG_T& frag, std::ostream& os) {
     auto t_begin = grape::GetCurrentTime();
-    const size_t buffer_cap = 1024;
-    size_t count = 0;
-
     for (auto& it : random_result) {
-      os << frag.Gid2Oid(it.first);
+      std::stringstream ss;
+      ss << frag.Gid2Oid(it.first);
       for (auto gid : it.second) {
-        os << " " << frag.Gid2Oid(gid);
+        ss << " " << frag.Gid2Oid(gid);
       }
-      os << "\n";
-      if (++count > buffer_cap) {
-        os.flush();
-        count = 0;
-      }
+      os << ss.str() << std::flush;
     }
 
     auto elapsed = grape::GetCurrentTime() - t_begin;

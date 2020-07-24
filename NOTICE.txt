@@ -19,10 +19,6 @@ This product includes software from the Caffe project (BSD, 2-clause)
 This product includes software from the libcxx project (Apache License v2.0 with LLVM Exceptions)
  * https://github.com/llvm-mirror/libcxx
 
-This product includes software from the cppkafka project (BSD, 2-Clause)
- * Copyright (c) 2016-2017, Matias Fontanini
- * https://github.com/mfontanini/cppkafka
-
 This product includes software from the xoroshiro project (MIT)
  * Copyright (c) 2017-19 Melissa E. O'Neill
  * http://prng.di.unimi.it/

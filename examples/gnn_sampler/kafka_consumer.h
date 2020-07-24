@@ -22,24 +22,15 @@ limitations under the License.
 #include <thread>
 #include <vector>
 
-#include "cppkafka/configuration.h"
-#include "cppkafka/cppkafka.h"
-#include "cppkafka/utils/consumer_dispatcher.h"
+#include <librdkafka/rdkafka.h>
+#include <librdkafka/rdkafkacpp.h>
 
 #include "util.h"
 
-using cppkafka::Configuration;
-using cppkafka::Consumer;
-using cppkafka::ConsumerDispatcher;
-using cppkafka::Error;
-using cppkafka::Message;
-using cppkafka::TopicPartition;
-using cppkafka::TopicPartitionList;
-
 /** Kafka consumer class
  *
- * A stream-data-get class based on cppkafka(a cpp wraper of librdkafka).
- * You can use this class to get stream data from one topic.
+ * A kafka consumer class based on librdkafka, can be to get streaming
+ * data from one kafka topic.
  */
 class KafkaConsumer {
  public:
@@ -54,18 +45,43 @@ class KafkaConsumer {
     CHECK_GT(batch_size, 0);
     CHECK_GT(time_interval, 0);
     batch_size_per_partition_ = batch_size / partition_num;
-    Configuration configuration = {{"metadata.broker.list", broker_list},
-                                   {"group.id", group_id},
-                                   {"enable.auto.commit", false},
-                                   {"auto.offset.reset", "earliest"}};
+
+    RdKafka::Conf* conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+    std::string rdkafka_err;
+    if (conf->set("metadata.broker.list", broker_list, rdkafka_err) !=
+        RdKafka::Conf::CONF_OK) {
+      LOG(WARNING) << "Failed to set metadata.broker.list: " << rdkafka_err;
+    }
+    if (conf->set("group.id", group_id, rdkafka_err) !=
+        RdKafka::Conf::CONF_OK) {
+      LOG(WARNING) << "Failed to set group.id: " << rdkafka_err;
+    }
+    if (conf->set("enable.auto.commit", "false", rdkafka_err) !=
+        RdKafka::Conf::CONF_OK) {
+      LOG(WARNING) << "Failed to set enable.auto.commit: " << rdkafka_err;
+    }
+    if (conf->set("auto.offset.reset", "earliest", rdkafka_err) !=
+        RdKafka::Conf::CONF_OK) {
+      LOG(WARNING) << "Failed to set auto.offset.reset: " << rdkafka_err;
+    }
+
     qmq_.resize(partition_num);
     emq_.resize(partition_num);
     for (int i = 0; i < partition_num; ++i) {
-      consumer_ptrs_[i] = std::make_shared<Consumer>(configuration);
-      TopicPartitionList ps = {TopicPartition(topic_, i)};
-      consumer_ptrs_[i]->assign(ps);
-
+      consumer_ptrs_[i] = std::shared_ptr<RdKafka::KafkaConsumer>(
+          RdKafka::KafkaConsumer::create(conf, rdkafka_err));
+      if (!consumer_ptrs_[i]) {
+        LOG(ERROR) << "Failed to create rdkafka consumer for partition "
+                   << rdkafka_err;
+      }
+      std::vector<RdKafka::TopicPartition*> topic_partitions;
+      RdKafka::TopicPartition* topic_partition =
+          RdKafka::TopicPartition::create(topic_, i);
+      consumer_ptrs_[i]->assign({topic_partition});
+      free(topic_partition);
+      topic_partition = nullptr;
       consumer_ptrs_[i]->subscribe({topic_});
+
       qmq_[i] =
           std::make_shared<grape::BlockingQueue<std::vector<std::string>>>();
       emq_[i] =
@@ -123,45 +139,73 @@ class KafkaConsumer {
     edge_messages.reserve(batch_size_per_partition_);
     // Create a consumer dispatcher
     auto consumer_ptr_ = consumer_ptrs_[partition];
-    ConsumerDispatcher dispatcher(*consumer_ptr_);
+
     int msg_cnt = 0;
     int64_t first_msg_ts = 0, cur_msg_ts = 0;
 
-    dispatcher.run(
-        // Callback executed whenever a new message is consumed
-        [&](Message msg) {
-          // process the message
-          std::string msg_data = std::string(msg.get_payload());
-          if (!msg_data.empty()) {
-            if (msg_data[0] != '#') {
-              if (msg_data[0] == 'e') {
-                edge_messages.push_back(
-                    msg_data.substr(2, msg_data.size() - 1));
-              } else if (msg_data[0] == 'q') {
-                query_messages.push_back(
-                    msg_data.substr(2, msg_data.size() - 1));
-              }
-              ++msg_cnt;
+    int msg_len;
+    const char* msg_payload;
+    int64_t timestamp;
+    std::string msg_data;
+
+    auto process = [&](RdKafka::Message* message) -> bool {
+      switch (message->err()) {
+      case RdKafka::ERR__TIMED_OUT:
+        return true;
+
+      case RdKafka::ERR_NO_ERROR:
+        /* process message */
+        msg_len = message->len();
+        msg_payload = static_cast<char*>(message->payload());
+        timestamp = message->timestamp().timestamp;
+
+        msg_data = std::string(msg_payload, msg_len);
+        if (!msg_data.empty()) {
+          if (msg_data[0] != '#') {
+            if (msg_data[0] == 'e') {
+              edge_messages.push_back(msg_data.substr(2, msg_data.size() - 1));
+            } else if (msg_data[0] == 'q') {
+              query_messages.push_back(msg_data.substr(2, msg_data.size() - 1));
             }
+            ++msg_cnt;
           }
-          if (!first_msg_ts) {
-            first_msg_ts = msg.get_timestamp()->get_timestamp().count();
-          }
-          cur_msg_ts = msg.get_timestamp()->get_timestamp().count();
-          if (msg_cnt >= batch_size_per_partition_ ||
-              cur_msg_ts - first_msg_ts > time_interval_ms_) {
-            dispatcher.stop();
-          }
-        },
-        [](Error error) {
-          // Error process
-          LOG(INFO) << "[+] Received error notification: " << error;
-        },
-        [](ConsumerDispatcher::EndOfFile,
-           const TopicPartition& topic_partition) {
-          // EndOfFile process
-          LOG(INFO) << "Reached EOF on partition " << topic_partition;
-        });
+        }
+        if (!first_msg_ts) {
+          first_msg_ts = timestamp;
+        }
+        cur_msg_ts = timestamp;
+        if (msg_cnt >= this->batch_size_per_partition_ ||
+            cur_msg_ts - first_msg_ts > this->time_interval_ms_) {
+          msg_cnt = 0;
+          first_msg_ts = 0;
+          return false;
+        } else {
+          return true;
+        }
+
+      case RdKafka::ERR__PARTITION_EOF:
+        LOG(ERROR) << "Reached EOF on partition";
+        return false;
+
+      case RdKafka::ERR__UNKNOWN_TOPIC:
+      case RdKafka::ERR__UNKNOWN_PARTITION:
+        LOG(ERROR) << "Topic or partition error: " << message->errstr();
+        return false;
+
+      default:
+        LOG(ERROR) << "Unhandled kafka error: " << message->errstr();
+        return false;
+      }
+    };
+
+    while (true) {
+      RdKafka::Message* message = consumer_ptr_->consume(1000 * 60);  // 60s
+      bool cont = process(message);
+      delete message;
+      if (!cont) {
+        break;
+      }
+    }
   }
 
   template <typename T>
@@ -176,7 +220,7 @@ class KafkaConsumer {
   int64_t time_interval_ms_;
   int batch_size_per_partition_;
 
-  std::map<int, std::shared_ptr<Consumer>> consumer_ptrs_;
+  std::map<int, std::shared_ptr<RdKafka::KafkaConsumer>> consumer_ptrs_;
 };
 
 #endif  // EXAMPLES_GNN_SAMPLER_KAFKA_CONSUMER_H_

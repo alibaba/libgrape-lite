@@ -57,8 +57,6 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g")
 # ------------------------------------------------------------------------------
 find_package(MPI REQUIRED)
 include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
-find_package(Boost REQUIRED)
-include_directories(${Boost_INCLUDE_DIRS})
 
 # find Threads------------------------------------------------------------------
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
@@ -66,7 +64,6 @@ find_package(Threads REQUIRED)
 
 # find glog---------------------------------------------------------------------
 include("cmake/FindGlog.cmake")
-
 if (NOT GLOG_FOUND)
     message(FATAL_ERROR "glog not found, please install the glog library")
 else ()
@@ -92,6 +89,12 @@ if (USE_JEMALLOC)
     endif ()
 endif ()
 
+# find rdkafka---------------------------------------------------------------------
+include("cmake/FindRdkafka.cmake")
+if (NOT RDKAFKA_FOUND)
+    message(STATUS "rdkafka not found, build without rdkafka")
+endif ()
+
 # ------------------------------------------------------------------------------
 # generete libgrape-lite
 # ------------------------------------------------------------------------------
@@ -107,7 +110,7 @@ if (JEMALLOC_FOUND)
 endif ()
 
 if (NOT GFLAGS_FOUND)
-    message(WARNING "Disable examples because gflags not found")
+    message(WARNING "Disable analytical_apps because gflags not found")
 else ()
     add_executable(analytical_apps examples/analytical_apps/flags.cc
             examples/analytical_apps/run_app.cc)
@@ -118,24 +121,19 @@ else ()
             ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
 endif ()
 
-if (NOT (EXISTS ${CMAKE_SOURCE_DIR}/examples/gnn_sampler/thirdparty/cppkafka/CMakeLists.txt))
-    message(WARNING "Disable gnn_sampler because submodule cppkafka isn't checkout not")
-elseif (NOT GFLAGS_FOUND)
-    message(WARNING "Disable examples because gflags not found")
+if (NOT GFLAGS_FOUND)
+    message(WARNING "Disable gnn_sampler because gflags not found")
+elseif (NOT RDKAFKA_FOUND)
+    message(WARNING "Disable gnn_sampler because rdkafka not found")
 else ()
-    set(CPPKAFKA_DISABLE_TESTS ON CACHE BOOL "Disable cppkafka tests")
-    set(CPPKAFKA_DISABLE_EXAMPLES ON CACHE BOOL "Disable cppkafka examples")
-    add_subdirectory(examples/gnn_sampler/thirdparty/cppkafka)
-
     add_executable(gnn_sampler examples/gnn_sampler/run_sampler.cc)
     set_target_properties(gnn_sampler PROPERTIES OUTPUT_NAME run_sampler)
     target_include_directories(gnn_sampler PRIVATE
             examples/gnn_sampler
             examples/gnn_sampler/thirdparty
-            exampler/gnn_sampler/thirdparty/cppkafka/include
             ${RDKAFKA_INCLUDE_DIR})
-    target_link_libraries(gnn_sampler grape-lite cppkafka ${MPI_CXX_LIBRARIES}
-            ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${Boost_LIBRARIES})
+    target_link_libraries(gnn_sampler grape-lite  ${MPI_CXX_LIBRARIES}
+            ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES})
 endif ()
 
 # ------------------------------------------------------------------------------
