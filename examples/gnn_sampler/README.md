@@ -1,11 +1,11 @@
 # GNN sampler
 
-**libgrape-lite** follows a flexible *modular* and *header-only* design. In addition to *PIE* apps, other components could also be easily developed and plugged in. As an example, we developed a simple graph sampler for online/offline GNN training/inference, by customizing a new AppendOnlyEdgeCutFragment that supports adding new edges/verticies as updates, and integrating Kafka into the main loop for online updates and queries.
+**libgrape-lite** follows a flexible *modular* and *header-only* design. In addition to analytical apps, other applications and components could also be easily developed and plugged in. As an example, we developed a simple graph sampler for online/offline GNN training/inference, by customizing a new AppendOnlyEdgeCutFragment that supports adding new edges/vertices as updates, and integrating Kafka into the main loop for online updates and queries.
 
-Most of GNN models follow a neighborhood aggregation strategy, where each vertex iteratively updates its representation by aggregating representations of its neighbors. For a GNN model with L layers, each vertex need to know its all neighbors within L hops as well as their feature information. Many real-world graphs have highly skewed power-law degree distributions, and some vertices may have very large degrees, causing the scalability problem. To solve this problem, since [GraphSage](https://papers.nips.cc/paper/6703-inductive-representation-learning-on-large-graphs.pdf), various sampling techniques have been introduced into GNN models, by down-sampling the neighbors of each vertex. In GNN training phase, each vertex only utilizes a fixed-size set of neighbors, instead of the full set of neighbors.
+Most of GNN models follow a neighborhood aggregation strategy, where each vertex iteratively updates its representation by aggregating representations of its neighbors. For a GNN model with `L` layers, each vertex needs to know its all neighbors within `L` hops as well as their feature information. Many real-world graphs have highly skewed power-law degree distributions, and some vertices may have very large degrees, causing the scalability problem. To solve this problem, since [GraphSage](https://papers.nips.cc/paper/6703-inductive-representation-learning-on-large-graphs.pdf), various sampling techniques have been introduced into GNN models, by down-sampling the neighbors of each vertex. In GNN training phase, each vertex only utilizes a fixed-size set of neighbors, instead of the full set of neighbors.
 
 
-Build with `libgrape-lite`, this example implements a sampler that supports the following three built-in GNN neighbor sampling strategies:
+Built with **libgrape-lite**, this example implements a sampler that supports the following three built-in GNN neighbor sampling strategies:
 
 - Random sampling: each vertex randomly chooses neighbors;
 - EdgeWeight sampling: each vertex randomly chooses neighbors based on the edge weight distribution;
@@ -22,18 +22,17 @@ make gnn_sampler
 
 ### Graph format
 
-The graph format is the same to the repo. See [Graph format](https://github.com/alibaba/libgrape-lite/blob/reorg/README.md).
+The graph format is the same as the repo. See [Graph format](https://github.com/alibaba/libgrape-lite/blob/reorg/README.md).
 
 ### Sampling
 
-To run a sampler on a static graph in local or on cluster, users may use commands like these:
+To run a sampler on a static graph in local or on a cluster, users may use commands like these:
 
 ```bash
-# run graph sampling in local, with random sampling strategy, and sampling 2 hops'
-# neighbor for each vertex, 10 neigbors in each hop.
+# run graph sampling in local, with random sampling strategy. Each vertex samples neighbors within 2 hops, 10 neigbors in each hop.
 mpirun -n 4 ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --sampling_strategy random --hop_and_num 4-5 --out_prefix ./output_sampling
 
-# or run sampling with 4 workers on a cluster with same parameters.
+# or run sampling with 4 workers on a cluster with the same parameters.
 mpirun -n 4 -hostfile HOSTFILE ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --sampling_strategy random --hop_and_num 4-5 --out_prefix ./output_sampling
 ```
 
@@ -43,7 +42,7 @@ As shown in the example command, the sampler receives 5 parameters:
 - `vfile`: vertex file of input graph.
 - `efile`: edge file of input graph.
 - `sampling_strategy`: select a strategy, currently we support three built-in strategies: 'random', 'edge_weight' and 'top_k'.
-- `hop_and_num`: the hop and the numbers of neighbors to sampling. The value of this parameter is `n` numbers separated by '-', represents each sampling neighbors for the `n` hops. e.g., '4-5' means sample 2 hops, for the first hop, samples 4 neighbors. And for the second hop, samples 5 neighbors.
+- `hop_and_num`: the hop and the numbers of neighbors to sample. The value of this parameter is `n` numbers separated by '-', representing the number of sampled neighbors for the `n` hops. e.g., '4-5' means that each vertex samples neighbors within 2 hops. For the first hop, each vertex samples 4 neighbors, and for the second hop, each vertex samples 5 neighbors.
 - `out_prefix`: ouput file prefix.
 
 ### Result
@@ -59,15 +58,15 @@ v, v_1_nb1, v_1_nb2, v_1_nb3, v_1_nb4, v_2_nb1, v_2_nb2, v_2_nb3, v_2_nb4, v_2_n
 
 The result can be considered as a level-wise traversal of the sampling path tree.
 
-## Sampling on dynamic graph (append-only)
+## Sampling on Dynamic Graph (Append-Only)
 
 **gnn_sampler** supports sampling on dynamic(append-only) graphs. We use
-[Kafka] as the MQ to produce graph updates/queries and to ingest the sampling results.
-Users can send the update on graphs (in a format of edge triplet) and queries via Kafka to append the graph and to sample on vertices.
+Kafka as the MQ to produce graph updates/queries and to ingest the sampling results.
+Users can send the updates on graphs (in a format of edge triplet) and queries via Kafka to append the graph and to sample on vertices.
 
 ### Deploying Kafka
 
-Users may obtain a [Kafka](https://archive.apache.org/dist/kafka/2.3.0/kafka_2.11-2.3.0.tgz) binary release and deploy it following this.
+Users may obtain a [Kafka](https://archive.apache.org/dist/kafka/2.3.0/kafka_2.11-2.3.0.tgz) binary release and deploy it following these commands:
 
 ```bash
 # first, start zookeeper
@@ -85,34 +84,40 @@ bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 -
 Please refer to [Quick Start](https://kafka.apache.org/quickstart) provided by Kafka for more details.
 
 ### Message format
+
 **gnn_sampler** recognizes two kinds of messages from the kafka input topic.
 
 1. Message for graph update.
-This kind of messages in a format of edge triplet, i.e., (src, dst and the data on edge), prefixed with a char 'e'. For example: `e 0 1 3.75`.
+This kind of messages is in a format of edge triplet, i.e., (src, dst and the data on edge), prefixed with a char 'e'. For example: `e 0 1 3.75`.
 
 2. Message for sampling vertex(as query).
-This kind of messages contain a node that users want to sampling from, prefixed with a char 'q', for example: `q 0`.
+This kind of messages contains a node that users want to sampling from, prefixed with a char 'q', for example: `q 0`.
 
 ### Running the sampler
+
 Now users can run the sampler, with enabling the Kafka to generate updates/queries and to sink the sampling results. In addition to the launch command for static graphs, sampling on dynamic graphs needs several more flags to assign the broker, input_topic and output_topic. For example:
 
 ```bash
 # run sampling on dynamic graph
-mpirun -n 4 ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --sampling_strategy random --hop_and_num 10-10 --enable_kafka true --broker_list localhost:9092 --input_topic sampling_input --group_id comsumer_xx --partition_num 1 --batch_size 100 --time_interval 10
+mpirun -n 4 ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --sampling_strategy random --hop_and_num 10-10 --enable_kafka true --broker_list localhost:9092 --input_topic sampling_input --group_id consumer_xx --partition_num 1 --batch_size 100 --time_interval 10
 --output_topic sampling_output
 ```
-- `broker_list`: list of kafka brokers, use format 'server1:port,server2:port,...'.
-- `enable_kafka`: enble kafka.
-- `input_topic`: the topic for graph updates/queries input.
+
+extra parameters:
+
+- `broker_list`: list of kafka brokers, in format of 'server1:port,server2:port,...'.
+- `enable_kafka`: enable kafka.
+- `input_topic`: the input topic for graph updates/queries.
 - `group_id`: consumer group id.
 - `partition_num`: partition num of input topic.
-- `batch_size`: the batch size message consumed from input topic every query epoch.
-- `time_interval`: the consume time interval, by second.
-- `output_topic`: sampling result output topic.
+- `batch_size`: the batch size of queries from the input topic.
+- `time_interval`: the timeout interval waiting to be batched (by second).
+- `output_topic`: the output topic for sampling results.
 
 
-### produce or consume the topic with stript
-we use script in kafka to produce message to topic or consume message from topic.
+### Producing or consuming messages with script
+
+You may want to use scripts provided by Kafka to produce/consume messages for testing.
 
 ```bash
 # produce example

@@ -40,6 +40,9 @@ class BFSContext : public ContextBase<FRAG_T> {
     auto vertices = frag.Vertices();
     partial_result.Init(vertices, std::numeric_limits<depth_type>::max());
 
+    avg_degree = static_cast<double>(frag.GetEdgeNum()) /
+                 static_cast<double>(frag.GetInnerVerticesNum());
+
 #ifdef PROFILING
     preprocess_time = 0;
     exec_time = 0;
@@ -65,6 +68,7 @@ class BFSContext : public ContextBase<FRAG_T> {
   DenseVertexSet<vid_t> curr_inner_updated, next_inner_updated;
 
   depth_type current_depth = 0;
+  double avg_degree = 0;
 #ifdef PROFILING
   double preprocess_time = 0;
   double exec_time = 0;
