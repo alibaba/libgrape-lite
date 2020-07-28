@@ -62,7 +62,7 @@ The result can be considered as a level-wise traversal of the sampling path tree
 ## Sampling on dynamic graph (append-only)
 
 **gnn_sampler** supports sampling on dynamic(append-only) graphs. We use
-[Kafka] as the MQ to produce graph updates/queries and to ingest the sampling results.
+[Kafka](https://github.com/apache/kafka) as the MQ to produce graph updates/queries and to ingest the sampling results.
 Users can send the update on graphs (in a format of edge triplet) and queries via Kafka to append the graph and to sample on vertices.
 
 ### Deploying Kafka
@@ -111,8 +111,8 @@ mpirun -n 4 ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.
 - `output_topic`: sampling result output topic.
 
 
-### produce or consume the topic with stript
-we use script in kafka to produce message to topic or consume message from topic.
+### produce or consume the topic with scripts
+we use scripts in kafka to produce message to topic or consume message from topic.
 
 ```bash
 # produce example
