@@ -111,7 +111,7 @@ mpirun -n 4 ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.
 
 
 ### produce or consume the topic with scripts
-we use scripts in kafka to produce messages to topic or consume messages from topic.
+We use scripts in kafka to produce messages to topic or consume messages from topic.
 
 ```bash
 # produce example
