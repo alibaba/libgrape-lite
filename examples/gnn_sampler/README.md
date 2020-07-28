@@ -42,7 +42,7 @@ As shown in the example command, the sampler receives 5 parameters:
 - `vfile`: vertex file of input graph.
 - `efile`: edge file of input graph.
 - `sampling_strategy`: select a strategy, currently we support three built-in strategies: 'random', 'edge_weight' and 'top_k'.
-- `hop_and_num`: the hop and the numbers of neighbors to sample. The value of this parameter is `n` numbers separated by '-', represents each sampling neighbors for the `n` hops. e.g., '4-5' means that each vertex samples neighbors within 2 hops. For the first hop, each vertex samples 4 neighbors, and for the second hop, each vertex samples 5 neighbors.
+- `hop_and_num`: the hop and the numbers of neighbors to sample. The value of this parameter is `n` numbers separated by '-', representing each sampling neighbors for the `n` hops. e.g., '4-5' means that each vertex samples neighbors within 2 hops. For the first hop, each vertex samples 4 neighbors, and for the second hop, each vertex samples 5 neighbors.
 - `out_prefix`: ouput file prefix.
 
 ### Result
