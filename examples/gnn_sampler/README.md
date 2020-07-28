@@ -22,18 +22,17 @@ make gnn_sampler
 
 ### Graph format
 
-The graph format is the same to the repo. See [Graph format](https://github.com/alibaba/libgrape-lite/blob/reorg/README.md).
+The graph format is the same as the repo. See [Graph format](https://github.com/alibaba/libgrape-lite/blob/reorg/README.md).
 
 ### Sampling
 
-To run a sampler on a static graph in local or on cluster, users may use commands like these:
+To run a sampler on a static graph in local or on a cluster, users may use commands like these:
 
 ```bash
-# run graph sampling in local, with random sampling strategy, and sampling 2 hops'
-# neighbor for each vertex, 10 neigbors in each hop.
+# run graph sampling in local, with random sampling strategy. Each vertex samples neighbors within 2 hops, 10 neigbors in each hop.
 mpirun -n 4 ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --sampling_strategy random --hop_and_num 4-5 --out_prefix ./output_sampling
 
-# or run sampling with 4 workers on a cluster with same parameters.
+# or run sampling with 4 workers on a cluster with the same parameters.
 mpirun -n 4 -hostfile HOSTFILE ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --sampling_strategy random --hop_and_num 4-5 --out_prefix ./output_sampling
 ```
 
@@ -43,7 +42,7 @@ As shown in the example command, the sampler receives 5 parameters:
 - `vfile`: vertex file of input graph.
 - `efile`: edge file of input graph.
 - `sampling_strategy`: select a strategy, currently we support three built-in strategies: 'random', 'edge_weight' and 'top_k'.
-- `hop_and_num`: the hop and the numbers of neighbors to sampling. The value of this parameter is `n` numbers separated by '-', represents each sampling neighbors for the `n` hops. e.g., '4-5' means sample 2 hops, for the first hop, samples 4 neighbors. And for the second hop, samples 5 neighbors.
+- `hop_and_num`: the hop and the numbers of neighbors to sample. The value of this parameter is `n` numbers separated by '-', represents each sampling neighbors for the `n` hops. e.g., '4-5' means that each vertex samples neighbors within 2 hops. For the first hop, each vertex samples 4 neighbors, and for the second hop, each vertex samples 5 neighbors.
 - `out_prefix`: ouput file prefix.
 
 ### Result
@@ -61,7 +60,7 @@ The result can be considered as a level-wise traversal of the sampling path tree
 
 ## Sampling on dynamic graph (append-only)
 
-**gnn_sampler** supports sampling on dynamic(append-only) graphs. We use
+**gnn_sampler** supports sampling on dynamic (append-only) graphs. We use
 [Kafka](https://github.com/apache/kafka) as the MQ to produce graph updates/queries and to ingest the sampling results.
 Users can send the update on graphs (in a format of edge triplet) and queries via Kafka to append the graph and to sample on vertices.
 
@@ -88,10 +87,10 @@ Please refer to [Quick Start](https://kafka.apache.org/quickstart) provided by K
 **gnn_sampler** recognizes two kinds of messages from the kafka input topic.
 
 1. Message for graph update.
-This kind of messages in a format of edge triplet, i.e., (src, dst and the data on edge), prefixed with a char 'e'. For example: `e 0 1 3.75`.
+This kind of messages is expressed in a format of edge triplet, i.e., (src, dst and the data on edge), prefixed with a char 'e'. For example: `e 0 1 3.75`.
 
 2. Message for sampling vertex(as query).
-This kind of messages contain a node that users want to sampling from, prefixed with a char 'q', for example: `q 0`.
+This kind of messages contains a node that users want to sampling from, prefixed with a char 'q', for example: `q 0`.
 
 ### Running the sampler
 Now users can run the sampler, with enabling the Kafka to generate updates/queries and to sink the sampling results. In addition to the launch command for static graphs, sampling on dynamic graphs needs several more flags to assign the broker, input_topic and output_topic. For example:
@@ -112,7 +111,7 @@ mpirun -n 4 ./run_sampler --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.
 
 
 ### produce or consume the topic with scripts
-we use scripts in kafka to produce message to topic or consume message from topic.
+we use scripts in kafka to produce messages to topic or consume messages from topic.
 
 ```bash
 # produce example
