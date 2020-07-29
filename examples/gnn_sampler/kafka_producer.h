@@ -59,6 +59,7 @@ class KafkaProducer {
     if (!producer_) {
       LOG(ERROR) << "Failed to create kafka producer: " << rdkafka_err;
     }
+    delete conf;  // release the memory resource
   }
 
   ~KafkaProducer() = default;

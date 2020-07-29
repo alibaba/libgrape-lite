@@ -454,7 +454,7 @@ class AppendOnlyEdgecutFragment
     }
 
     ivnum_ = vm_ptr_->GetInnerVertexSize(fid_);
-    extra_oe_.resize(ivnum_, -1);
+    extra_oe_.resize(ivnum_ + 1, -1);
     fragment_indices_->Resize(ivnum_);
 
     {

@@ -78,7 +78,7 @@ class KafkaConsumer {
       RdKafka::TopicPartition* topic_partition =
           RdKafka::TopicPartition::create(topic_, i);
       consumer_ptrs_[i]->assign({topic_partition});
-      free(topic_partition);
+      delete topic_partition;
       topic_partition = nullptr;
       consumer_ptrs_[i]->subscribe({topic_});
 
@@ -91,6 +91,7 @@ class KafkaConsumer {
       qmq_[i]->SetProducerNum(1);
       emq_[i]->SetProducerNum(1);
     }
+    delete conf;  // release the memory resource
 
     startFetch();
   }

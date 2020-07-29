@@ -294,7 +294,7 @@ class Array {
       pointer __old_begin = this->__base.__begin_;
       pointer __old_end = this->__base.__end_;
       __vallocate(__new_size);
-      __construct_at_end(__old_begin, __old_end, __new_size);
+      __construct_at_end(__old_begin, __old_begin + __new_size, __new_size);
 
       __destruct_at_end(__old_begin, __old_end);
       __vdeallocate(__old_begin, __old_size);
@@ -316,7 +316,7 @@ class Array {
       pointer __old_begin = this->__base.__begin_;
       pointer __old_end = this->__base.__end_;
       __vallocate(__new_size);
-      __construct_at_end(__old_begin, __old_end, __new_size);
+      __construct_at_end(__old_begin, __old_begin + __new_size, __new_size);
 
       __destruct_at_end(__old_begin, __old_end);
       __vdeallocate(__old_begin, __old_size);
