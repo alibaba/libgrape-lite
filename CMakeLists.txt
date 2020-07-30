@@ -143,7 +143,11 @@ file(GLOB_RECURSE FILES_NEED_FORMAT "grape/*.cc"
         "grape/*.h"
         "examples/*.h"
         "examples/*.cc")
-list(FILTER FILES_NEED_FORMAT EXCLUDE REGEX ".*thirdparty.*")
+foreach (file_path ${FILES_NEED_FORMAT})
+    if (${file_path} MATCHES ".*thirdparty.*")
+        list(REMOVE_ITEM FILES_NEED_FORMAT ${file_path})
+    endif ()
+endforeach ()
 
 add_custom_target(clformat
         COMMAND clang-format --style=file -i ${FILES_NEED_FORMAT}

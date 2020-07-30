@@ -391,7 +391,7 @@ class AppendOnlyEdgecutFragment
 
     extra_oenum_ = 0;
     extra_oe_.clear();
-    extra_oe_.resize(ivnum_ + 1, -1);
+    extra_oe_.resize(ivnum_, -1);
 
     ivdata_.clear();
     ivdata_.resize(ivnum_);
@@ -621,7 +621,7 @@ class AppendOnlyEdgecutFragment
     min_old_olid_ = id_mask_ - ovnum_;
     extra_oenum_ = 0;
     extra_oe_.clear();
-    extra_oe_.resize(ivnum_ + 1, -1);
+    extra_oe_.resize(ivnum_, -1);
   }
 
   void PrepareToRunApp(MessageStrategy strategy,
