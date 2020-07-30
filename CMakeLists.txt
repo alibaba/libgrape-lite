@@ -42,7 +42,7 @@ message("[libgrape-lite] will build in type: ${CMAKE_BUILD_TYPE}")
 
 include(CheckLibraryExists)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-include_directories(${CMAKE_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 if (APPLE)
@@ -164,14 +164,14 @@ add_custom_target(clformat
 # cpplint, check for readability with Google style
 # ------------------------------------------------------------------------------
 add_custom_target(cpplint
-        COMMAND ${CMAKE_SOURCE_DIR}/misc/cpplint.py ${FILES_NEED_FORMAT}
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/misc/cpplint.py ${FILES_NEED_FORMAT}
         COMMENT "Running cpplint check."
         VERBATIM)
 
 # ------------------------------------------------------------------------------
 # generate docs
 # ------------------------------------------------------------------------------
-add_custom_target(doc COMMAND doxygen "${CMAKE_SOURCE_DIR}/misc/doc-config"
+add_custom_target(doc COMMAND doxygen "${CMAKE_CURRENT_SOURCE_DIR}/misc/doc-config"
         COMMENT "Generating docs."
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         VERBATIM)
