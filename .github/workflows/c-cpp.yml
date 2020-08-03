@@ -48,6 +48,11 @@ jobs:
       - name: Run LDBC
         if: runner.os == 'Linux'
         run: |
+          cd build
+          rm -rf ./*
+          cmake ..
+          make
+          cd ..
           ./ldbc_driver/run_ldbc.sh ci
       - name: Upload Coverage
         if: runner.os == 'Linux'
