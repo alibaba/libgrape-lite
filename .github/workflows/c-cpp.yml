@@ -34,7 +34,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Debug
+          cmake .. -DCMAKE_BUILD_TYPE=Debug -DWITH_ASAN=ON
           make cpplint
           make
       - name: App Test

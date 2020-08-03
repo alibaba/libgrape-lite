@@ -4,10 +4,11 @@ cmake_minimum_required(VERSION 2.8)
 # ------------------------------------------------------------------------------
 # cmake options
 # ------------------------------------------------------------------------------
-option(USE_JEMALLOC "Whether to use jemalloc." false)
-option(USE_HUGEPAGES "Whether to use hugepages." false)
+option(USE_JEMALLOC "Whether to use jemalloc." OFF)
+option(USE_HUGEPAGES "Whether to use hugepages." OFF)
 option(BUILD_SHARED_LIBS "Whether to build libgrape-lite as shared library" ON)
-option(PROFILING "Whether to enable profiling" false)
+option(PROFILING "Whether to enable profiling" OFF)
+option(WITH_ASAN "Build with Address Sanitizer" OFF)
 
 if (USE_HUGEPAGES AND LINUX)
     add_definitions(-DUSE_HUGEPAGES)
@@ -51,6 +52,11 @@ else ()
 endif ()
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -fprofile-arcs -ftest-coverage")
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g")
+
+if (WITH_ASAN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -O1")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+endif()
 
 # ------------------------------------------------------------------------------
 # find_libraries
@@ -96,7 +102,7 @@ if (NOT RDKAFKA_FOUND)
 endif ()
 
 # ------------------------------------------------------------------------------
-# generete libgrape-lite
+# generate libgrape-lite
 # ------------------------------------------------------------------------------
 file(GLOB_RECURSE CORE_SRC_FILES "grape/*.cc")
 add_library(grape-lite ${CORE_SRC_FILES})
