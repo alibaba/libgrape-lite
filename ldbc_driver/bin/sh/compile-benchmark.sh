@@ -39,11 +39,11 @@ GRANULA_ENABLED=$(grep -E "^benchmark.run.granula.enabled[	 ]*[:=]" $config/gran
 
 # Build binaries
 mkdir -p bin/standard
-(cd bin/standard && cmake -DCMAKE_BUILD_TYPE=Release ../../src/main/c -DCMAKE_PREFIX_PATH=$BHOME -DLIBGRAPE_HOME=$LIBGRAPE_HOME && make -j)
+(cd bin/standard && cmake -DCMAKE_BUILD_TYPE=Release ${LIBGRAPE_HOME} && make analytical_apps)
 
 if [ "$GRANULA_ENABLED" = "true" ] ; then
  mkdir -p bin/granula
- (cd bin/granula && cmake -DCMAKE_BUILD_TYPE=Release -DGRANULA=1 ../../src/main/c -DCMAKE_PREFIX_PATH=$BHOME -DLIBGRAPE_HOME=$LIBGRAPE_HOME && make -j)
+ (cd bin/granula && cmake -DCMAKE_BUILD_TYPE=Release -DGRANULA=1 ${LIBGRAPE_HOME} && make analytical_apps)
 fi
 
 if [ $? -ne 0 ]
