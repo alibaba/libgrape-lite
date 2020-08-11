@@ -29,7 +29,7 @@ namespace grape {
  */
 class ISyncBuffer {
  public:
-  virtual ~ISyncBuffer() {}
+  virtual ~ISyncBuffer() = default;
 
   virtual void* data() = 0;
 
@@ -53,9 +53,9 @@ class ISyncBuffer {
 template <typename T, typename VID_T>
 class SyncBuffer : public ISyncBuffer {
  public:
-  SyncBuffer() {}
-  explicit SyncBuffer(VertexRange<VID_T> range)
-      : data_(range), updated_(range, false), range_(range) {}
+  SyncBuffer() : data_(internal_data_) {}
+
+  explicit SyncBuffer(VertexArray<T, VID_T>& data) : data_(data) {}
 
   bool updated(size_t begin, size_t length) const override {
     auto iter = updated_.begin() + begin;
@@ -67,6 +67,7 @@ class SyncBuffer : public ISyncBuffer {
     }
     return false;
   }
+
   void* data() override {
     return reinterpret_cast<void*>(&data_[range_.begin()]);
   }
@@ -74,7 +75,7 @@ class SyncBuffer : public ISyncBuffer {
   inline const std::type_info& GetTypeId() const override { return typeid(T); }
 
   void Init(VertexRange<VID_T> range, const T& value,
-            const std::function<bool(T&, T&&)>& aggregator) {
+            const std::function<bool(T*, T&&)>& aggregator) {
     range_ = range;
     data_.Init(range, value);
     updated_.Init(range, false);
@@ -113,16 +114,17 @@ class SyncBuffer : public ISyncBuffer {
   }
 
   void Aggregate(Vertex<VID_T> v, T&& rhs) {
-    bool updated = aggregator_(data_[v], std::move(rhs));
+    bool updated = aggregator_(&data_[v], std::move(rhs));
     updated_[v] = updated_[v] || updated;
   }
 
  private:
-  VertexArray<T, VID_T> data_;
+  VertexArray<T, VID_T> internal_data_;
+  VertexArray<T, VID_T>& data_;
   VertexArray<bool, VID_T> updated_;
   VertexRange<VID_T> range_;
 
-  std::function<bool(T&, T&&)> aggregator_;
+  std::function<bool(T*, T&&)> aggregator_;
 };
 }  // namespace grape
 

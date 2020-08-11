@@ -49,7 +49,7 @@ class CDLP : public ParallelAppBase<FRAG_T, CDLPContext<FRAG_T>>,
 #endif
 
     auto inner_vertices = frag.InnerVertices();
-    VertexArray<label_t, vid_t> new_ilabels;
+    typename FRAG_T::template vertex_array_t<label_t> new_ilabels;
     new_ilabels.Init(inner_vertices);
 
 #ifdef PROFILING
@@ -60,15 +60,19 @@ class CDLP : public ParallelAppBase<FRAG_T, CDLPContext<FRAG_T>>,
     // touch neighbor and send messages in parallel
     ForEach(inner_vertices,
             [&frag, &ctx, &new_ilabels, &messages](int tid, vertex_t v) {
-              label_t new_label = update_label_fast<label_t>(
-                  frag.GetOutgoingAdjList(v), ctx.labels);
-              if (ctx.labels[v] != new_label) {
-                new_ilabels[v] = new_label;
-                ctx.changed[v] = true;
-                messages.SendMsgThroughOEdges<fragment_t, label_t>(
-                    frag, v, new_label, tid);
-              } else {
+              auto es = frag.GetOutgoingAdjList(v);
+              if (es.Empty()) {
                 ctx.changed[v] = false;
+              } else {
+                label_t new_label = update_label_fast<label_t>(es, ctx.labels);
+                if (ctx.labels[v] != new_label) {
+                  new_ilabels[v] = new_label;
+                  ctx.changed[v] = true;
+                  messages.SendMsgThroughOEdges<fragment_t, label_t>(
+                      frag, v, new_label, tid);
+                } else {
+                  ctx.changed[v] = false;
+                }
               }
             });
 

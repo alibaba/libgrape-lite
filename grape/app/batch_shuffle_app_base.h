@@ -71,8 +71,8 @@ class BatchShuffleAppBase {
  public:                                                          \
   using fragment_t = FRAG_T;                                      \
   using context_t = CONTEXT_T;                                    \
-  using message_manager_t = BatchShuffleMessageManager;           \
-  using worker_t = BatchShuffleWorker<APP_T>;                     \
+  using message_manager_t = grape::BatchShuffleMessageManager;    \
+  using worker_t = grape::BatchShuffleWorker<APP_T>;              \
   virtual ~APP_T() {}                                             \
   static std::shared_ptr<worker_t> CreateWorker(                  \
       std::shared_ptr<APP_T> app, std::shared_ptr<FRAG_T> frag) { \

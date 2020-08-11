@@ -30,19 +30,22 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class SSSPContext : public ContextBase<FRAG_T> {
+class SSSPContext : public VertexDataContext<FRAG_T, double> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
-  void Init(const FRAG_T& frag, ParallelMessageManager& messages,
-            oid_t source_id) {
-    this->source_id = source_id;
-    auto vertices = frag.Vertices();
-    partial_result.Init(vertices, std::numeric_limits<double>::max());
+  explicit SSSPContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, double>(fragment, true),
+        partial_result(this->data()) {}
 
-    curr_modified.init(frag.GetVerticesNum());
-    next_modified.init(frag.GetVerticesNum());
+  void Init(ParallelMessageManager& messages, oid_t source_id) {
+    auto& frag = this->fragment();
+
+    this->source_id = source_id;
+    partial_result.SetValue(std::numeric_limits<double>::max());
+    curr_modified.Init(frag.Vertices());
+    next_modified.Init(frag.Vertices());
 
 #ifdef PROFILING
     preprocess_time = 0;
@@ -51,10 +54,11 @@ class SSSPContext : public ContextBase<FRAG_T> {
 #endif
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
     // If the distance is the max value for vertex_data_type
     // then the vertex is not connected to the source vertex.
     // According to specs, the output should be +inf
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     for (auto v : inner_vertices) {
       double d = partial_result[v];
@@ -73,9 +77,9 @@ class SSSPContext : public ContextBase<FRAG_T> {
   }
 
   oid_t source_id;
-  VertexArray<double, vid_t> partial_result;
+  typename FRAG_T::template vertex_array_t<double>& partial_result;
 
-  Bitset curr_modified, next_modified;
+  DenseVertexSet<vid_t> curr_modified, next_modified;
 
 #ifdef PROFILING
   double preprocess_time = 0;

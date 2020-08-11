@@ -23,49 +23,52 @@ limitations under the License.
 
 namespace grape {
 
+#ifdef WCC_USE_GID
+template <typename FRAG_T>
+using WCCAutoContextType = VertexDataContext<FRAG_T, typename FRAG_T::vid_t>;
+#else
+template <typename FRAG_T>
+using WCCAutoContextType = VertexDataContext<FRAG_T, typename FRAG_T::oid_t>;
+#endif
+
 /**
  * @brief Context for the auto-parallel version of WCCAuto.
  *
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class WCCAutoContext : public ContextBase<FRAG_T> {
+class WCCAutoContext : public WCCAutoContextType<FRAG_T> {
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
+  using cid_t = typename WCCAutoContextType<FRAG_T>::data_t;
 
  public:
-  void Init(const FRAG_T& frag, AutoParallelMessageManager<FRAG_T>& messages) {
+  explicit WCCAutoContext(const FRAG_T& fragment)
+      : WCCAutoContextType<FRAG_T>(fragment, true),
+        global_cluster_id(this->data()) {}
+
+  void Init(AutoParallelMessageManager<FRAG_T>& messages) {
+    auto& frag = this->fragment();
     auto vertices = frag.Vertices();
     auto inner_vertices = frag.InnerVertices();
 
-    local_comp_id.Init(inner_vertices, std::numeric_limits<uint32_t>::max());
-#ifdef WCC_USE_GID
-    global_cluster_id.Init(vertices, std::numeric_limits<vid_t>::max(),
-                           [](vid_t& lhs, vid_t rhs) {
-                             if (lhs > rhs) {
-                               lhs = rhs;
+    local_comp_id.Init(inner_vertices, std::numeric_limits<vid_t>::max());
+    global_cluster_id.Init(vertices, std::numeric_limits<cid_t>::max(),
+                           [](cid_t* lhs, cid_t rhs) {
+                             if (*lhs > rhs) {
+                               *lhs = rhs;
                                return true;
                              } else {
                                return false;
                              }
                            });
-#else
-    global_cluster_id.Init(vertices, std::numeric_limits<oid_t>::max(),
-                           [](oid_t& lhs, oid_t rhs) {
-                             if (lhs > rhs) {
-                               lhs = rhs;
-                               return true;
-                             } else {
-                               return false;
-                             }
-                           });
-#endif
     messages.RegisterSyncBuffer(frag, &global_cluster_id,
                                 MessageStrategy::kSyncOnOuterVertex);
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     for (auto v : inner_vertices) {
       os << frag.GetId(v) << " " << global_cluster_id.GetValue(v) << std::endl;
@@ -73,14 +76,9 @@ class WCCAutoContext : public ContextBase<FRAG_T> {
   }
 
   std::vector<std::vector<vertex_t>> outer_vertices;
-  VertexArray<vid_t, vid_t> local_comp_id;
-#ifdef WCC_USE_GID
-  std::vector<vid_t> global_comp_id;
-  SyncBuffer<vid_t, vid_t> global_cluster_id;
-#else
-  std::vector<oid_t> global_comp_id;
-  SyncBuffer<oid_t, vid_t> global_cluster_id;
-#endif
+  typename FRAG_T::template vertex_array_t<vid_t> local_comp_id;
+  std::vector<cid_t> global_comp_id;
+  SyncBuffer<cid_t, vid_t> global_cluster_id;
 };
 }  // namespace grape
 

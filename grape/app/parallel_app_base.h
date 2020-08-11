@@ -82,8 +82,8 @@ class ParallelAppBase {
  public:                                                          \
   using fragment_t = FRAG_T;                                      \
   using context_t = CONTEXT_T;                                    \
-  using message_manager_t = ParallelMessageManager;               \
-  using worker_t = ParallelWorker<APP_T>;                         \
+  using message_manager_t = grape::ParallelMessageManager;        \
+  using worker_t = grape::ParallelWorker<APP_T>;                  \
   virtual ~APP_T() {}                                             \
   static std::shared_ptr<worker_t> CreateWorker(                  \
       std::shared_ptr<APP_T> app, std::shared_ptr<FRAG_T> frag) { \

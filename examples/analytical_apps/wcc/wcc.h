@@ -22,7 +22,7 @@ limitations under the License.
 
 namespace grape {
 
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
+#define MIN_COMP_ID(a, b) ((a) > (b) ? (b) : (a))
 
 /**
  * @brief WCC application, determines the weakly connected component each vertex
@@ -58,12 +58,12 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
       auto new_cid = old_cid;
       auto es = frag.GetOutgoingInnerVertexAdjList(v);
       for (auto& e : es) {
-        auto u = e.neighbor;
-        new_cid = MIN(ctx.comp_id[u], new_cid);
+        auto u = e.get_neighbor();
+        new_cid = MIN_COMP_ID(ctx.comp_id[u], new_cid);
       }
       if (new_cid < old_cid) {
         ctx.comp_id[v] = new_cid;
-        ctx.next_modified.set_bit(v.GetValue());
+        ctx.next_modified.Insert(v);
       }
     });
 
@@ -72,12 +72,12 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
       auto new_cid = old_cid;
       auto es = frag.GetIncomingAdjList(v);
       for (auto& e : es) {
-        auto u = e.neighbor;
-        new_cid = MIN(ctx.comp_id[u], new_cid);
+        auto u = e.get_neighbor();
+        new_cid = MIN_COMP_ID(ctx.comp_id[u], new_cid);
       }
       ctx.comp_id[v] = new_cid;
       if (new_cid < old_cid) {
-        ctx.next_modified.set_bit(v.GetValue());
+        ctx.next_modified.Insert(v);
         channels[tid].SyncStateOnOuterVertex<fragment_t, vid_t>(frag, v,
                                                                 new_cid);
       }
@@ -97,16 +97,16 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
               auto cid = ctx.comp_id[v];
               auto es = frag.GetOutgoingAdjList(v);
               for (auto& e : es) {
-                auto u = e.neighbor;
+                auto u = e.get_neighbor();
                 if (ctx.comp_id[u] > cid) {
                   atomic_min(ctx.comp_id[u], cid);
-                  ctx.next_modified.set_bit(u.GetValue());
+                  ctx.next_modified.Insert(u);
                 }
               }
             });
 
     ForEach(outer_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
-      if (ctx.next_modified.get_bit(v.GetValue())) {
+      if (ctx.next_modified.Exist(v)) {
         messages.SyncStateOnOuterVertex<fragment_t, vid_t>(frag, v,
                                                            ctx.comp_id[v], tid);
       }
@@ -136,11 +136,11 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
     // In the first round, all vertices are active, pulling is more efficient.
     PropagateLabelPull(frag, ctx, messages);
 
-    if (!ctx.next_modified.partial_empty(0, frag.GetInnerVerticesNum())) {
+    if (!ctx.next_modified.PartialEmpty(0, frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 
-    ctx.curr_modified.swap(ctx.next_modified);
+    ctx.curr_modified.Swap(ctx.next_modified);
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();
 #endif
@@ -150,7 +150,7 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
                message_manager_t& messages) {
     using vid_t = typename context_t::vid_t;
 
-    ctx.next_modified.parallel_clear(thread_num());
+    ctx.next_modified.ParallelClear(thread_num());
 
 #ifdef PROFILING
     ctx.preprocess_time -= GetCurrentTime();
@@ -160,7 +160,7 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
         thread_num(), frag, [&ctx](int tid, vertex_t u, vid_t msg) {
           if (ctx.comp_id[u] > msg) {
             atomic_min(ctx.comp_id[u], msg);
-            ctx.curr_modified.set_bit(u.GetValue());
+            ctx.curr_modified.Insert(u);
           }
         });
 
@@ -170,7 +170,7 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 #endif
 
     vid_t ivnum = frag.GetInnerVerticesNum();
-    double rate = static_cast<double>(ctx.curr_modified.parallel_partial_count(
+    double rate = static_cast<double>(ctx.curr_modified.ParallelPartialCount(
                       thread_num(), 0, ivnum)) /
                   static_cast<double>(ivnum);
     // If active vertices are few, pushing will be used.
@@ -185,11 +185,11 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
     ctx.postprocess_time -= GetCurrentTime();
 #endif
 
-    if (!ctx.next_modified.partial_empty(0, frag.GetInnerVerticesNum())) {
+    if (!ctx.next_modified.PartialEmpty(0, frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 
-    ctx.curr_modified.swap(ctx.next_modified);
+    ctx.curr_modified.Swap(ctx.next_modified);
 
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();

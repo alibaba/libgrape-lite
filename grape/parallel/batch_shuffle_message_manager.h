@@ -51,12 +51,15 @@ class BatchShuffleMessageManager : public MessageManagerBase {
   /**
    * @brief Inherit
    */
-  void Init(MPI_Comm comm) {
+  void Init(MPI_Comm comm) override {
     MPI_Comm_dup(comm, &comm_);
 
     comm_spec_.Init(comm_);
     fid_ = comm_spec_.fid();
     fnum_ = comm_spec_.fnum();
+
+    force_terminate_ = false;
+    terminate_info_.Init(fnum_);
 
     shuffle_out_buffers_.resize(fnum_);
 
@@ -67,12 +70,12 @@ class BatchShuffleMessageManager : public MessageManagerBase {
   /**
    * @brief Inherit
    */
-  void Start() {}
+  void Start() override {}
 
   /**
    * @brief Inherit
    */
-  void StartARound() {
+  void StartARound() override {
     msg_size_ = 0;
     to_terminate_ = true;
   }
@@ -80,22 +83,32 @@ class BatchShuffleMessageManager : public MessageManagerBase {
   /**
    * @brief Inherit
    */
-  void FinishARound() {}
+  void FinishARound() override {}
 
   /**
    * @brief Inherit
    */
-  bool ToTerminate() { return to_terminate_; }
+  bool ToTerminate() override {
+    int flag = force_terminate_ ? 1 : 0;
+    int ret;
+    MPI_Allreduce(&flag, &ret, 1, MPI_INT, MPI_SUM, comm_);
+    if (ret > 0) {
+      terminate_info_.success = false;
+      AllToAll(terminate_info_.info, comm_);
+      return true;
+    }
+    return to_terminate_;
+  }
 
   /**
    * @brief Inherit
    */
-  size_t GetMsgSize() const { return msg_size_; }
+  size_t GetMsgSize() const override { return msg_size_; }
 
   /**
    * @brief Inherit
    */
-  void Finalize() {
+  void Finalize() override {
     if (!send_reqs_.empty()) {
       MPI_Waitall(send_reqs_.size(), &send_reqs_[0], MPI_STATUSES_IGNORE);
       send_reqs_.clear();
@@ -271,7 +284,22 @@ class BatchShuffleMessageManager : public MessageManagerBase {
   /**
    * @brief Inherit
    */
-  void ForceContinue() {}
+  void ForceContinue() override {}
+
+  /**
+   * @brief Inherit
+   */
+  void ForceTerminate(const std::string& terminate_info) override {
+    force_terminate_ = true;
+    terminate_info_.info[comm_spec_.fid()] = terminate_info;
+  }
+
+  /**
+   * @brief Inherit
+   */
+  const TerminateInfo& GetTerminateInfo() const override {
+    return terminate_info_;
+  }
 
  private:
   void recvThreadRoutine() {
@@ -310,6 +338,9 @@ class BatchShuffleMessageManager : public MessageManagerBase {
   std::thread recv_thread_;
 
   bool to_terminate_;
+
+  bool force_terminate_;
+  TerminateInfo terminate_info_;
 };
 
 }  // namespace grape

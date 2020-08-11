@@ -71,6 +71,9 @@ class ParallelMessageManager : public MessageManagerBase {
     fid_ = comm_spec_.fid();
     fnum_ = comm_spec_.fnum();
 
+    force_terminate_ = false;
+    terminate_info_.Init(fnum_);
+
     recv_queues_[0].SetProducerNum(fnum_);
     recv_queues_[1].SetProducerNum(fnum_);
 
@@ -117,13 +120,20 @@ class ParallelMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   bool ToTerminate() override {
-    int flag = 1;
+    int flag[2];
+    flag[0] = 1;
     if (sent_size_ == 0 && !force_continue_) {
-      flag = 0;
+      flag[0] = 0;
     }
-    int ret;
-    MPI_Allreduce(&flag, &ret, 1, MPI_INT, MPI_SUM, comm_);
-    return (ret == 0);
+    flag[1] = force_terminate_ ? 1 : 0;
+    int ret[2];
+    MPI_Allreduce(&flag[0], &ret[0], 2, MPI_INT, MPI_SUM, comm_);
+    if (ret[1] > 0) {
+      terminate_info_.success = false;
+      AllToAll(terminate_info_.info, comm_);
+      return true;
+    }
+    return (ret[0] == 0);
   }
 
   /**
@@ -142,6 +152,21 @@ class ParallelMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   void ForceContinue() override { force_continue_ = true; }
+
+  /**
+   * @brief Inherit
+   */
+  void ForceTerminate(const std::string& terminate_info) override {
+    force_terminate_ = true;
+    terminate_info_.info[comm_spec_.fid()] = terminate_info;
+  }
+
+  /**
+   * @brief Inherit
+   */
+  const TerminateInfo& GetTerminateInfo() const override {
+    return terminate_info_;
+  }
 
   /**
    * @brief Inherit
@@ -280,7 +305,7 @@ class ParallelMessageManager : public MessageManagerBase {
       threads[i] = std::thread(
           [&](int tid) {
             typename GRAPH_T::vid_t id;
-            typename GRAPH_T::vertex_t vertex;
+            typename GRAPH_T::vertex_t vertex(0);
             MESSAGE_T msg;
             auto& que = recv_queues_[round_ % 2];
             OutArchive arc;
@@ -509,6 +534,9 @@ class ParallelMessageManager : public MessageManagerBase {
 
   bool force_continue_;
   size_t sent_size_;
+
+  bool force_terminate_;
+  TerminateInfo terminate_info_;
 };
 
 }  // namespace grape

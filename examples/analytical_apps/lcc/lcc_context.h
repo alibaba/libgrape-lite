@@ -16,11 +16,11 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_LCC_LCC_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_LCC_LCC_CONTEXT_H_
 
+#include <grape/grape.h>
+
 #include <iomanip>
 #include <limits>
 #include <vector>
-
-#include <grape/grape.h>
 
 namespace grape {
 /**
@@ -29,20 +29,26 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class LCCContext : public ContextBase<FRAG_T> {
+class LCCContext : public VertexDataContext<FRAG_T, double> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
 
-  void Init(const FRAG_T& frag, ParallelMessageManager& messages) {
+  explicit LCCContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, double>(fragment) {}
+
+  void Init(ParallelMessageManager& messages) {
+    auto& frag = this->fragment();
     auto vertices = frag.Vertices();
+
     global_degree.Init(vertices);
     complete_neighbor.Init(vertices);
     tricnt.Init(vertices, 0);
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     for (auto v : inner_vertices) {
       if (global_degree[v] == 0 || global_degree[v] == 1) {
@@ -64,9 +70,10 @@ class LCCContext : public ContextBase<FRAG_T> {
 #endif
   }
 
-  VertexArray<int, vid_t> global_degree;
-  VertexArray<std::vector<vertex_t>, vid_t> complete_neighbor;
-  VertexArray<int, vid_t> tricnt;
+  typename FRAG_T::template vertex_array_t<int> global_degree;
+  typename FRAG_T::template vertex_array_t<std::vector<vertex_t>>
+      complete_neighbor;
+  typename FRAG_T::template vertex_array_t<int> tricnt;
 
   int stage = 0;
 

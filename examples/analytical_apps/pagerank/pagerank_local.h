@@ -84,7 +84,7 @@ class PageRankLocal
           double cur = 0;
           auto es = frag.GetOutgoingInnerVertexAdjList(u);
           for (auto& e : es) {
-            cur += ctx.result[e.neighbor];
+            cur += ctx.result[e.get_neighbor()];
           }
           ctx.next_result[u] = cur;
         });
@@ -93,7 +93,7 @@ class PageRankLocal
           double cur = 0;
           auto es = frag.GetOutgoingInnerVertexAdjList(u);
           for (auto& e : es) {
-            cur += ctx.result[e.neighbor];
+            cur += ctx.result[e.get_neighbor()];
           }
           ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
         });
@@ -115,7 +115,7 @@ class PageRankLocal
           double cur = ctx.next_result[u];
           auto es = frag.GetOutgoingAdjList(u, src_fid);
           for (auto& e : es) {
-            cur += ctx.result[e.neighbor];
+            cur += ctx.result[e.get_neighbor()];
           }
           ctx.next_result[u] = cur;
         });
@@ -137,7 +137,7 @@ class PageRankLocal
             double cur = ctx.next_result[u];
             auto es = frag.GetOutgoingAdjList(u, src_fid);
             for (auto& e : es) {
-              cur += ctx.result[e.neighbor];
+              cur += ctx.result[e.get_neighbor()];
             }
             ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
           });
@@ -146,7 +146,7 @@ class PageRankLocal
             double cur = ctx.next_result[u];
             auto es = frag.GetOutgoingAdjList(u, src_fid);
             for (auto& e : es) {
-              cur += ctx.result[e.neighbor];
+              cur += ctx.result[e.get_neighbor()];
             }
             ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
             int en = frag.GetLocalOutDegree(u);
@@ -166,7 +166,7 @@ class PageRankLocal
         double cur = 0;
         auto es = frag.GetOutgoingInnerVertexAdjList(u);
         for (auto& e : es) {
-          cur += ctx.result[e.neighbor];
+          cur += ctx.result[e.get_neighbor()];
         }
         ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
       });
@@ -187,7 +187,7 @@ class PageRankLocal
                   double cur = ctx.result[u] * ctx.delta;
                   auto es = frag.GetIncomingAdjList(u);
                   for (auto& e : es) {
-                    atomic_add(ctx.next_result[e.neighbor], cur);
+                    atomic_add(ctx.next_result[e.get_neighbor()], cur);
                   }
                 });
 #ifdef PROFILING

@@ -51,7 +51,7 @@ class BFSAuto : public AutoAppBase<FRAG_T, BFSAutoContext<FRAG_T>> {
 
       // set depth for neighbors with current depth + 1
       for (auto& e : oes) {
-        vertex_t v = e.neighbor;
+        vertex_t v = e.get_neighbor();
         if (ctx.partial_result[v] > new_depth) {
           ctx.partial_result.SetValue(v, new_depth);
           if (frag.IsInnerVertex(v)) {

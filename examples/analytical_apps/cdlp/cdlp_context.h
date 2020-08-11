@@ -27,7 +27,7 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class CDLPContext : public ContextBase<FRAG_T> {
+class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::oid_t> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
@@ -37,13 +37,15 @@ class CDLPContext : public ContextBase<FRAG_T> {
 #else
   using label_t = oid_t;
 #endif
-  void Init(const FRAG_T& frag, ParallelMessageManager& messages,
-            int max_round) {
-    this->max_round = max_round;
-    auto inner_vertices = frag.InnerVertices();
-    auto vertices = frag.Vertices();
+  explicit CDLPContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, typename FRAG_T::oid_t>(fragment, true),
+        labels(this->data()) {}
 
-    labels.Init(vertices);
+  void Init(ParallelMessageManager& messages, int max_round) {
+    auto& frag = this->fragment();
+    auto inner_vertices = frag.InnerVertices();
+
+    this->max_round = max_round;
     changed.Init(inner_vertices);
 
 #ifdef PROFILING
@@ -54,15 +56,17 @@ class CDLPContext : public ContextBase<FRAG_T> {
     step = 0;
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
+
     for (auto v : inner_vertices) {
       os << frag.GetId(v) << " " << labels[v] << std::endl;
     }
   }
 
-  VertexArray<label_t, vid_t> labels;
-  VertexArray<bool, vid_t> changed;
+  typename FRAG_T::template vertex_array_t<label_t>& labels;
+  typename FRAG_T::template vertex_array_t<bool> changed;
 
 #ifdef PROFILING
   double preprocess_time = 0;

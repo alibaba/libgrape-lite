@@ -22,6 +22,16 @@ limitations under the License.
 
 namespace grape {
 
+struct TerminateInfo {
+  void Init(fid_t fnum) {
+    success = true;
+    info.resize(fnum);
+  }
+
+  bool success;
+  std::vector<std::string> info;
+};
+
 /**
  * @brief MessageManagerBase is the base class for message managers.
  *
@@ -88,6 +98,22 @@ class MessageManagerBase {
    * This function can be called by applications.
    */
   virtual void ForceContinue() = 0;
+
+  /**
+   * @brief Force all workers terminate after this round of evaluation.
+   *
+   * This function can be called by applications.
+   * @param info Termination info.
+   */
+  virtual void ForceTerminate(const std::string& info = "") = 0;
+
+  /**
+   * @brief This function is called to get gathered termination info after
+   * evaluation finished.
+   *
+   * @return Termination info.
+   */
+  virtual const TerminateInfo& GetTerminateInfo() const = 0;
 };
 
 }  // namespace grape

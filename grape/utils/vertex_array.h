@@ -154,6 +154,42 @@ class VertexRange {
   size_t size_;
 };
 
+/**
+ * @brief A discontinuous vertices collection representation. An increasing
+ * labeled(but no need to be continuous) vertices must be provided to construct
+ * the VertexVector.
+ *
+ * @tparam T Vertex ID type.
+ */
+template <typename T>
+class VertexVector {
+ public:
+  VertexVector() : vertices_(dummy) {}
+
+  explicit VertexVector(const std::vector<Vertex<T>>& vertices)
+      : vertices_(vertices) {}
+
+  inline typename std::vector<Vertex<T>>::const_iterator begin() const {
+    return vertices_.get().begin();
+  }
+
+  inline typename std::vector<Vertex<T>>::const_iterator end() const {
+    return vertices_.get().end();
+  }
+
+  Vertex<T> operator[](size_t idx) { return vertices_.get()[idx]; }
+
+  Vertex<T> operator[](size_t idx) const { return vertices_.get()[idx]; }
+
+  inline size_t size() const { return vertices_.get().size(); }
+
+  void Swap(VertexVector& rhs) { std::swap(vertices_, rhs.vertices_); }
+
+ private:
+  std::vector<Vertex<T>> dummy;
+  std::reference_wrapper<const std::vector<Vertex<T>>> vertices_;
+};
+
 template <typename T, typename VID_T>
 class VertexArray : public Array<T, Allocator<T>> {
   using Base = Array<T, Allocator<T>>;
@@ -169,7 +205,7 @@ class VertexArray : public Array<T, Allocator<T>> {
     fake_start_ = Base::data() - range_.begin().GetValue();
   }
 
-  ~VertexArray() {}
+  ~VertexArray() = default;
 
   void Init(const VertexRange<VID_T>& range) {
     Base::clear();

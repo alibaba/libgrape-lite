@@ -22,7 +22,6 @@ limitations under the License.
 #include "grape/utils/vertex_array.h"
 
 namespace grape {
-
 /**
  * @brief A vertex set with dense vertices.
  *
@@ -31,18 +30,32 @@ namespace grape {
 template <typename VID_T>
 class DenseVertexSet {
  public:
-  DenseVertexSet() {}
+  DenseVertexSet() = default;
+
   explicit DenseVertexSet(const VertexRange<VID_T>& range)
       : beg_(range.begin().GetValue()),
         end_(range.end().GetValue()),
         bs_(end_ - beg_) {}
 
-  ~DenseVertexSet() {}
+  ~DenseVertexSet() = default;
 
   void Init(const VertexRange<VID_T>& range, int thread_num = 1) {
     beg_ = range.begin().GetValue();
     end_ = range.end().GetValue();
     bs_.init(end_ - beg_);
+    if (thread_num == 1) {
+      bs_.clear();
+    } else {
+      bs_.parallel_clear(thread_num);
+    }
+  }
+
+  void Init(const VertexVector<VID_T>& vertices, int thread_num = 1) {
+    if (vertices.size() == 0)
+      return;
+    beg_ = vertices[0].GetValue();
+    end_ = vertices[vertices.size() - 1].GetValue();
+    bs_.init(end_ - beg_ + 1);
     if (thread_num == 1) {
       bs_.clear();
     } else {

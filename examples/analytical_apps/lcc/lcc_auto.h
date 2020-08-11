@@ -38,6 +38,7 @@ class LCCAuto : public AutoAppBase<FRAG_T, LCCAutoContext<FRAG_T>> {
  public:
   INSTALL_AUTO_WORKER(LCCAuto<FRAG_T>, LCCAutoContext<FRAG_T>, FRAG_T)
   using vertex_t = typename fragment_t::vertex_t;
+  using vid_t = typename fragment_t::vid_t;
 
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
@@ -69,7 +70,7 @@ class LCCAuto : public AutoAppBase<FRAG_T, LCCAutoContext<FRAG_T>> {
         {
           auto es = frag.GetOutgoingAdjList(v);
           for (auto& e : es) {
-            auto u = e.neighbor;
+            auto u = e.get_neighbor();
             auto u_gid = frag.Vertex2Gid(u);
             if (ctx.global_degree[u] < ctx.global_degree[v] ||
                 (ctx.global_degree[u] == ctx.global_degree[v] &&
@@ -83,7 +84,8 @@ class LCCAuto : public AutoAppBase<FRAG_T, LCCAutoContext<FRAG_T>> {
     } else if (ctx.stage == 1) {
       ctx.stage = 2;
 
-      VertexArray<bool, uint32_t> v0_nbr_set(vertices, false);
+      typename FRAG_T::template vertex_array_t<bool> v0_nbr_set(vertices,
+                                                                false);
       for (auto v : inner_vertices) {
         auto& v0_nbr_vec = ctx.complete_neighbor[v];
         for (auto u_gid : v0_nbr_vec) {
@@ -123,6 +125,20 @@ class LCCAuto : public AutoAppBase<FRAG_T, LCCAutoContext<FRAG_T>> {
       }
     } else if (ctx.stage == 2) {
       ctx.stage = 3;
+      auto& global_degree = ctx.global_degree;
+      auto& tricnt = ctx.tricnt;
+      auto& ctx_data = ctx.data();
+
+      for (auto v : inner_vertices) {
+        if (global_degree[v] == 0 || global_degree[v] == 1) {
+          ctx_data[v] = 0;
+        } else {
+          double re = 2.0 * (tricnt[v]) /
+                      (static_cast<int64_t>(global_degree[v]) *
+                       (static_cast<int64_t>(global_degree[v]) - 1));
+          ctx_data[v] = re;
+        }
+      }
     }
   }
 };

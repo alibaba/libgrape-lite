@@ -24,12 +24,12 @@ limitations under the License.
 #include <grape/grape.h>
 
 namespace grape {
-template <typename LABEL_T, typename VID_T, typename EDATA_T>
-inline LABEL_T update_label_fast(const ConstAdjList<VID_T, EDATA_T>& edges,
-                                 const VertexArray<LABEL_T, VID_T>& labels) {
+template <typename LABEL_T, typename VERTEX_ARRAY_T, typename ADJ_LIST_T>
+inline LABEL_T update_label_fast(const ADJ_LIST_T& edges,
+                                 const VERTEX_ARRAY_T& labels) {
   std::vector<LABEL_T> local_labels;
   for (auto& e : edges) {
-    local_labels.emplace_back(labels[e.neighbor]);
+    local_labels.emplace_back(labels[e.get_neighbor()]);
   }
   std::sort(local_labels.begin(), local_labels.end());
 
@@ -59,12 +59,12 @@ inline LABEL_T update_label_fast(const ConstAdjList<VID_T, EDATA_T>& edges,
   }
 }
 
-template <typename LABEL_T, typename VID_T, typename EDATA_T>
-inline LABEL_T update_label_fast(ConstAdjList<VID_T, EDATA_T> ie,
+template <typename LABEL_T, typename VID_T, typename ADJ_LIST_T>
+inline LABEL_T update_label_fast(const ADJ_LIST_T& ie,
                                  const SyncBuffer<LABEL_T, VID_T>& labels) {
   std::vector<LABEL_T> local_labels;
   for (auto& e : ie) {
-    local_labels.emplace_back(labels[e.neighbor]);
+    local_labels.emplace_back(labels[e.get_neighbor()]);
   }
   std::sort(local_labels.begin(), local_labels.end());
 

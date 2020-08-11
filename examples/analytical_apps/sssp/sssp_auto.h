@@ -16,10 +16,10 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_AUTO_H_
 #define EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_AUTO_H_
 
+#include <grape/grape.h>
+
 #include <queue>
 #include <utility>
-
-#include <grape/grape.h>
 
 #include "sssp/sssp_auto_context.h"
 
@@ -43,6 +43,7 @@ class SSSPAuto : public AutoAppBase<FRAG_T, SSSPAutoContext<FRAG_T>> {
   // specialize the templated worker.
   INSTALL_AUTO_WORKER(SSSPAuto<FRAG_T>, SSSPAutoContext<FRAG_T>, FRAG_T)
   using vertex_t = typename fragment_t::vertex_t;
+  using vid_t = typename fragment_t::vid_t;
 
  private:
   // sequential Dijkstra algorithm for SSSP.
@@ -50,7 +51,8 @@ class SSSPAuto : public AutoAppBase<FRAG_T, SSSPAutoContext<FRAG_T>> {
                 std::priority_queue<std::pair<double, vertex_t>>& heap) {
     {
       auto inner_vertices = frag.InnerVertices();
-      VertexArray<bool, uint32_t> modified(inner_vertices, false);
+      typename FRAG_T::template vertex_array_t<bool> modified(inner_vertices,
+                                                              false);
 
       double distu, distv, ndistv;
       vertex_t v, u;
@@ -72,9 +74,9 @@ class SSSPAuto : public AutoAppBase<FRAG_T, SSSPAutoContext<FRAG_T>> {
 
         auto es = frag.GetOutgoingAdjList(u);
         for (auto& e : es) {
-          v = e.neighbor;
+          v = e.get_neighbor();
           distv = ctx.partial_result[v];
-          ndistv = distu + e.data;
+          ndistv = distu + e.get_data();
           if (distv > ndistv) {
             ctx.partial_result.SetValue(v, ndistv);
             if (frag.IsInnerVertex(v)) {

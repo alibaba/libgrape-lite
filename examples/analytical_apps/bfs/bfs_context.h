@@ -27,19 +27,21 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class BFSContext : public ContextBase<FRAG_T> {
+class BFSContext : public VertexDataContext<FRAG_T, int64_t> {
  public:
   using depth_type = int64_t;
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
-  void Init(const FRAG_T& frag, ParallelMessageManager& messages,
-            oid_t src_id) {
+  explicit BFSContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, int64_t>(fragment, true),
+        partial_result(this->data()) {}
+
+  void Init(ParallelMessageManager& messages, oid_t src_id) {
+    auto& frag = this->fragment();
+
     source_id = src_id;
-
-    auto vertices = frag.Vertices();
-    partial_result.Init(vertices, std::numeric_limits<depth_type>::max());
-
+    partial_result.SetValue(std::numeric_limits<depth_type>::max());
     avg_degree = static_cast<double>(frag.GetEdgeNum()) /
                  static_cast<double>(frag.GetInnerVerticesNum());
 
@@ -50,12 +52,13 @@ class BFSContext : public ContextBase<FRAG_T> {
 #endif
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
+
     for (auto v : inner_vertices) {
       os << frag.GetId(v) << " " << partial_result[v] << std::endl;
     }
-
 #ifdef PROFILING
     VLOG(2) << "preprocess_time: " << preprocess_time << "s.";
     VLOG(2) << "exec_time: " << exec_time << "s.";
@@ -64,7 +67,7 @@ class BFSContext : public ContextBase<FRAG_T> {
   }
 
   oid_t source_id;
-  VertexArray<depth_type, vid_t> partial_result;
+  typename FRAG_T::template vertex_array_t<depth_type>& partial_result;
   DenseVertexSet<vid_t> curr_inner_updated, next_inner_updated;
 
   depth_type current_depth = 0;

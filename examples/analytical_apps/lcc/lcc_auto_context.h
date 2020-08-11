@@ -28,25 +28,30 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class LCCAutoContext : public ContextBase<FRAG_T> {
+class LCCAutoContext : public VertexDataContext<FRAG_T, double> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
-  void Init(const FRAG_T& frag, AutoParallelMessageManager<FRAG_T>& messages) {
+  explicit LCCAutoContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, double>(fragment) {}
+
+  void Init(AutoParallelMessageManager<FRAG_T>& messages) {
+    auto& frag = this->fragment();
     auto vertices = frag.Vertices();
-    global_degree.Init(vertices, 0, [](int& lhs, int rhs) {
-      lhs = rhs;
+
+    global_degree.Init(vertices, 0, [](int* lhs, int rhs) {
+      *lhs = rhs;
       return true;
     });
     complete_neighbor.Init(
         vertices, std::vector<vid_t>(),
-        [](std::vector<vid_t>& lhs, std::vector<vid_t>&& rhs) {
-          lhs = std::move(rhs);
+        [](std::vector<vid_t>* lhs, std::vector<vid_t>&& rhs) {
+          *lhs = std::move(rhs);
           return true;
         });
-    tricnt.Init(vertices, 0, [](int& lhs, int rhs) {
-      lhs = lhs + rhs;
+    tricnt.Init(vertices, 0, [](int* lhs, int rhs) {
+      *lhs = *lhs + rhs;
       return true;
     });
 
@@ -59,7 +64,8 @@ class LCCAutoContext : public ContextBase<FRAG_T> {
                                 MessageStrategy::kSyncOnOuterVertex);
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     for (auto v : inner_vertices) {
       if (global_degree[v] == 0 || global_degree[v] == 1) {

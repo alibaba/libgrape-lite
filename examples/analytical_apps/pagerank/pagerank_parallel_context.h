@@ -27,19 +27,24 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class PageRankParallelContext : public ContextBase<FRAG_T> {
+class PageRankParallelContext : public VertexDataContext<FRAG_T, double> {
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
  public:
-  void Init(const FRAG_T& frag, ParallelMessageManager& messages, double delta,
-            int max_round) {
+  explicit PageRankParallelContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, double>(fragment, true),
+        result(this->data()) {}
+
+  void Init(ParallelMessageManager& messages, double delta, int max_round) {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     auto vertices = frag.Vertices();
+
     this->delta = delta;
     this->max_round = max_round;
     degree.Init(inner_vertices, 0);
-    result.Init(vertices, 0.0);
+    result.SetValue(0.0);
     next_result.Init(vertices);
     step = 0;
 #ifdef PROFILING
@@ -49,16 +54,12 @@ class PageRankParallelContext : public ContextBase<FRAG_T> {
 #endif
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     for (auto v : inner_vertices) {
-      if (degree[v] == 0) {
-        os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
-           << result[v] << std::endl;
-      } else {
-        os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
-           << result[v] * degree[v] << std::endl;
-      }
+      os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
+         << result[v] << std::endl;
     }
 #ifdef PROFILING
     VLOG(2) << "preprocess_time: " << preprocess_time << "s.";
@@ -67,9 +68,9 @@ class PageRankParallelContext : public ContextBase<FRAG_T> {
 #endif
   }
 
-  VertexArray<int, vid_t> degree;
-  VertexArray<double, vid_t> result;
-  VertexArray<double, vid_t> next_result;
+  typename FRAG_T::template vertex_array_t<int> degree;
+  typename FRAG_T::template vertex_array_t<double>& result;
+  typename FRAG_T::template vertex_array_t<double> next_result;
 
 #ifdef PROFILING
   double preprocess_time = 0;

@@ -1,6 +1,11 @@
 project(libgrape-lite C CXX)
 cmake_minimum_required(VERSION 2.8)
 
+set(LIBGRAPELITE_MAJOR_VERSION 0)
+set(LIBGRAPELITE_MINOR_VERSION 1)
+set(LIBGRAPELITE_PATCH_VERSION 0)
+set(LIBGRAPELITE_VERSION ${LIBGRAPELITE_MAJOR_VERSION}.${LIBGRAPELITE_MINOR_VERSION}.${LIBGRAPELITE_PATCH_VERSION})
+
 # ------------------------------------------------------------------------------
 # cmake options
 # ------------------------------------------------------------------------------
@@ -9,6 +14,7 @@ option(USE_HUGEPAGES "Whether to use hugepages." OFF)
 option(BUILD_SHARED_LIBS "Whether to build libgrape-lite as shared library" ON)
 option(PROFILING "Whether to enable profiling" OFF)
 option(WITH_ASAN "Build with Address Sanitizer" OFF)
+option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
 
 if (USE_HUGEPAGES AND LINUX)
     add_definitions(-DUSE_HUGEPAGES)
@@ -25,7 +31,7 @@ include_directories(thirdparty)
 # setting default cmake type to Release
 # ------------------------------------------------------------------------------
 
-SET(DEFAULT_BUILD_TYPE "Release")
+set(DEFAULT_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
     set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE
@@ -41,17 +47,23 @@ message("[libgrape-lite] will build in type: ${CMAKE_BUILD_TYPE}")
 # ------------------------------------------------------------------------------
 
 include(CheckLibraryExists)
+include(GNUInstallDirs)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
+# reference: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling#always-full-rpath
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 if (APPLE)
-    SET(CMAKE_MACOSX_RPATH ON)
+    set(CMAKE_MACOSX_RPATH ON)
 else ()
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Werror -Wl,-rpath,$ORIGIN")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Werror -Wl,-rpath,$ORIGIN")
 endif ()
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -fprofile-arcs -ftest-coverage")
-SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -fprofile-arcs -ftest-coverage")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g")
 
 if (WITH_ASAN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -O1")
@@ -101,11 +113,22 @@ if (NOT RDKAFKA_FOUND)
     message(STATUS "rdkafka not found, build without rdkafka")
 endif ()
 
+macro(install_libgrapelite_target target)
+    # install
+    install(TARGETS ${target}
+        EXPORT libgrapelite-targets
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+    )
+endmacro()
+
 # ------------------------------------------------------------------------------
 # generate libgrape-lite
 # ------------------------------------------------------------------------------
 file(GLOB_RECURSE CORE_SRC_FILES "grape/*.cc")
 add_library(grape-lite ${CORE_SRC_FILES})
+install_libgrapelite_target(grape-lite)
 
 target_link_libraries(grape-lite ${MPI_CXX_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
@@ -125,6 +148,7 @@ else ()
     set_target_properties(analytical_apps PROPERTIES OUTPUT_NAME run_app)
     target_link_libraries(analytical_apps grape-lite ${MPI_CXX_LIBRARIES}
             ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
+    install_libgrapelite_target(analytical_apps)
 endif ()
 
 if (NOT GFLAGS_FOUND)
@@ -140,7 +164,58 @@ else ()
             ${RDKAFKA_INCLUDE_DIR})
     target_link_libraries(gnn_sampler grape-lite  ${MPI_CXX_LIBRARIES}
             ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES})
+    install_libgrapelite_target(gnn_sampler)
 endif ()
+
+set(EXAMPLES_DIR ${PROJECT_SOURCE_DIR}/examples)
+
+if (PROFILING)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/atlarge-research-granula
+        DESTINATION include # target directory
+        FILES_MATCHING      # install only matched files
+        PATTERN "*.h"       # select header files
+)        
+endif()
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
+        DESTINATION include
+        FILES_MATCHING
+        PATTERN "*.h"
+)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/grape
+        DESTINATION include
+        FILES_MATCHING
+        PATTERN "*.h"
+)
+install(DIRECTORY ${EXAMPLES_DIR}/analytical_apps/bfs
+                  ${EXAMPLES_DIR}/analytical_apps/cdlp
+                  ${EXAMPLES_DIR}/analytical_apps/lcc
+                  ${EXAMPLES_DIR}/analytical_apps/pagerank
+                  ${EXAMPLES_DIR}/analytical_apps/sssp
+                  ${EXAMPLES_DIR}/analytical_apps/wcc
+        DESTINATION include/grape/analytical_apps
+        FILES_MATCHING
+        PATTERN "*.h"
+)
+install(DIRECTORY ${EXAMPLES_DIR}/gnn_sampler
+        DESTINATION include/grape/analytical_apps
+        FILES_MATCHING
+        PATTERN "*.h"
+)
+
+configure_file(libgrapelite-config.in.cmake
+               "${PROJECT_BINARY_DIR}/libgrapelite-config.cmake" @ONLY
+)
+configure_file(libgrapelite-config-version.in.cmake
+               "${PROJECT_BINARY_DIR}/libgrapelite-config-version.cmake" @ONLY
+)
+install(FILES "${PROJECT_BINARY_DIR}/libgrapelite-config.cmake"
+              "${PROJECT_BINARY_DIR}/libgrapelite-config-version.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libgrapelite
+)
+install(EXPORT libgrapelite-targets
+        FILE libgrapelite-targets.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libgrapelite
+)
 
 # ------------------------------------------------------------------------------
 # format code
@@ -171,7 +246,10 @@ add_custom_target(cpplint
 # ------------------------------------------------------------------------------
 # generate docs
 # ------------------------------------------------------------------------------
-add_custom_target(doc COMMAND doxygen "${CMAKE_CURRENT_SOURCE_DIR}/misc/doc-config"
-        COMMENT "Generating docs."
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        VERBATIM)
+if(BUILD_LIBGRAPELITE_DOCS)
+    add_custom_target(doc COMMAND doxygen "${CMAKE_CURRENT_SOURCE_DIR}/misc/doc-config"
+            COMMENT "Generating docs."
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            VERBATIM)
+endif()
+
