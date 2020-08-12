@@ -81,7 +81,7 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 	private static final String GRANULA_PROPERTIES_FILE = "granula.properties";
 
 	public static final String GRANULA_ENABLE_KEY = "benchmark.run.granula.enabled";
-	public static String LIBGRAPE_BINARY_NAME = "bin/standard/libgrape-ldbc";
+	public static String LIBGRAPE_BINARY_NAME = "bin/standard/run_app";
 
 	private Configuration benchmarkConfig;
 
@@ -100,7 +100,7 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 		}
 
 		boolean granulaEnabled = granulaConfig.getBoolean(GRANULA_ENABLE_KEY, false);
-		LIBGRAPE_BINARY_NAME = granulaEnabled ? "./bin/granula/libgrape-ldbc": LIBGRAPE_BINARY_NAME;
+		LIBGRAPE_BINARY_NAME = granulaEnabled ? "./bin/granula/run_app": LIBGRAPE_BINARY_NAME;
 	}
 
 	@Override
