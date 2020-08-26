@@ -68,7 +68,7 @@ To run a specific analytical application, users may use command like this:
 
 ```bash
 # run single-source shortest path with 4 workers in local.
-mpirun -n 4 ./run_app --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --application sssp --sssp_source 0 --out_prefix ./output_sssp --directed
+mpirun -n 4 ./run_app --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --application sssp --sssp_source 6 --out_prefix ./output_sssp --directed
 
 # or run connected component with 4 workers on a cluster.
 # HOSTFILE provides a list of hosts where MPI processes are launched. 
