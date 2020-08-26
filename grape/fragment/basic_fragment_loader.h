@@ -18,21 +18,21 @@ limitations under the License.
 
 #include <stddef.h>
 
+#include <fstream>
 #include <memory>
 #include <string>
 #include <thread>
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <fstream>
 
 #include "grape/communication/shuffle.h"
 #include "grape/config.h"
 #include "grape/fragment/rebalancer.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
-#include "grape/utils/vertex_array.h"
 #include "grape/utils/concurrent_queue.h"
+#include "grape/utils/vertex_array.h"
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
@@ -149,7 +149,7 @@ class BasicFragmentLoader<
   bool SerializeFragment(std::shared_ptr<fragment_t>& fragment,
                          const std::string& serialization_prefix) {
     if (comm_spec_.worker_id() == 0) {
-      vm_ptr_->Serialize(serialization_prefix);
+      vm_ptr_->template Serialize<IOADAPTOR_T>(serialization_prefix);
     }
 
     MPI_Barrier(comm_spec_.comm());
@@ -163,10 +163,10 @@ class BasicFragmentLoader<
     snprintf(serial_file, sizeof(serial_file), "%s/%s",
              serialization_prefix.c_str(), kSerializationVertexMapFilename);
     if (comm_spec_.local_id() == 0 && !exists_file(serial_file)) {
-      vm_ptr_->Serialize(serialization_prefix);
+      vm_ptr_->template Serialize<IOADAPTOR_T>(serialization_prefix);
     }
 
-    fragment->Serialize(serialization_prefix);
+    fragment->template Serialize<IOADAPTOR_T>(serialization_prefix);
 
     return true;
   }
@@ -176,9 +176,10 @@ class BasicFragmentLoader<
     auto io_adaptor =
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(deserialization_prefix));
     if (io_adaptor->IsExist()) {
-      vm_ptr_->Deserialize(deserialization_prefix);
+      vm_ptr_->template Deserialize<IOADAPTOR_T>(deserialization_prefix);
       fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
-      fragment->Deserialize(deserialization_prefix, comm_spec_.fid());
+      fragment->template Deserialize<IOADAPTOR_T>(deserialization_prefix,
+                                                  comm_spec_.fid());
     }
     return true;
   }
