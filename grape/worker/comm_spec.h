@@ -115,14 +115,20 @@ class CommSpec {
 
  private:
   void initLocalInfo() {
-    char hn[32];
-    gethostname(hn, 32);
-    char* recv_buf = reinterpret_cast<char*>(malloc(32 * worker_num_));
-    MPI_Allgather(hn, 32, MPI_CHAR, recv_buf, 32, MPI_CHAR, comm_);
+    char hn[MPI_MAX_PROCESSOR_NAME];
+    int hn_len;
+
+    MPI_Get_processor_name(hn, &hn_len);
+
+    char* recv_buf = reinterpret_cast<char*>(calloc(worker_num_, sizeof(hn)));
+    MPI_Allgather(hn, MPI_MAX_PROCESSOR_NAME, MPI_CHAR, recv_buf,
+                  MPI_MAX_PROCESSOR_NAME, MPI_CHAR, comm_);
 
     std::vector<std::string> worker_host_names(worker_num_);
     for (int i = 0; i < worker_num_; ++i) {
-      worker_host_names[i].assign(&recv_buf[i * 32], 32);
+      worker_host_names[i].assign(
+          &recv_buf[i * MPI_MAX_PROCESSOR_NAME],
+          strlen(&recv_buf[i * MPI_MAX_PROCESSOR_NAME]));
     }
     free(recv_buf);
 
