@@ -108,6 +108,7 @@ class ImmutableEdgecutFragment
   using oid_t = OID_T;
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
+  using vertex_range_t = VertexRange<vid_t>;
   template <typename DATA_T>
   using vertex_array_t = VertexArray<DATA_T, vid_t>;
   using vertex_map_t = GlobalVertexMap<oid_t, vid_t>;
