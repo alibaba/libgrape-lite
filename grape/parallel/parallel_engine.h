@@ -222,7 +222,7 @@ class ParallelEngine {
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
-      typename FINALIZE_FUNC_T, typename VID_T>
+            typename FINALIZE_FUNC_T, typename VID_T>
   inline void ForEach(const VertexRange<VID_T>& range,
                       const INIT_FUNC_T& init_func,
                       const ITER_FUNC_T& iter_func,
@@ -235,7 +235,7 @@ class ParallelEngine {
     for (uint32_t i = 0; i < thread_num_; ++i) {
       threads[i] = std::thread(
           [&cur, chunk_size, &init_func, &iter_func, &finalize_func,
-              end](uint32_t tid) {
+           end](uint32_t tid) {
             init_func(tid);
 
             while (true) {
@@ -278,7 +278,7 @@ class ParallelEngine {
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
-      typename FINALIZE_FUNC_T, typename VID_T>
+            typename FINALIZE_FUNC_T, typename VID_T>
   inline void ForEach(const VertexVector<VID_T>& vertices,
                       const INIT_FUNC_T& init_func,
                       const ITER_FUNC_T& iter_func,
@@ -291,7 +291,7 @@ class ParallelEngine {
     for (uint32_t i = 0; i < thread_num_; ++i) {
       threads[i] = std::thread(
           [&cur, chunk_size, &init_func, &vertices, &iter_func, &finalize_func,
-              end](uint32_t tid) {
+           end](uint32_t tid) {
             init_func(tid);
 
             while (true) {
@@ -407,7 +407,7 @@ class ParallelEngine {
     for (uint32_t i = 0; i < thread_num_; ++i) {
       threads[i] = std::thread(
           [&iter_func, &cur, chunk_size, &bitset, batch_begin, batch_end,
-              origin_begin, origin_end, this](uint32_t tid) {
+           origin_begin, origin_end, this](uint32_t tid) {
             if (tid == 0 && origin_begin < batch_begin) {
               Vertex<VID_T> v(origin_begin);
               Vertex<VID_T> end(batch_begin);
@@ -478,7 +478,7 @@ class ParallelEngine {
     for (uint32_t i = 0; i < thread_num_; ++i) {
       threads[i] = std::thread(
           [&iter_func, &cur, chunk_size, &dense_set, &vertices, end,
-              this](uint32_t tid) {
+           this](uint32_t tid) {
             while (true) {
               auto cur_beg = std::min(cur.fetch_add(chunk_size), end);
               auto cur_end = std::min(cur_beg + chunk_size, end);
@@ -517,7 +517,7 @@ class ParallelEngine {
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
-      typename FINALIZE_FUNC_T, typename VID_T>
+            typename FINALIZE_FUNC_T, typename VID_T>
   inline void ForEach(const DenseVertexSet<VID_T>& dense_set,
                       const INIT_FUNC_T& init_func,
                       const ITER_FUNC_T& iter_func,
@@ -535,7 +535,7 @@ class ParallelEngine {
     for (uint32_t i = 0; i < thread_num_; ++i) {
       threads[i] = std::thread(
           [&init_func, &finalize_func, &iter_func, &cur, chunk_size, &bs, beg,
-              end](uint32_t tid) {
+           end](uint32_t tid) {
             init_func(tid);
 
             while (true) {
