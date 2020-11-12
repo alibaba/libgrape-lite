@@ -46,13 +46,6 @@ namespace grape {
  */
 template <typename FRAG_T>
 class AutoParallelMessageManager : public DefaultMessageManager {
-  static_assert(
-      std::is_base_of<EdgecutFragmentBase<
-                          typename FRAG_T::oid_t, typename FRAG_T::vid_t,
-                          typename FRAG_T::vdata_t, typename FRAG_T::edata_t>,
-                      FRAG_T>::value,
-      "AutoParallelMessageManager should work with EdgecutImmutableFragment");
-
   using Base = DefaultMessageManager;
   using vid_t = typename FRAG_T::vid_t;
 
@@ -137,9 +130,14 @@ class AutoParallelMessageManager : public DefaultMessageManager {
           syncOnVertexRecv<int32_t>(i_ec_frag, event->buffer);
         } else if (event->buffer->GetTypeId() == typeid(int64_t)) {
           syncOnVertexRecv<int64_t>(i_ec_frag, event->buffer);
+        } else if (event->buffer->GetTypeId() == typeid(uint64_t)) {
+          syncOnVertexRecv<uint64_t>(i_ec_frag, event->buffer);
         } else if (event->buffer->GetTypeId() ==
                    typeid(std::vector<uint32_t>)) {
           syncOnVertexRecv<std::vector<uint32_t>>(i_ec_frag, event->buffer);
+        } else if (event->buffer->GetTypeId() ==
+                   typeid(std::vector<uint64_t>)) {
+          syncOnVertexRecv<std::vector<uint64_t>>(i_ec_frag, event->buffer);
         } else {
           LOG(FATAL) << "Unexpected data type "
                      << event->buffer->GetTypeId().name();
@@ -205,9 +203,18 @@ class AutoParallelMessageManager : public DefaultMessageManager {
           syncOnInnerVertexSend<int64_t>(i_ec_frag, event->buffer,
                                          event->event_id,
                                          event->message_strategy);
+        } else if (event->buffer->GetTypeId() == typeid(uint64_t)) {
+          syncOnInnerVertexSend<uint64_t>(i_ec_frag, event->buffer,
+                                          event->event_id,
+                                          event->message_strategy);
         } else if (event->buffer->GetTypeId() ==
                    typeid(std::vector<uint32_t>)) {
           syncOnInnerVertexSend<std::vector<uint32_t>>(i_ec_frag, event->buffer,
+                                                       event->event_id,
+                                                       event->message_strategy);
+        } else if (event->buffer->GetTypeId() ==
+                   typeid(std::vector<uint64_t>)) {
+          syncOnInnerVertexSend<std::vector<uint64_t>>(i_ec_frag, event->buffer,
                                                        event->event_id,
                                                        event->message_strategy);
         } else {
@@ -336,7 +343,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
 
     size_t message_num = 0;
     T rhs;
-    Vertex<vid_t> v;
+    Vertex<vid_t> v(0);
     Base::GetMessage<size_t>(message_num);
     while (message_num--) {
       GetMessage(frag, v, rhs);

@@ -35,7 +35,7 @@ namespace grape {
 class Communicator {
  public:
   Communicator() : comm_(NULL_COMM) {}
-  ~Communicator() {
+  virtual ~Communicator() {
     if (ValidComm(comm_)) {
       MPI_Comm_free(&comm_);
     }
@@ -43,20 +43,10 @@ class Communicator {
   void InitCommunicator(MPI_Comm comm) { MPI_Comm_dup(comm, &comm_); }
 
   template <typename T>
-  void SendTo(fid_t fid, const T& msg) {
-    int dst_worker = fid;
-    InArchive arc;
-    arc << msg;
-    SendArchive(arc, dst_worker, comm_);
-  }
+  void SendTo(fid_t fid, const T& msg);
 
   template <typename T>
-  void RecvFrom(fid_t fid, T& msg) {
-    int src_worker = fid;
-    OutArchive arc;
-    RecvArchive(arc, src_worker, comm_);
-    arc >> msg;
-  }
+  void RecvFrom(fid_t fid, T& msg);
 
   template <typename T, typename FUNC_T>
   void AllReduce(const T& msg_in, T& msg_out, const FUNC_T& func) {
@@ -80,6 +70,54 @@ class Communicator {
   }
 
   template <typename T>
+  void AllGather(const T& msg_in, std::vector<T>& msg_out) {
+    int worker_id, worker_num;
+    MPI_Comm_rank(comm_, &worker_id);
+    MPI_Comm_size(comm_, &worker_num);
+
+    msg_out.resize(worker_num);
+    msg_out[worker_id] = msg_in;
+    std::thread send_thread([&]() {
+      for (int i = 1; i < worker_num; ++i) {
+        int dst_worker = (worker_id + 1) % worker_num;
+        SendTo<T>(dst_worker, msg_in);
+      }
+    });
+    std::thread recv_thread([&]() {
+      for (int i = 1; i < worker_num; ++i) {
+        int src_worker = (worker_id + worker_num - 1) % worker_num;
+        RecvFrom<T>(src_worker, msg_out[src_worker]);
+      }
+    });
+    recv_thread.join();
+    send_thread.join();
+  }
+
+  template <typename T>
+  void AllGather(T&& msg_in, std::vector<T>& msg_out) {
+    int worker_id, worker_num;
+    MPI_Comm_rank(comm_, &worker_id);
+    MPI_Comm_size(comm_, &worker_num);
+
+    msg_out.resize(worker_num);
+    std::thread send_thread([&]() {
+      for (int i = 1; i < worker_num; ++i) {
+        int dst_worker = (worker_id + i) % worker_num;
+        SendTo<T>(dst_worker, msg_in);
+      }
+    });
+    std::thread recv_thread([&]() {
+      for (int i = 1; i < worker_num; ++i) {
+        int src_worker = (worker_id + worker_num - i) % worker_num;
+        RecvFrom<T>(src_worker, msg_out[src_worker]);
+      }
+    });
+    recv_thread.join();
+    send_thread.join();
+    msg_out[worker_id] = std::move(msg_in);
+  }
+
+  template <typename T>
   void Max(const T& msg_in, T& msg_out) {
     AllReduce<T>(msg_in, msg_out,
                  [](T& lhs, const T& rhs) { lhs = std::max(lhs, rhs); });
@@ -99,6 +137,43 @@ class Communicator {
  private:
   MPI_Comm comm_;
 };
+
+template <typename T>
+inline void Communicator::SendTo(fid_t fid, const T& msg) {
+  int dst_worker = fid;
+  InArchive arc;
+  arc << msg;
+  SendArchive(arc, dst_worker, comm_);
+}
+
+template <>
+inline void Communicator::SendTo<InArchive>(fid_t fid, const InArchive& msg) {
+  int dst_worker = fid;
+  size_t msg_count = msg.GetSize();
+  InArchive arc;
+  arc << msg_count;
+  SendArchive(arc, dst_worker, comm_);
+  send_buffer<char>(msg.GetBuffer(), msg_count, dst_worker, comm_, 0);
+}
+
+template <typename T>
+inline void Communicator::RecvFrom(fid_t fid, T& msg) {
+  int src_worker = fid;
+  OutArchive arc;
+  RecvArchive(arc, src_worker, comm_);
+  arc >> msg;
+}
+
+template <>
+inline void Communicator::RecvFrom<InArchive>(fid_t fid, InArchive& msg) {
+  int src_worker = fid;
+  size_t msg_count = 0;
+  OutArchive arc;
+  RecvArchive(arc, src_worker, comm_);
+  arc >> msg_count;
+  msg.Resize(msg_count);
+  recv_buffer<char>(msg.GetBuffer(), msg_count, src_worker, comm_, 0);
+}
 
 template <typename APP_T>
 typename std::enable_if<std::is_base_of<Communicator, APP_T>::value>::type

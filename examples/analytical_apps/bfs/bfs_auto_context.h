@@ -27,20 +27,24 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class BFSAutoContext : public ContextBase<FRAG_T> {
+class BFSAutoContext : public VertexDataContext<FRAG_T, int64_t> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
-  void Init(const FRAG_T& frag, AutoParallelMessageManager<FRAG_T>& messages,
-            oid_t src_id) {
-    source_id = src_id;
+  explicit BFSAutoContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, int64_t>(fragment),
+        partial_result(this->data()) {}
 
+  void Init(AutoParallelMessageManager<FRAG_T>& messages, oid_t src_id) {
+    auto& frag = this->fragment();
     auto vertices = frag.Vertices();
+
+    source_id = src_id;
     partial_result.Init(vertices, std::numeric_limits<int64_t>::max(),
-                        [](int64_t& lhs, int64_t rhs) {
-                          if (lhs > rhs) {
-                            lhs = rhs;
+                        [](int64_t* lhs, int64_t rhs) {
+                          if (*lhs > rhs) {
+                            *lhs = rhs;
                             return true;
                           } else {
                             return false;
@@ -51,8 +55,10 @@ class BFSAutoContext : public ContextBase<FRAG_T> {
                                 MessageStrategy::kSyncOnOuterVertex);
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
+
     for (auto v : inner_vertices) {
       os << frag.GetId(v) << " " << partial_result[v] << std::endl;
     }

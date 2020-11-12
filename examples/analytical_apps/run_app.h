@@ -25,10 +25,10 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
+#include <grape/fragment/immutable_edgecut_fragment.h>
 #include <grape/fragment/loader.h>
 #include <grape/grape.h>
 #include <grape/util.h>
-#include <grape/fragment/immutable_edgecut_fragment.h>
 
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>

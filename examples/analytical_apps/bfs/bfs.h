@@ -70,7 +70,7 @@ class BFS : public ParallelAppBase<FRAG_T, BFSContext<FRAG_T>>,
       ctx.partial_result[source] = 0;
       auto oes = frag.GetOutgoingAdjList(source);
       for (auto& e : oes) {
-        auto u = e.neighbor;
+        auto u = e.get_neighbor();
         if (ctx.partial_result[u] == std::numeric_limits<depth_type>::max()) {
           ctx.partial_result[u] = 1;
           if (frag.IsOuterVertex(u)) {
@@ -137,7 +137,7 @@ class BFS : public ParallelAppBase<FRAG_T, BFSContext<FRAG_T>>,
           if (ctx.partial_result[v] == std::numeric_limits<depth_type>::max()) {
             auto ies = frag.GetIncomingAdjList(v);
             for (auto& e : ies) {
-              auto u = e.neighbor;
+              auto u = e.get_neighbor();
               if (ctx.curr_inner_updated.Exist(u)) {
                 ctx.partial_result[v] = next_depth;
                 channels[tid].SyncStateOnOuterVertex<fragment_t>(frag, v);
@@ -150,7 +150,7 @@ class BFS : public ParallelAppBase<FRAG_T, BFSContext<FRAG_T>>,
           if (ctx.partial_result[v] == std::numeric_limits<depth_type>::max()) {
             auto oes = frag.GetOutgoingInnerVertexAdjList(v);
             for (auto& e : oes) {
-              auto u = e.neighbor;
+              auto u = e.get_neighbor();
               if (ctx.curr_inner_updated.Exist(u)) {
                 ctx.partial_result[v] = next_depth;
                 ctx.next_inner_updated.Insert(v);
@@ -164,7 +164,7 @@ class BFS : public ParallelAppBase<FRAG_T, BFSContext<FRAG_T>>,
                                             int tid, vertex_t v) {
           auto oes = frag.GetOutgoingAdjList(v);
           for (auto& e : oes) {
-            auto u = e.neighbor;
+            auto u = e.get_neighbor();
             if (ctx.partial_result[u] ==
                 std::numeric_limits<depth_type>::max()) {
               ctx.partial_result[u] = next_depth;
@@ -182,7 +182,7 @@ class BFS : public ParallelAppBase<FRAG_T, BFSContext<FRAG_T>>,
                                           int tid, vertex_t v) {
         auto oes = frag.GetOutgoingAdjList(v);
         for (auto& e : oes) {
-          auto u = e.neighbor;
+          auto u = e.get_neighbor();
           if (ctx.partial_result[u] == std::numeric_limits<depth_type>::max()) {
             ctx.partial_result[u] = next_depth;
             if (frag.IsOuterVertex(u)) {

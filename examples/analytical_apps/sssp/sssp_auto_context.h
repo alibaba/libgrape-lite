@@ -29,19 +29,24 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class SSSPAutoContext : public ContextBase<FRAG_T> {
+class SSSPAutoContext : public VertexDataContext<FRAG_T, double> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
-  void Init(const FRAG_T& frag, AutoParallelMessageManager<FRAG_T>& messages,
-            oid_t source_id) {
-    this->source_id = source_id;
+  explicit SSSPAutoContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, double>(fragment),
+        partial_result(this->data()) {}
+
+  void Init(AutoParallelMessageManager<FRAG_T>& messages, oid_t source_id) {
+    auto& frag = this->fragment();
     auto vertices = frag.Vertices();
+
+    this->source_id = source_id;
     partial_result.Init(vertices, std::numeric_limits<double>::max(),
-                        [](double& lhs, double rhs) {
-                          if (lhs > rhs) {
-                            lhs = rhs;
+                        [](double* lhs, double rhs) {
+                          if (*lhs > rhs) {
+                            *lhs = rhs;
                             return true;
                           } else {
                             return false;
@@ -51,10 +56,11 @@ class SSSPAutoContext : public ContextBase<FRAG_T> {
                                 MessageStrategy::kSyncOnOuterVertex);
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
     // If the distance is the max value for vertex_data_type
     // then the vertex is not connected to the source vertex.
     // According to specs, the output should be +inf
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     for (auto v : inner_vertices) {
       double d = partial_result[v];

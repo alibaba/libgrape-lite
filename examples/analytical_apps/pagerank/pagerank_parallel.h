@@ -107,6 +107,14 @@ class PageRankParallel
 
     ++ctx.step;
     if (ctx.step > ctx.max_round) {
+      auto& degree = ctx.degree;
+      auto& result = ctx.result;
+
+      for (auto v : inner_vertices) {
+        if (degree[v] != 0) {
+          result[v] *= degree[v];
+        }
+      }
       return;
     }
 
@@ -125,7 +133,7 @@ class PageRankParallel
         double cur = 0;
         auto es = frag.GetIncomingInnerVertexAdjList(u);
         for (auto& e : es) {
-          cur += ctx.result[e.neighbor];
+          cur += ctx.result[e.get_neighbor()];
         }
         ctx.next_result[u] = cur;
       }
@@ -157,7 +165,7 @@ class PageRankParallel
                   double cur = ctx.next_result[u];
                   auto es = frag.GetIncomingOuterVertexAdjList(u);
                   for (auto& e : es) {
-                    cur += ctx.result[e.neighbor];
+                    cur += ctx.result[e.get_neighbor()];
                   }
                   cur = (ctx.delta * cur + base) / ctx.degree[u];
                   ctx.next_result[u] = cur;
@@ -171,7 +179,7 @@ class PageRankParallel
           double cur = ctx.next_result[u];
           auto es = frag.GetIncomingOuterVertexAdjList(u);
           for (auto& e : es) {
-            cur += ctx.result[e.neighbor];
+            cur += ctx.result[e.get_neighbor()];
           }
           cur = (ctx.delta * cur + base) / ctx.degree[u];
           ctx.next_result[u] = cur;

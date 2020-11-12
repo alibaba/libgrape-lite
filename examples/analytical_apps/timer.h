@@ -1,8 +1,8 @@
 /**
  * NOLINT(legal/copyright)
  *
- * The file examples/analytical_apps/timer.h is referred and derived from project
- * atlarge-research/graphalytics-platforms-powergraph,
+ * The file examples/analytical_apps/timer.h is referred and derived from
+ * project atlarge-research/graphalytics-platforms-powergraph,
  *
  *    https://github.com/atlarge-research/graphalytics-platforms-powergraph/
  * blob/master/src/main/c/utils.hpp

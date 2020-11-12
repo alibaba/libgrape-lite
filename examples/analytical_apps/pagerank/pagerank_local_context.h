@@ -27,18 +27,22 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class PageRankLocalContext : public ContextBase<FRAG_T> {
+class PageRankLocalContext : public VertexDataContext<FRAG_T, double> {
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
 
  public:
-  void Init(const FRAG_T& frag, BatchShuffleMessageManager& messages,
-            double delta, int max_round) {
-    auto inner_vertices = frag.InnerVertices();
+  explicit PageRankLocalContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, double>(fragment, true),
+        result(this->data()) {}
+
+  void Init(BatchShuffleMessageManager& messages, double delta, int max_round) {
+    auto& frag = this->fragment();
     auto vertices = frag.Vertices();
+
     this->delta = delta;
     this->max_round = max_round;
-    result.Init(vertices);
+    result.SetValue(0.0);
     next_result.Init(vertices);
 
     avg_degree = static_cast<double>(frag.GetEdgeNum()) /
@@ -46,7 +50,8 @@ class PageRankLocalContext : public ContextBase<FRAG_T> {
     step = 0;
   }
 
-  void Output(const FRAG_T& frag, std::ostream& os) {
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
     for (auto v : inner_vertices) {
       os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
@@ -59,8 +64,8 @@ class PageRankLocalContext : public ContextBase<FRAG_T> {
 #endif
   }
 
-  VertexArray<double, vid_t> result;
-  VertexArray<double, vid_t> next_result;
+  typename FRAG_T::template vertex_array_t<double>& result;
+  typename FRAG_T::template vertex_array_t<double> next_result;
 
 #ifdef PROFILING
   double preprocess_time = 0;

@@ -52,6 +52,9 @@ class DefaultMessageManager : public MessageManagerBase {
     fid_ = comm_spec_.fid();
     fnum_ = comm_spec_.fnum();
 
+    force_terminate_ = false;
+    terminate_info_.Init(fnum_);
+
     lengths_out_.resize(fnum_);
     lengths_in_.resize(fnum_ * fnum_);
 
@@ -84,8 +87,7 @@ class DefaultMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   void FinishARound() override {
-    syncLengths();
-    to_terminate_ = checkTermination();
+    to_terminate_ = syncLengths();
     if (to_terminate_) {
       return;
     }
@@ -149,6 +151,21 @@ class DefaultMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   void ForceContinue() override { force_continue_ = true; }
+
+  /**
+   * @brief Inherit
+   */
+  void ForceTerminate(const std::string& terminate_info) override {
+    force_terminate_ = true;
+    terminate_info_.info[comm_spec_.fid()] = terminate_info;
+  }
+
+  /**
+   * @brief Inherit
+   */
+  const TerminateInfo& GetTerminateInfo() const override {
+    return terminate_info_;
+  }
 
   /**
    * @brief Send message to a fragment.
@@ -303,8 +320,10 @@ class DefaultMessageManager : public MessageManagerBase {
   fid_t fid() const { return fid_; }
   fid_t fnum() const { return fnum_; }
 
+  std::vector<InArchive> to_send_;
+
  private:
-  void syncLengths() {
+  bool syncLengths() {
     for (fid_t i = 0; i < fnum_; ++i) {
       sent_size_ += to_send_[i].GetSize();
       lengths_out_[i] = to_send_[i].GetSize();
@@ -312,20 +331,26 @@ class DefaultMessageManager : public MessageManagerBase {
     if (force_continue_) {
       ++lengths_out_[fid_];
     }
-    MPI_Allgather(&lengths_out_[0], fnum_ * sizeof(size_t), MPI_CHAR,
-                  &lengths_in_[0], fnum_ * sizeof(size_t), MPI_CHAR, comm_);
-  }
-
-  bool checkTermination() {
-    for (auto s : lengths_in_) {
-      if (s != 0) {
-        return false;
+    int terminate_flag = force_terminate_ ? 1 : 0;
+    int terminate_flag_sum;
+    MPI_Allreduce(&terminate_flag, &terminate_flag_sum, 1, MPI_INT, MPI_SUM,
+                  comm_);
+    if (terminate_flag_sum > 0) {
+      terminate_info_.success = false;
+      AllToAll(terminate_info_.info, comm_);
+      return true;
+    } else {
+      MPI_Allgather(&lengths_out_[0], fnum_ * sizeof(size_t), MPI_CHAR,
+                    &lengths_in_[0], fnum_ * sizeof(size_t), MPI_CHAR, comm_);
+      for (auto s : lengths_in_) {
+        if (s != 0) {
+          return false;
+        }
       }
+      return true;
     }
-    return true;
   }
 
-  std::vector<InArchive> to_send_;
   std::vector<OutArchive> to_recv_;
   fid_t cur_;
 
@@ -342,6 +367,9 @@ class DefaultMessageManager : public MessageManagerBase {
   size_t sent_size_;
   bool to_terminate_;
   bool force_continue_;
+  bool force_terminate_;
+
+  TerminateInfo terminate_info_;
 };
 
 }  // namespace grape

@@ -17,6 +17,7 @@ limitations under the License.
 #define GRAPE_UTILS_DEFAULT_ALLOCATOR_H_
 
 #include <stdlib.h>
+#define ALLOC_ALIGNMENT 64
 
 namespace grape {
 
@@ -46,7 +47,10 @@ class DefaultAllocator {
 #ifdef __APPLE__
     return static_cast<pointer>(malloc(__n * sizeof(_Tp)));
 #else
-    return static_cast<pointer>(aligned_alloc(64, __n * sizeof(_Tp)));
+    return static_cast<pointer>(aligned_alloc(
+        ALLOC_ALIGNMENT, (__n * sizeof(_Tp) / ALLOC_ALIGNMENT +
+                          (__n * sizeof(_Tp) % ALLOC_ALIGNMENT == 0 ? 0 : 1)) *
+                             ALLOC_ALIGNMENT));
 #endif
   }
 

@@ -31,13 +31,12 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class PageRank
-    : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
-      public ParallelEngine,
-      public Communicator {
+class PageRank : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
+                 public ParallelEngine,
+                 public Communicator {
  public:
-  INSTALL_BATCH_SHUFFLE_WORKER(PageRank<FRAG_T>,
-                               PageRankContext<FRAG_T>, FRAG_T)
+  INSTALL_BATCH_SHUFFLE_WORKER(PageRank<FRAG_T>, PageRankContext<FRAG_T>,
+                               FRAG_T)
 
   using vertex_t = typename FRAG_T::vertex_t;
   using vid_t = typename FRAG_T::vid_t;
@@ -51,7 +50,9 @@ class PageRank
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
-    if (ctx.max_round <= 0) { return; }
+    if (ctx.max_round <= 0) {
+      return;
+    }
 
     auto inner_vertices = frag.InnerVertices();
 
@@ -119,7 +120,7 @@ class PageRank
         double cur = 0;
         auto es = frag.GetOutgoingInnerVertexAdjList(u);
         for (auto& e : es) {
-          cur += ctx.result[e.neighbor];
+          cur += ctx.result[e.get_neighbor()];
         }
         ctx.next_result[u] = cur;
       });
@@ -137,7 +138,7 @@ class PageRank
           double cur = ctx.next_result[u];
           auto es = frag.GetOutgoingAdjList(u, src_fid);
           for (auto& e : es) {
-            cur += ctx.result[e.neighbor];
+            cur += ctx.result[e.get_neighbor()];
           }
           ctx.next_result[u] = cur;
         });
@@ -159,7 +160,7 @@ class PageRank
             double cur = ctx.next_result[u];
             auto es = frag.GetOutgoingAdjList(u, src_fid);
             for (auto& e : es) {
-              cur += ctx.result[e.neighbor];
+              cur += ctx.result[e.get_neighbor()];
             }
             int en = frag.GetLocalOutDegree(u);
             ctx.next_result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
@@ -182,7 +183,7 @@ class PageRank
         double cur = 0;
         auto es = frag.GetOutgoingAdjList(u);
         for (auto& e : es) {
-          cur += ctx.result[e.neighbor];
+          cur += ctx.result[e.get_neighbor()];
         }
         int en = frag.GetLocalOutDegree(u);
         ctx.next_result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
@@ -195,12 +196,22 @@ class PageRank
 #ifdef PROFILING
     ctx.postprocess_time -= GetCurrentTime();
 #endif
-    if (ctx.step != ctx.max_round) {
-      messages.SyncInnerVertices<fragment_t, double>(frag, ctx.next_result,
-                                                     thread_num());
-    }
-
     ctx.result.Swap(ctx.next_result);
+
+    if (ctx.step != ctx.max_round) {
+      messages.SyncInnerVertices<fragment_t, double>(frag, ctx.result,
+                                                     thread_num());
+    } else {
+      auto& degree = ctx.degree;
+      auto& result = ctx.result;
+
+      for (auto v : inner_vertices) {
+        if (degree[v] != 0) {
+          result[v] *= degree[v];
+        }
+      }
+      return;
+    }
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();
 #endif

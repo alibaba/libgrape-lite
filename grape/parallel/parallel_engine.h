@@ -41,7 +41,7 @@ struct ParallelEngineSpec {
   std::vector<uint32_t> cpu_list;
 };
 
-ParallelEngineSpec DefaultParallelEngineSpec() {
+inline ParallelEngineSpec DefaultParallelEngineSpec() {
   ParallelEngineSpec spec;
   spec.thread_num = std::thread::hardware_concurrency();
   spec.affinity = false;
@@ -49,8 +49,8 @@ ParallelEngineSpec DefaultParallelEngineSpec() {
   return spec;
 }
 
-ParallelEngineSpec MultiProcessSpec(const CommSpec& comm_spec,
-                                    bool affinity = false) {
+inline ParallelEngineSpec MultiProcessSpec(const CommSpec& comm_spec,
+                                           bool affinity = false) {
   ParallelEngineSpec spec;
   uint32_t total_thread_num = std::thread::hardware_concurrency();
   uint32_t each_process_thread_num =
@@ -169,6 +169,46 @@ class ParallelEngine {
   }
 
   /**
+   * @brief Iterate on discontinuous vertices concurrently.
+   *
+   * @tparam ITER_FUNC_T Type of vertex program.
+   * @tparam VID_T Type of vertex id.
+   * @param vertices The vertex array to be iterated.
+   * @param thread_num Number of threads to be created.
+   * @param iter_func Vertex program to be applied on each vertex.
+   * @param chunk_size Vertices granularity to be scheduled by threads.
+   */
+  template <typename ITER_FUNC_T, typename VID_T>
+  inline void ForEach(const VertexVector<VID_T>& vertices,
+                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+    std::vector<std::thread> threads(thread_num_);
+    std::atomic<size_t> cur(0);
+    auto end = vertices.size();
+
+    for (uint32_t i = 0; i < thread_num_; ++i) {
+      threads[i] = std::thread(
+          [&cur, chunk_size, &vertices, &iter_func, end](uint32_t tid) {
+            while (true) {
+              auto cur_beg = std::min(cur.fetch_add(chunk_size), end);
+              auto cur_end = std::min(cur_beg + chunk_size, end);
+              if (cur_beg == cur_end) {
+                break;
+              }
+              for (auto idx = cur_beg; idx < cur_end; idx++) {
+                iter_func(tid, vertices[idx]);
+              }
+            }
+          },
+          i);
+      setThreadAffinity(threads[i], i);
+    }
+
+    for (auto& thrd : threads) {
+      thrd.join();
+    }
+  }
+
+  /**
    * @brief Iterate on vertexs of a VertexRange concurrently, initialize
    * function and finalize function can be provided to each thread.
    *
@@ -226,6 +266,61 @@ class ParallelEngine {
   }
 
   /**
+   * @brief Iterate on discontinuous vertices concurrently, initialize
+   * function and finalize function can be provided to each thread.
+   *
+   * @tparam INIT_FUNC_T Type of thread init program.
+   * @tparam ITER_FUNC_T Type of vertex program.
+   * @tparam FINALIZE_FUNC_T Type of thread finalize program.
+   * @tparam VID_T Type of vertex id.
+   * @param vertices The vertex array to be iterated.
+   * @param thread_num Number of threads to be created.
+   * @param init_func Initializing function to be invoked by each thread before
+   * iterating on vertexs.
+   * @param iter_func Vertex program to be applied on each vertex.
+   * @param finalize_func Finalizing function to be invoked by each thread after
+   * iterating on vertexs.
+   * @param chunk_size Vertices granularity to be scheduled by threads.
+   */
+  template <typename INIT_FUNC_T, typename ITER_FUNC_T,
+            typename FINALIZE_FUNC_T, typename VID_T>
+  inline void ForEach(const VertexVector<VID_T>& vertices,
+                      const INIT_FUNC_T& init_func,
+                      const ITER_FUNC_T& iter_func,
+                      const FINALIZE_FUNC_T& finalize_func,
+                      int chunk_size = 1024) {
+    std::vector<std::thread> threads(thread_num_);
+    std::atomic<size_t> cur(0);
+    auto end = vertices.size();
+
+    for (uint32_t i = 0; i < thread_num_; ++i) {
+      threads[i] = std::thread(
+          [&cur, chunk_size, &init_func, &vertices, &iter_func, &finalize_func,
+           end](uint32_t tid) {
+            init_func(tid);
+
+            while (true) {
+              auto cur_beg = std::min(cur.fetch_add(chunk_size), end);
+              auto cur_end = std::min(cur_beg + chunk_size, end);
+              if (cur_beg == cur_end) {
+                break;
+              }
+              for (auto idx = cur_beg; idx < cur_end; idx++) {
+                iter_func(tid, vertices[idx]);
+              }
+            }
+
+            finalize_func(tid);
+          },
+          i);
+      setThreadAffinity(threads[i], i);
+    }
+
+    for (auto& thrd : threads) {
+      thrd.join();
+    }
+  }
+  /**
    * @brief Iterate on vertexs of a DenseVertexSet concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
@@ -279,7 +374,8 @@ class ParallelEngine {
   }
 
   template <typename ITER_FUNC_T, typename VID_T>
-  inline void ForEach(const Bitset& bitset, const VertexRange<VID_T>& range,
+  inline void ForEach(const DenseVertexSet<VID_T>& dense_set,
+                      const VertexRange<VID_T>& range,
                       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     std::vector<std::thread> threads(thread_num_);
 
@@ -293,7 +389,7 @@ class ParallelEngine {
       Vertex<VID_T> v(origin_begin);
       Vertex<VID_T> end(origin_end);
       while (v != end) {
-        if (bitset.get_bit(v.GetValue())) {
+        if (dense_set.Exist(v)) {
           iter_func(0, v);
         }
         ++v;
@@ -302,6 +398,7 @@ class ParallelEngine {
     }
 
     std::atomic<VID_T> cur(batch_begin);
+    auto& bitset = dense_set.GetBitset();
 
     for (uint32_t i = 0; i < thread_num_; ++i) {
       threads[i] = std::thread(

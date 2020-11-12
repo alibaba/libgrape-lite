@@ -60,7 +60,7 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
     ctx.exec_time -= GetCurrentTime();
 #endif
 
-    ctx.next_modified.parallel_clear(thread_num());
+    ctx.next_modified.ParallelClear(thread_num());
 
     // Get the channel. Messages assigned to this channel will be sent by the
     // message manager in parallel with the evaluation process.
@@ -70,14 +70,15 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
       ctx.partial_result[source] = 0;
       auto es = frag.GetOutgoingAdjList(source);
       for (auto& e : es) {
-        vertex_t v = e.neighbor;
-        ctx.partial_result[v] = std::min(ctx.partial_result[v], e.data);
+        vertex_t v = e.get_neighbor();
+        ctx.partial_result[v] =
+            std::min(ctx.partial_result[v], static_cast<double>(e.get_data()));
         if (frag.IsOuterVertex(v)) {
           // put the message to the channel.
           channel_0.SyncStateOnOuterVertex<fragment_t, double>(
               frag, v, ctx.partial_result[v]);
         } else {
-          ctx.next_modified.set_bit(v.GetValue());
+          ctx.next_modified.Insert(v);
         }
       }
     }
@@ -89,7 +90,7 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
 
     messages.ForceContinue();
 
-    ctx.next_modified.swap(ctx.curr_modified);
+    ctx.next_modified.Swap(ctx.curr_modified);
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();
 #endif
@@ -112,14 +113,14 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
     ctx.preprocess_time -= GetCurrentTime();
 #endif
 
-    ctx.next_modified.parallel_clear(thread_num());
+    ctx.next_modified.ParallelClear(thread_num());
 
     // parallel process and reduce the received messages
     messages.ParallelProcess<fragment_t, double>(
         thread_num(), frag, [&ctx](int tid, vertex_t u, double msg) {
           if (ctx.partial_result[u] > msg) {
             atomic_min(ctx.partial_result[u], msg);
-            ctx.curr_modified.set_bit(u.GetValue());
+            ctx.curr_modified.Insert(u);
           }
         });
 
@@ -134,11 +135,11 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
               double distv = ctx.partial_result[v];
               auto es = frag.GetOutgoingAdjList(v);
               for (auto& e : es) {
-                vertex_t u = e.neighbor;
-                double ndistu = distv + e.data;
+                vertex_t u = e.get_neighbor();
+                double ndistu = distv + e.get_data();
                 if (ndistu < ctx.partial_result[u]) {
                   atomic_min(ctx.partial_result[u], ndistu);
-                  ctx.next_modified.set_bit(u.GetValue());
+                  ctx.next_modified.Insert(u);
                 }
               }
             });
@@ -156,11 +157,11 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
                   frag, v, ctx.partial_result[v]);
             });
 
-    if (!ctx.next_modified.partial_empty(0, frag.GetInnerVerticesNum())) {
+    if (!ctx.next_modified.PartialEmpty(0, frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 
-    ctx.next_modified.swap(ctx.curr_modified);
+    ctx.next_modified.Swap(ctx.curr_modified);
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();
 #endif

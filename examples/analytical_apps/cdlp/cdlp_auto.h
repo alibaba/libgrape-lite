@@ -49,7 +49,7 @@ class CDLPAuto : public AutoAppBase<FRAG_T, CDLPAutoContext<FRAG_T>> {
 #endif
 
     auto inner_vertices = frag.InnerVertices();
-    VertexArray<label_t, vid_t> new_ilabels;
+    typename FRAG_T::template vertex_array_t<label_t> new_ilabels;
     new_ilabels.Init(inner_vertices);
 
 #ifdef PROFILING
@@ -59,13 +59,17 @@ class CDLPAuto : public AutoAppBase<FRAG_T, CDLPAutoContext<FRAG_T>> {
 
     // propagate new label to neighbor
     for (auto& v : inner_vertices) {
-      label_t new_label =
-          update_label_fast<label_t>(frag.GetIncomingAdjList(v), ctx.labels);
-      if (ctx.labels[v] != new_label) {
-        new_ilabels[v] = new_label;
-        ctx.changed[v] = true;
-      } else {
+      auto ie = frag.GetIncomingAdjList(v);
+      if (ie.Empty()) {
         ctx.changed[v] = false;
+      } else {
+        label_t new_label = update_label_fast<label_t>(ie, ctx.labels);
+        if (ctx.labels[v] != new_label) {
+          new_ilabels[v] = new_label;
+          ctx.changed[v] = true;
+        } else {
+          ctx.changed[v] = false;
+        }
       }
     }
 

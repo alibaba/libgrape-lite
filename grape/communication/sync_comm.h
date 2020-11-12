@@ -20,6 +20,7 @@ limitations under the License.
 
 #include <limits>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <glog/logging.h>
@@ -152,6 +153,32 @@ void BcastRecv(T& object, MPI_Comm comm, int root) {
   CHECK_LT(buf_size, std::numeric_limits<int>::max());
   MPI_Bcast(oa.GetBuffer(), buf_size, MPI_CHAR, root, comm);
   oa >> object;
+}
+
+template <class T>
+inline void AllToAll(std::vector<T>& objects, MPI_Comm comm) {
+  int worker_id, worker_num;
+  MPI_Comm_rank(comm, &worker_id);
+  MPI_Comm_size(comm, &worker_id);
+  std::thread send_thread([&]() {
+    InArchive arc;
+    arc << objects[worker_id];
+    for (int i = 1; i < worker_num; ++i) {
+      int dst_worker_id = (worker_id + i) % worker_num;
+      SendArchive(arc, dst_worker_id, comm);
+    }
+  });
+  std::thread recv_thread([&]() {
+    for (int i = 1; i < worker_num; ++i) {
+      int src_worker_id = (worker_id + worker_num - i) % worker_num;
+      OutArchive arc;
+      RecvArchive(arc, src_worker_id, comm);
+      arc >> objects[src_worker_id];
+    }
+  });
+
+  send_thread.join();
+  recv_thread.join();
 }
 
 }  // namespace grape

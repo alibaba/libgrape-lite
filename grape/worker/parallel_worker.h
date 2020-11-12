@@ -24,10 +24,10 @@ limitations under the License.
 #include <utility>
 
 #include "grape/communication/communicator.h"
+#include "grape/config.h"
 #include "grape/parallel/parallel_engine.h"
 #include "grape/parallel/parallel_message_manager.h"
 #include "grape/worker/comm_spec.h"
-#include "grape/config.h"
 
 /**
  * @brief  A Worker manages the computation cycle. ParallelWorker is a kind of
@@ -56,14 +56,15 @@ class ParallelWorker {
                 "The loaded graph is not valid for application");
 
   ParallelWorker(std::shared_ptr<APP_T> app, std::shared_ptr<fragment_t> graph)
-      : app_(app), graph_(graph) {}
+      : app_(app), context_(std::make_shared<context_t>(*graph)) {}
 
-  virtual ~ParallelWorker() {}
+  ~ParallelWorker() = default;
 
   void Init(const CommSpec& comm_spec,
             const ParallelEngineSpec& pe_spec = DefaultParallelEngineSpec()) {
+    auto& graph = const_cast<fragment_t&>(context_->fragment());
     // prepare for the query
-    graph_->PrepareToRunApp(APP_T::message_strategy, APP_T::need_split_edges);
+    graph.PrepareToRunApp(APP_T::message_strategy, APP_T::need_split_edges);
 
     comm_spec_ = comm_spec;
 
@@ -77,10 +78,11 @@ class ParallelWorker {
 
   template <class... Args>
   void Query(Args&&... args) {
+    auto& graph = context_->fragment();
+
     MPI_Barrier(comm_spec_.comm());
 
-    context_ = std::make_shared<context_t>();
-    context_->Init(*graph_, messages_, std::forward<Args>(args)...);
+    context_->Init(messages_, std::forward<Args>(args)...);
     if (comm_spec_.worker_id() == kCoordinatorRank) {
       VLOG(1) << "[Coordinator]: Finished Init";
     }
@@ -91,7 +93,7 @@ class ParallelWorker {
 
     messages_.StartARound();
 
-    app_->PEval(*graph_, *context_, messages_);
+    app_->PEval(graph, *context_, messages_);
 
     messages_.FinishARound();
 
@@ -105,7 +107,7 @@ class ParallelWorker {
       round++;
       messages_.StartARound();
 
-      app_->IncEval(*graph_, *context_, messages_);
+      app_->IncEval(graph, *context_, messages_);
 
       messages_.FinishARound();
 
@@ -114,15 +116,21 @@ class ParallelWorker {
       }
       ++step;
     }
+
     MPI_Barrier(comm_spec_.comm());
     messages_.Finalize();
   }
 
-  void Output(std::ostream& os) { context_->Output(*graph_, os); }
+  std::shared_ptr<context_t> GetContext() { return context_; }
+
+  const TerminateInfo& GetTerminateInfo() const {
+    return messages_.GetTerminateInfo();
+  }
+
+  void Output(std::ostream& os) { context_->Output(os); }
 
  private:
   std::shared_ptr<APP_T> app_;
-  std::shared_ptr<fragment_t> graph_;
   std::shared_ptr<context_t> context_;
   message_manager_t messages_;
 

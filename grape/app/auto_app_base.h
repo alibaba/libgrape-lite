@@ -73,15 +73,15 @@ class AutoAppBase {
   virtual void IncEval(const FRAG_T& graph, CONTEXT_T& context) = 0;
 };
 
-#define INSTALL_AUTO_WORKER(APP_T, CONTEXT_T, FRAG_T)             \
- public:                                                          \
-  using fragment_t = FRAG_T;                                      \
-  using context_t = CONTEXT_T;                                    \
-  using message_manager_t = AutoParallelMessageManager<FRAG_T>;   \
-  using worker_t = AutoWorker<APP_T>;                             \
-  static std::shared_ptr<worker_t> CreateWorker(                  \
-      std::shared_ptr<APP_T> app, std::shared_ptr<FRAG_T> frag) { \
-    return std::shared_ptr<worker_t>(new worker_t(app, frag));    \
+#define INSTALL_AUTO_WORKER(APP_T, CONTEXT_T, FRAG_T)                  \
+ public:                                                               \
+  using fragment_t = FRAG_T;                                           \
+  using context_t = CONTEXT_T;                                         \
+  using message_manager_t = grape::AutoParallelMessageManager<FRAG_T>; \
+  using worker_t = grape::AutoWorker<APP_T>;                           \
+  static std::shared_ptr<worker_t> CreateWorker(                       \
+      std::shared_ptr<APP_T> app, std::shared_ptr<FRAG_T> frag) {      \
+    return std::shared_ptr<worker_t>(new worker_t(app, frag));         \
   }
 
 }  // namespace grape

@@ -102,7 +102,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
         std::vector<vid_t> msg_vec;
         msg_vec.reserve(degree);
         for (auto& e : es) {
-          auto u = e.neighbor;
+          auto u = e.get_neighbor();
           if (ctx.global_degree[u] < ctx.global_degree[v]) {
             nbr_vec.push_back(u);
             msg_vec.push_back(frag.Vertex2Gid(u));
@@ -195,7 +195,6 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
       messages.ForceContinue();
     } else if (ctx.stage == 2) {
       ctx.stage = 3;
-
 #ifdef PROFILING
       ctx.preprocess_time -= GetCurrentTime();
 #endif
@@ -206,9 +205,22 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
 #ifdef PROFILING
       ctx.preprocess_time += GetCurrentTime();
 #endif
-    } else {
-      messages.ParallelProcess<fragment_t, int>(
-          thread_num(), frag, [](int tid, vertex_t u, int) {});
+
+      // output result to context data
+      auto& global_degree = ctx.global_degree;
+      auto& tricnt = ctx.tricnt;
+      auto& ctx_data = ctx.data();
+
+      for (auto v : inner_vertices) {
+        if (global_degree[v] == 0 || global_degree[v] == 1) {
+          ctx_data[v] = 0;
+        } else {
+          double re = 2.0 * (tricnt[v]) /
+                      (static_cast<int64_t>(global_degree[v]) *
+                       (static_cast<int64_t>(global_degree[v]) - 1));
+          ctx_data[v] = re;
+        }
+      }
     }
   }
 };

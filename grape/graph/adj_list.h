@@ -59,6 +59,9 @@ struct Nbr {
     data = edge.edata();
   }
 
+  Vertex<VID_T> get_neighbor() const { return neighbor; }
+  EDATA_T get_data() const { return data; }
+
   Vertex<VID_T> neighbor;
   EDATA_T data;
 };
@@ -91,6 +94,9 @@ struct Nbr<VID_T, EmptyType> {
   void GetEdgeDst(const Edge<VID_T, EmptyType>& edge) {
     neighbor.SetValue(edge.dst());
   }
+
+  Vertex<VID_T> get_neighbor() const { return neighbor; }
+  EmptyType get_data() const { return data; }
 
   union {
     Vertex<VID_T> neighbor;
