@@ -114,6 +114,21 @@ class ThreadLocalMessageBuffer {
     }
   }
 
+  template <typename GRAPH_T>
+  inline void SendMsgThroughIEdges(const GRAPH_T& frag,
+                                   const typename GRAPH_T::vertex_t& v) {
+    DestList dsts = frag.IEDests(v);
+    const fid_t* ptr = dsts.begin;
+    typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
+    while (ptr != dsts.end) {
+      fid_t fid = *(ptr++);
+      to_send_[fid] << gid;
+      if (to_send_[fid].GetSize() > block_size_) {
+        flushLocalBuffer(fid);
+      }
+    }
+  }
+
   /**
    * @brief Communication via a crossing edge a->b. It sends message
    * from a to b.
@@ -134,6 +149,21 @@ class ThreadLocalMessageBuffer {
     while (ptr != dsts.end) {
       fid_t fid = *(ptr++);
       to_send_[fid] << gid << msg;
+      if (to_send_[fid].GetSize() > block_size_) {
+        flushLocalBuffer(fid);
+      }
+    }
+  }
+
+  template <typename GRAPH_T>
+  inline void SendMsgThroughOEdges(const GRAPH_T& frag,
+                                   const typename GRAPH_T::vertex_t& v) {
+    DestList dsts = frag.OEDests(v);
+    const fid_t* ptr = dsts.begin;
+    typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
+    while (ptr != dsts.end) {
+      fid_t fid = *(ptr++);
+      to_send_[fid] << gid;
       if (to_send_[fid].GetSize() > block_size_) {
         flushLocalBuffer(fid);
       }

@@ -250,6 +250,13 @@ class ParallelMessageManager : public MessageManagerBase {
                                                                    msg);
   }
 
+  template <typename GRAPH_T>
+  inline void SendMsgThroughIEdges(const GRAPH_T& frag,
+                                   const typename GRAPH_T::vertex_t& v,
+                                   int channel_id = 0) {
+    channels_[channel_id].SendMsgThroughIEdges<GRAPH_T>(frag, v);
+  }
+
   /**
    * @brief SendMsgThroughOEdges on a channel.
    *
@@ -266,6 +273,13 @@ class ParallelMessageManager : public MessageManagerBase {
                                    const MESSAGE_T& msg, int channel_id = 0) {
     channels_[channel_id].SendMsgThroughOEdges<GRAPH_T, MESSAGE_T>(frag, v,
                                                                    msg);
+  }
+
+  template <typename GRAPH_T>
+  inline void SendMsgThroughOEdges(const GRAPH_T& frag,
+                                   const typename GRAPH_T::vertex_t& v,
+                                   int channel_id = 0) {
+    channels_[channel_id].SendMsgThroughOEdges<GRAPH_T>(frag, v);
   }
 
   /**
