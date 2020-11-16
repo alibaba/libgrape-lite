@@ -51,9 +51,6 @@ static std::shared_ptr<FRAG_T> LoadGraph(
     const CommSpec& comm_spec,
     const LoadGraphSpec& spec = DefaultLoadGraphSpec()) {
   if (vfile.empty()) {
-    if (FLAGS_segmented_partition) {
-      LOG(FATAL) << "EFragmentLoader doesn't support Segmented Partitioner";
-    }
     std::unique_ptr<
         EFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T, LINE_PARSER_T>>
         loader(new EFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T,
