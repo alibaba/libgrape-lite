@@ -124,6 +124,10 @@ class Edge<VID_T, EmptyType> {
     dst_ = dst;
   }
 
+  void set_src(const VID_T& src) { src_ = src; }
+
+  void set_dst(const VID_T& dst) { dst_ = dst; }
+
   void set_edata(const EmptyType& edata) {}
 
   Edge& operator=(const Edge& other) {
