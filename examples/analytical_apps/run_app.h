@@ -16,6 +16,14 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_RUN_APP_H_
 #define EXAMPLES_ANALYTICAL_APPS_RUN_APP_H_
 
+#include <gflags/gflags.h>
+#include <gflags/gflags_declare.h>
+#include <glog/logging.h>
+#include <grape/fragment/immutable_edgecut_fragment.h>
+#include <grape/fragment/loader.h>
+#include <grape/grape.h>
+#include <grape/util.h>
+
 #include <algorithm>
 #include <iostream>
 #include <memory>
@@ -24,15 +32,6 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#include <grape/fragment/immutable_edgecut_fragment.h>
-#include <grape/fragment/loader.h>
-#include <grape/grape.h>
-#include <grape/util.h>
-
-#include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
-#include <glog/logging.h>
 
 #ifdef GRANULA
 #include "thirdparty/atlarge-research-granula/granula.hpp"
@@ -64,8 +63,8 @@ void Init() {
   }
   if (FLAGS_deserialize && FLAGS_serialization_prefix.empty()) {
     LOG(FATAL) << "Please assign a serialization prefix.";
-  } else if (FLAGS_vfile.empty() || FLAGS_efile.empty()) {
-    LOG(FATAL) << "Please assign input vertex/edge files.";
+  } else if (FLAGS_efile.empty()) {
+    LOG(FATAL) << "Please assign input edge files.";
   }
 
   if (access(FLAGS_out_prefix.c_str(), 0) != 0) {
