@@ -382,75 +382,81 @@ class ParallelEngine {
                       const VertexRange<VID_T>& range,
                       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     std::vector<std::thread> threads(thread_num_);
+    VertexRange<VID_T> complete_range = dense_set.Range();
 
-    VID_T origin_begin = range.begin().GetValue();
-    VID_T origin_end = range.end().GetValue();
-    //    VID_T batch_begin = (origin_begin + 63) / 64 * 64;
-    //    VID_T batch_end = origin_end / 64 * 64;
+    VID_T complete_begin = complete_range.begin().GetValue();
+    VID_T complete_end = complete_range.end().GetValue();
 
-    //    if (batch_begin >= origin_end || batch_end <= origin_begin) {
-    Vertex<VID_T> v(origin_begin);
-    Vertex<VID_T> end(origin_end);
-    while (v != end) {
-      if (dense_set.Exist(v)) {
-        iter_func(0, v);
+    VID_T origin_begin = std::max(range.begin().GetValue(), complete_begin);
+    VID_T origin_end = std::min(range.end().GetValue(), complete_end);
+
+    VID_T batch_begin =
+        (origin_begin - complete_begin + 63) / 64 * 64 + complete_begin;
+    VID_T batch_end = (origin_end - complete_begin) / 64 * 64 + complete_begin;
+
+    if (batch_begin >= origin_end || batch_end <= origin_begin) {
+      Vertex<VID_T> v(origin_begin);
+      Vertex<VID_T> end(origin_end);
+      while (v != end) {
+        if (dense_set.Exist(v)) {
+          iter_func(0, v);
+        }
+        ++v;
       }
-      ++v;
+      return;
     }
-    return;
-    //    }
 
-    //    std::atomic<VID_T> cur(batch_begin);
-    //    auto& bitset = dense_set.GetBitset();
-    //
-    //    for (uint32_t i = 0; i < thread_num_; ++i) {
-    //      threads[i] = std::thread(
-    //          [&iter_func, &cur, chunk_size, &bitset, batch_begin, batch_end,
-    //           origin_begin, origin_end, this](uint32_t tid) {
-    //            if (tid == 0 && origin_begin < batch_begin) {
-    //              Vertex<VID_T> v(origin_begin);
-    //              Vertex<VID_T> end(batch_begin);
-    //              while (v != end) {
-    //                if (bitset.get_bit(v.GetValue())) {
-    //                  iter_func(tid, v);
-    //                }
-    //                ++v;
-    //              }
-    //            }
-    //            if (tid == (thread_num_ - 1) && batch_end < origin_end) {
-    //              Vertex<VID_T> v(batch_end);
-    //              Vertex<VID_T> end(origin_end);
-    //              while (v != end) {
-    //                if (bitset.get_bit(v.GetValue())) {
-    //                  iter_func(tid, v);
-    //                }
-    //                ++v;
-    //              }
-    //            }
-    //            if (batch_begin < batch_end) {
-    //              while (true) {
-    //                VID_T cur_beg = std::min(cur.fetch_add(chunk_size),
-    //                batch_end); VID_T cur_end = std::min(cur_beg + chunk_size,
-    //                batch_end); if (cur_beg == cur_end) {
-    //                  break;
-    //                }
-    //                for (VID_T vid = cur_beg; vid < cur_end; vid += 64) {
-    //                  Vertex<VID_T> v(vid);
-    //                  uint64_t word = bitset.get_word(vid - origin_begin);
-    //                  while (word != 0) {
-    //                    if (word & 1) {
-    //                      iter_func(tid, v);
-    //                    }
-    //                    ++v;
-    //                    word = word >> 1;
-    //                  }
-    //                }
-    //              }
-    //            }
-    //          },
-    //          i);
-    //      setThreadAffinity(threads[i], i);
-    //    }
+    std::atomic<VID_T> cur(batch_begin);
+    auto& bitset = dense_set.GetBitset();
+
+    for (uint32_t i = 0; i < thread_num_; ++i) {
+      threads[i] = std::thread(
+          [&iter_func, &cur, chunk_size, &bitset, batch_begin, batch_end,
+           origin_begin, origin_end, complete_begin, this](uint32_t tid) {
+            if (tid == 0 && origin_begin < batch_begin) {
+              Vertex<VID_T> v(origin_begin);
+              Vertex<VID_T> end(batch_begin);
+              while (v != end) {
+                if (bitset.get_bit(v.GetValue())) {
+                  iter_func(tid, v);
+                }
+                ++v;
+              }
+            }
+            if (tid == (thread_num_ - 1) && batch_end < origin_end) {
+              Vertex<VID_T> v(batch_end);
+              Vertex<VID_T> end(origin_end);
+              while (v != end) {
+                if (bitset.get_bit(v.GetValue())) {
+                  iter_func(tid, v);
+                }
+                ++v;
+              }
+            }
+            if (batch_begin < batch_end) {
+              while (true) {
+                VID_T cur_beg = std::min(cur.fetch_add(chunk_size), batch_end);
+                VID_T cur_end = std::min(cur_beg + chunk_size, batch_end);
+                if (cur_beg == cur_end) {
+                  break;
+                }
+                for (VID_T vid = cur_beg; vid < cur_end; vid += 64) {
+                  Vertex<VID_T> v(vid);
+                  uint64_t word = bitset.get_word(vid - complete_begin);
+                  while (word != 0) {
+                    if (word & 1) {
+                      iter_func(tid, v);
+                    }
+                    ++v;
+                    word = word >> 1;
+                  }
+                }
+              }
+            }
+          },
+          i);
+      setThreadAffinity(threads[i], i);
+    }
     for (auto& thrd : threads) {
       thrd.join();
     }
