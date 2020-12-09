@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
   grape::gflags::SetUsageMessage(
       "Usage: mpiexec [mpi_opts] ./run_app [grape_opts]");
   if (argc == 1) {
-    gflags::ShowUsageWithFlagsRestrict(argv[0], "analytical_apps");
+    grape::gflags::ShowUsageWithFlagsRestrict(argv[0], "analytical_apps");
     exit(1);
   }
   grape::gflags::ParseCommandLineFlags(&argc, &argv, true);
