@@ -19,6 +19,7 @@ limitations under the License.
 #include <memory>
 #include <string>
 
+#include "grape/fragment/e_fragment_loader.h"
 #include "grape/fragment/ev_fragment_loader.h"
 #include "grape/fragment/partitioner.h"
 #include "grape/io/local_io_adaptor.h"
@@ -49,11 +50,19 @@ static std::shared_ptr<FRAG_T> LoadGraph(
     const std::string& efile, const std::string& vfile,
     const CommSpec& comm_spec,
     const LoadGraphSpec& spec = DefaultLoadGraphSpec()) {
-  std::unique_ptr<
-      EVFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T, LINE_PARSER_T>>
-      loader(new EVFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T,
-                                  LINE_PARSER_T>(comm_spec));
-  return loader->LoadFragment(efile, vfile, spec);
+  if (vfile.empty()) {
+    std::unique_ptr<
+        EFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T, LINE_PARSER_T>>
+        loader(new EFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T,
+                                   LINE_PARSER_T>(comm_spec));
+    return loader->LoadFragment(efile, vfile, spec);
+  } else {
+    std::unique_ptr<
+        EVFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T, LINE_PARSER_T>>
+        loader(new EVFragmentLoader<FRAG_T, PARTITIONER_T, IOADAPTOR_T,
+                                    LINE_PARSER_T>(comm_spec));
+    return loader->LoadFragment(efile, vfile, spec);
+  }
 }
 
 }  // namespace grape

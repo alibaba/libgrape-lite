@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_FRAGMENT_EV_FRAGMENT_LOADER_H_
-#define GRAPE_FRAGMENT_EV_FRAGMENT_LOADER_H_
+#ifndef GRAPE_FRAGMENT_E_FRAGMENT_LOADER_H_
+#define GRAPE_FRAGMENT_E_FRAGMENT_LOADER_H_
 
 #include <mpi.h>
 
@@ -31,10 +31,9 @@ limitations under the License.
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
-
 /**
- * @brief EVFragmentLoader is a loader to load fragments from separated
- * efile and vfile.
+ * @brief EFragmentLoader is a loader to load fragments from separated
+ * efile.
  *
  * @tparam FRAG_T Fragment type.
  * @tparam PARTITIONER_T Partitioner type.
@@ -47,7 +46,7 @@ template <typename FRAG_T,
           typename LINE_PARSER_T =
               TSVLineParser<typename FRAG_T::oid_t, typename FRAG_T::vdata_t,
                             typename FRAG_T::edata_t>>
-class EVFragmentLoader {
+class EFragmentLoader {
   using fragment_t = FRAG_T;
   using oid_t = typename fragment_t::oid_t;
   using vid_t = typename fragment_t::vid_t;
@@ -66,10 +65,10 @@ class EVFragmentLoader {
                 "LineParser type is invalid");
 
  public:
-  explicit EVFragmentLoader(const CommSpec comm_spec)
+  explicit EFragmentLoader(const CommSpec comm_spec)
       : comm_spec_(comm_spec), basic_fragment_loader_(comm_spec) {}
 
-  ~EVFragmentLoader() = default;
+  ~EFragmentLoader() = default;
 
   std::shared_ptr<fragment_t> LoadFragment(const std::string& efile,
                                            const std::string& vfile,
@@ -96,34 +95,6 @@ class EVFragmentLoader {
     }
 
     std::vector<oid_t> id_list;
-    std::vector<vdata_t> vdata_list;
-    {
-      auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(vfile));
-      io_adaptor->Open();
-      std::string line;
-      vdata_t v_data;
-      oid_t vertex_id;
-      size_t line_no = 0;
-      while (io_adaptor->ReadLine(line)) {
-        ++line_no;
-        if (line_no % 1000000 == 0) {
-          VLOG(10) << "[worker-" << comm_spec_.worker_id() << "][vfile] "
-                   << line_no;
-        }
-        if (line.empty() || line[0] == '#')
-          continue;
-        try {
-          line_parser_.LineParserForVFile(line, vertex_id, v_data);
-        } catch (std::exception& e) {
-          VLOG(1) << e.what();
-          continue;
-        }
-        id_list.push_back(vertex_id);
-        vdata_list.push_back(v_data);
-      }
-      io_adaptor->Close();
-    }
-
     partitioner_t partitioner(comm_spec_.fnum(), id_list);
 
     basic_fragment_loader_.SetPartitioner(std::move(partitioner));
@@ -131,14 +102,7 @@ class EVFragmentLoader {
                                         spec.rebalance_vertex_factor);
 
     basic_fragment_loader_.Start();
-
-    {
-      size_t vnum = id_list.size();
-      for (size_t i = 0; i < vnum; ++i) {
-        basic_fragment_loader_.AddVertex(id_list[i], vdata_list[i]);
-      }
-    }
-
+    grape::EmptyType fake_data;
     {
       auto io_adaptor =
           std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(efile)));
@@ -167,6 +131,8 @@ class EVFragmentLoader {
         }
 
         basic_fragment_loader_.AddEdge(src, dst, e_data);
+        basic_fragment_loader_.AddVertex(src, fake_data);
+        basic_fragment_loader_.AddVertex(dst, fake_data);
 
         if (!spec.directed) {
           basic_fragment_loader_.AddEdge(dst, src, e_data);
@@ -202,4 +168,4 @@ class EVFragmentLoader {
 
 }  // namespace grape
 
-#endif  // GRAPE_FRAGMENT_EV_FRAGMENT_LOADER_H_
+#endif  // GRAPE_FRAGMENT_E_FRAGMENT_LOADER_H_
