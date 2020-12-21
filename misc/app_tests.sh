@@ -57,6 +57,15 @@ function RunWeightedApp() {
   eval ${cmd}
 }
 
+function RunEdgeOnlyApp() {
+  NP=$1; shift
+  APP=$1; shift
+
+  cmd="mpirun -n ${NP} ./run_app --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output $@"
+  echo ${cmd}
+  eval ${cmd}
+}
+
 pushd ${GRAPE_HOME}/build
 
 g++ ${GRAPE_HOME}/misc/wcc_check.cc -std=c++11 -O3 -o ./wcc_check
@@ -79,6 +88,18 @@ for np in ${proc_list}; do
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
 
     RunWeightedApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
+
+    RunEdgeOnlyApp ${np} sssp --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+    RunEdgeOnlyApp ${np} sssp --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
+
+    RunEdgeOnlyApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+    RunEdgeOnlyApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
 
     RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
