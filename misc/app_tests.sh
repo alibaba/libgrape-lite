@@ -61,7 +61,7 @@ function RunEdgeOnlyApp() {
   NP=$1; shift
   APP=$1; shift
 
-  cmd="mpirun -n ${NP} ./run_app --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output $@"
+  cmd="mpirun -n ${NP} ./run_app --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output --nosegmented_partition $@"
   echo ${cmd}
   eval ${cmd}
 }
@@ -112,6 +112,18 @@ for np in ${proc_list}; do
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
 
     RunApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
+
+    RunEdgeOnlyApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+    RunEdgeOnlyApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+    RunEdgeOnlyApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
+
+    RunEdgeOnlyApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
 
     RunApp ${np} pagerank --pr_mr=10 --pr_d=0.85
