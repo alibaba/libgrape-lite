@@ -146,7 +146,7 @@ inline void atomic_sub(T& a, T b) {
 }
 
 template <>
-inline void atomic_add(float& a, float b) {
+inline void atomic_sub(float& a, float b) {
   volatile float new_a, old_a;
   do {
     old_a = a;
@@ -155,7 +155,7 @@ inline void atomic_add(float& a, float b) {
 }
 
 template <>
-inline void atomic_add(double& a, double b) {
+inline void atomic_sub(double& a, double b) {
   volatile double new_a, old_a;
   do {
     old_a = a;
