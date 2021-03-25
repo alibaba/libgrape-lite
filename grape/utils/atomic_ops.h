@@ -129,6 +129,40 @@ inline void atomic_add(double& a, double b) {
   } while (!atomic_compare_and_swap(a, old_a, new_a));
 }
 
+/**
+ * @brief Atomic sub a value. Equavalent to:
+ *
+ * \code
+ * a -= b;
+ * \endcode
+ *
+ * @tparam T Type of the operands.
+ * @param a Object to process.
+ * @param b Value to sub.
+ */
+template <typename T>
+inline void atomic_sub(T& a, T b) {
+  __sync_fetch_and_sub(&a, b);
+}
+
+template <>
+inline void atomic_sub(float& a, float b) {
+  volatile float new_a, old_a;
+  do {
+    old_a = a;
+    new_a = old_a - b;
+  } while (!atomic_compare_and_swap(a, old_a, new_a));
+}
+
+template <>
+inline void atomic_sub(double& a, double b) {
+  volatile double new_a, old_a;
+  do {
+    old_a = a;
+    new_a = old_a - b;
+  } while (!atomic_compare_and_swap(a, old_a, new_a));
+}
+
 }  // namespace grape
 
 #endif  // GRAPE_UTILS_ATOMIC_OPS_H_
