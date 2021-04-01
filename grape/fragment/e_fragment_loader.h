@@ -102,7 +102,7 @@ class EFragmentLoader {
                                         spec.rebalance_vertex_factor);
 
     basic_fragment_loader_.Start();
-    grape::EmptyType fake_data;
+    vdata_t fake_data{};
     {
       auto io_adaptor =
           std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(efile)));
