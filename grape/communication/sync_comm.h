@@ -159,7 +159,7 @@ template <class T>
 inline void AllToAll(std::vector<T>& objects, MPI_Comm comm) {
   int worker_id, worker_num;
   MPI_Comm_rank(comm, &worker_id);
-  MPI_Comm_size(comm, &worker_id);
+  MPI_Comm_size(comm, &worker_num);
   std::thread send_thread([&]() {
     InArchive arc;
     arc << objects[worker_id];
