@@ -64,18 +64,12 @@ class VertexMapBase {
 
   virtual void Init() {
     fnum_ = comm_spec_.fnum();
-    fid_t maxfid = fnum_ - 1;
-    if (maxfid == 0) {
-      fid_offset_ = (sizeof(VID_T) * 8) - 1;
-    } else {
-      int i = 0;
-      while (maxfid) {
-        maxfid >>= 1;
-        ++i;
-      }
-      fid_offset_ = (sizeof(VID_T) * 8) - i;
-    }
-    id_mask_ = ((VID_T) 1 << fid_offset_) - (VID_T) 1;
+    initOffsetAndMask();
+  }
+
+  virtual void Init(fid_t fnum) {
+    fnum_ = fnum;
+    initOffsetAndMask();
   }
 
   fid_t GetFragmentNum() const { return fnum_; }
@@ -106,6 +100,22 @@ class VertexMapBase {
   }
 
   int GetFidOffset() const { return fid_offset_; }
+
+ private:
+  inline void initOffsetAndMask() {
+    fid_t maxfid = fnum_ - 1;
+    if (maxfid == 0) {
+      fid_offset_ = (sizeof(VID_T) * 8) - 1;
+    } else {
+      int i = 0;
+      while (maxfid) {
+        maxfid >>= 1;
+        ++i;
+      }
+      fid_offset_ = (sizeof(VID_T) * 8) - i;
+    }
+    id_mask_ = ((VID_T) 1 << fid_offset_) - (VID_T) 1;
+  }
 
  protected:
   fid_t fnum_;

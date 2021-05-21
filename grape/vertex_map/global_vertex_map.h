@@ -60,6 +60,12 @@ class GlobalVertexMap : public VertexMapBase<OID_T, VID_T> {
     l2o_.resize(Base::GetCommSpec().fnum());
   }
 
+  void Init(fid_t fnum) {
+    Base::Init(fnum);
+    o2l_.resize(fnum);
+    l2o_.resize(fnum);
+  }
+
   size_t GetTotalVertexSize() {
     size_t size = 0;
     for (const auto& v : o2l_) {
