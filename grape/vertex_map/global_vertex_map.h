@@ -60,6 +60,12 @@ class GlobalVertexMap : public VertexMapBase<OID_T, VID_T> {
     l2o_.resize(Base::GetCommSpec().fnum());
   }
 
+  void Init(fid_t fnum) {
+    Base::Init(fnum);
+    o2l_.resize(fnum);
+    l2o_.resize(fnum);
+  }
+
   size_t GetTotalVertexSize() {
     size_t size = 0;
     for (const auto& v : o2l_) {
@@ -136,6 +142,8 @@ class GlobalVertexMap : public VertexMapBase<OID_T, VID_T> {
     int worker_id = comm_spec.worker_id();
     int worker_num = comm_spec.worker_num();
     bool to_sort = false;
+    // worker num has to be equal to fnum when constructing vertex map.
+    CHECK(worker_num == static_cast<int>(comm_spec.fnum()));
     for (fid_t fid = 0; fid != comm_spec.fnum(); ++fid) {
       if (!l2o_[fid].empty()) {
         to_sort = o2l_[fid].empty();
