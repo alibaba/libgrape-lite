@@ -131,6 +131,10 @@ class CommSpec {
 
   inline fid_t fid() const { return fid_; }
 
+  inline void set_fnum(fid_t fnum) { fnum_ = fnum; }
+
+  inline void set_fid(fid_t fid) { fid_ = fid; }
+
   __attribute__((no_sanitize_address)) inline MPI_Comm comm() const {
     return comm_;
   }
