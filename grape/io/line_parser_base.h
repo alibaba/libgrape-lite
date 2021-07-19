@@ -119,7 +119,7 @@ inline const char* match<long double>(char const* str, long double& r,
 
 template <>
 inline const char* match<std::string>(char const* str, std::string& r,
-                                      char const*) {
+                                      char const* end) {
   int nlen1 = 0, nlen2 = 0;
   // skip preceding spaces or new line mark
   while (str + nlen1 != end && str[nlen1] &&
