@@ -19,6 +19,7 @@ limitations under the License.
 #include <utility>
 
 #include "grape/utils/bitset.h"
+#include "grape/utils/thread_pool.h"
 #include "grape/utils/vertex_array.h"
 
 namespace grape {
@@ -39,27 +40,29 @@ class DenseVertexSet {
 
   ~DenseVertexSet() = default;
 
-  void Init(const VertexRange<VID_T>& range, int thread_num = 1) {
+  void Init(const VertexRange<VID_T>& range,
+            ThreadPool* thread_pool = nullptr) {
     beg_ = range.begin().GetValue();
     end_ = range.end().GetValue();
     bs_.init(end_ - beg_);
-    if (thread_num == 1) {
+    if (thread_pool == nullptr) {
       bs_.clear();
     } else {
-      bs_.parallel_clear(thread_num);
+      bs_.parallel_clear(thread_pool);
     }
   }
 
-  void Init(const VertexVector<VID_T>& vertices, int thread_num = 1) {
+  void Init(const VertexVector<VID_T>& vertices,
+            ThreadPool* thread_pool = nullptr) {
     if (vertices.size() == 0)
       return;
     beg_ = vertices[0].GetValue();
     end_ = vertices[vertices.size() - 1].GetValue();
     bs_.init(end_ - beg_ + 1);
-    if (thread_num == 1) {
+    if (thread_pool == nullptr) {
       bs_.clear();
     } else {
-      bs_.parallel_clear(thread_num);
+      bs_.parallel_clear(thread_pool);
     }
   }
 
@@ -81,21 +84,24 @@ class DenseVertexSet {
 
   size_t Count() const { return bs_.count(); }
 
-  size_t ParallelCount(int thread_num) const {
-    return bs_.parallel_count(thread_num);
+  size_t ParallelCount(ThreadPool* thread_pool) const {
+    return bs_.parallel_count(thread_pool);
   }
 
   size_t PartialCount(VID_T beg, VID_T end) const {
     return bs_.partial_count(beg - beg_, end - beg_);
   }
 
-  size_t ParallelPartialCount(int thread_num, VID_T beg, VID_T end) const {
-    return bs_.parallel_partial_count(thread_num, beg - beg_, end - beg_);
+  size_t ParallelPartialCount(ThreadPool* thread_pool, VID_T beg,
+                              VID_T end) const {
+    return bs_.parallel_partial_count(thread_pool, beg - beg_, end - beg_);
   }
 
   void Clear() { bs_.clear(); }
 
-  void ParallelClear(int thread_num) { bs_.parallel_clear(thread_num); }
+  void ParallelClear(ThreadPool* thread_pool) {
+    bs_.parallel_clear(thread_pool);
+  }
 
   void Swap(DenseVertexSet<VID_T>& rhs) {
     std::swap(beg_, rhs.beg_);
