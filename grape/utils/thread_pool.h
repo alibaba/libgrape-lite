@@ -22,7 +22,7 @@
  3. This notice may not be removed or altered from any source
  distribution.
  
- Modified by 2020 Alibaba Group to use in this project
+ Modified by Binrui Li at Alibaba Group, 2021.
 */
 
 #ifndef GRAPE_UTILS_THREAD_POOL_H_
