@@ -201,11 +201,14 @@ class CommSpec {
         host_worker_list_[iter->second].push_back(i);
       }
     }
-
+    if (local_owner_ && ValidComm(local_comm_)) {
+      MPI_Comm_free(&local_comm_);
+    }
     MPI_Comm_split(comm_, worker_host_id_[worker_id_], worker_id_,
                    &local_comm_);
     MPI_Comm_size(local_comm_, &local_num_);
     MPI_Comm_rank(local_comm_, &local_id_);
+    local_owner_ = true;
   }
 
   int worker_num_;
