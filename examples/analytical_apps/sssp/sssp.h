@@ -60,7 +60,7 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
     ctx.exec_time -= GetCurrentTime();
 #endif
 
-    ctx.next_modified.ParallelClear(&GetThreadPool());
+    ctx.next_modified.ParallelClear(GetThreadPool());
 
     // Get the channel. Messages assigned to this channel will be sent by the
     // message manager in parallel with the evaluation process.
@@ -113,7 +113,7 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
     ctx.preprocess_time -= GetCurrentTime();
 #endif
 
-    ctx.next_modified.ParallelClear(&GetThreadPool());
+    ctx.next_modified.ParallelClear(GetThreadPool());
 
     // parallel process and reduce the received messages
     messages.ParallelProcess<fragment_t, double>(

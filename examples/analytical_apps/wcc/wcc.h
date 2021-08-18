@@ -150,7 +150,7 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
                message_manager_t& messages) {
     using vid_t = typename context_t::vid_t;
 
-    ctx.next_modified.ParallelClear(&GetThreadPool());
+    ctx.next_modified.ParallelClear(GetThreadPool());
 
 #ifdef PROFILING
     ctx.preprocess_time -= GetCurrentTime();
@@ -171,7 +171,7 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 
     vid_t ivnum = frag.GetInnerVerticesNum();
     double rate = static_cast<double>(ctx.curr_modified.ParallelPartialCount(
-                      &GetThreadPool(), 0, ivnum)) /
+                      GetThreadPool(), 0, ivnum)) /
                   static_cast<double>(ivnum);
     // If active vertices are few, pushing will be used.
     if (rate > 0.1) {
