@@ -16,13 +16,6 @@ limitations under the License.
 #ifndef GRAPE_PARALLEL_PARALLEL_ENGINE_H_
 #define GRAPE_PARALLEL_PARALLEL_ENGINE_H_
 
-#ifdef __LINUX__
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#include <sched.h>
-#endif
-
 #include <algorithm>
 #include <atomic>
 #include <memory>
@@ -33,64 +26,18 @@ limitations under the License.
 #include "grape/utils/thread_pool.h"
 #include "grape/utils/vertex_set.h"
 #include "grape/worker/comm_spec.h"
+#include "grape/parallel/parallel_engine_spec.h"
 
 namespace grape {
-
-struct ParallelEngineSpec {
-  uint32_t thread_num;
-  bool affinity;
-  std::vector<uint32_t> cpu_list;
-};
-
-inline ParallelEngineSpec DefaultParallelEngineSpec() {
-  ParallelEngineSpec spec;
-  spec.thread_num = std::thread::hardware_concurrency();
-  spec.affinity = false;
-  spec.cpu_list.clear();
-  return spec;
-}
-
-inline ParallelEngineSpec MultiProcessSpec(const CommSpec& comm_spec,
-                                           bool affinity = false) {
-  ParallelEngineSpec spec;
-  uint32_t total_thread_num = std::thread::hardware_concurrency();
-  uint32_t each_process_thread_num =
-      (total_thread_num + comm_spec.local_num() - 1) / comm_spec.local_num();
-  spec.thread_num = each_process_thread_num;
-  spec.affinity = affinity;
-  spec.cpu_list.clear();
-  if (affinity) {
-    uint32_t offset = each_process_thread_num * comm_spec.local_id();
-    for (uint32_t i = 0; i < each_process_thread_num; ++i) {
-      spec.cpu_list.push_back((offset + i) % total_thread_num);
-    }
-  }
-  return spec;
-}
-
 class ParallelEngine {
  public:
-  ParallelEngine() : affinity_(false), thread_num_(1) {}
+  ParallelEngine() : thread_num_(1) {}
   virtual ~ParallelEngine() {}
 
   void InitParallelEngine(
       const ParallelEngineSpec& spec = DefaultParallelEngineSpec()) {
-    affinity_ = false;
-#ifdef __LINUX__
-    affinity_ = spec.affinity && (!spec.cpu_list.empty());
-#endif
     thread_num_ = spec.thread_num;
-    if (affinity_) {
-      if (cpu_list_.size() >= thread_num_) {
-        cpu_list_.resize(thread_num_);
-      } else {
-        uint32_t num_to_append = thread_num_ - cpu_list_.size();
-        for (uint32_t i = 0; i < num_to_append; ++i) {
-          cpu_list_.push_back(cpu_list_[i]);
-        }
-      }
-    }
-    thread_pool_.InitThreadPool(thread_num_);
+    thread_pool_.InitThreadPool(spec);
   }
 
   inline ThreadPool& GetThreadPool() { return thread_pool_; }
@@ -545,20 +492,7 @@ class ParallelEngine {
   uint32_t thread_num() { return thread_num_; }
 
  private:
-  inline void setThreadAffinity(std::thread& thrd, uint32_t i) {
-#ifdef __LINUX__
-    if (affinity_) {
-      cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
-      CPU_SET(cpu_list_[i], &cpuset);
-      pthread_setaffinity_np(thrd.native_handle(), sizeof(cpu_set_t), &cpuset);
-    }
-#endif
-  }
-
-  bool affinity_;
   ThreadPool thread_pool_;
-  std::vector<uint32_t> cpu_list_;
   uint32_t thread_num_;
 };
 

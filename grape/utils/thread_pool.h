@@ -1,27 +1,27 @@
 /** Credits to Jakob Progsch (@progschj)
  https://github.com/progschj/ThreadPool
- 
+
  Copyright (c) 2012 Jakob Progsch, Václav Zeman
- 
+
  This software is provided 'as-is', without any express or implied
  warranty. In no event will the authors be held liable for any damages
  arising from the use of this software.
- 
+
  Permission is granted to anyone to use this software for any purpose,
  including commercial applications, and to alter it and redistribute it
  freely, subject to the following restrictions:
- 
+
  1. The origin of this software must not be misrepresented; you must not
  claim that you wrote the original software. If you use this software
  in a product, an acknowledgment in the product documentation would be
  appreciated but is not required.
- 
+
  2. Altered source versions must be plainly marked as such, and must not be
  misrepresented as being the original software.
- 
+
  3. This notice may not be removed or altered from any source
  distribution.
- 
+
  Modified by Binrui Li at Alibaba Group, 2021.
 */
 
@@ -37,13 +37,23 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
+#include <glog/logging.h>
+
+#include "grape/parallel/parallel_engine_spec.h"
+
+#if __linux__
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <sched.h>
+#endif
 
 class ThreadPool {
  public:
   ThreadPool(ThreadPool const&) = delete;
   ThreadPool& operator=(ThreadPool const&) = delete;
   ThreadPool() {}
-  inline void InitThreadPool(size_t);
+  inline void InitThreadPool(const grape::ParallelEngineSpec&);
 
   template <class F, class... Args>
   auto enqueue(F&& f, Args&&... args)
@@ -66,9 +76,11 @@ class ThreadPool {
 };
 
 // the constructor just launches some amount of workers
-inline void ThreadPool::InitThreadPool(size_t threads) {
-  thread_num_ = threads;
-  for (size_t i = 0; i < threads; ++i)
+inline void ThreadPool::InitThreadPool(const grape::ParallelEngineSpec& spec) {
+  bool affinity = false;
+  affinity = spec.affinity && (!spec.cpu_list.empty());
+  thread_num_ = spec.thread_num;
+  for (size_t i = 0; i < thread_num_; ++i) {
     workers.emplace_back([this] {
       for (;;) {
         std::function<void()> task;
@@ -86,6 +98,17 @@ inline void ThreadPool::InitThreadPool(size_t threads) {
         task();
       }
     });
+#if __linux__
+    if (affinity) {
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(spec.cpu_list[i], &cpuset);
+      pthread_setaffinity_np(workers[i].native_handle(), sizeof(cpu_set_t),
+                             &cpuset);
+      VLOG(2) << "bind thread " << i << " to " << spec.cpu_list[i] << std::endl;
+    }
+#endif
+  }
 }
 
 // use to wait for all tasks end
