@@ -57,6 +57,15 @@ function RunWeightedApp() {
   eval ${cmd}
 }
 
+function RunAppWithELoader() {
+  NP=$1; shift
+  APP=$1; shift
+
+  cmd="mpirun -n ${NP} ./run_app --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output --nosegmented_partition $@"
+  echo ${cmd}
+  eval ${cmd}
+}
+
 pushd ${GRAPE_HOME}/build
 
 g++ ${GRAPE_HOME}/misc/wcc_check.cc -std=c++11 -O3 -o ./wcc_check
@@ -81,6 +90,18 @@ for np in ${proc_list}; do
     RunWeightedApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
 
+    RunAppWithELoader ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+    RunAppWithELoader ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+    RunAppWithELoader ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
+
+    RunAppWithELoader ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
+
     RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
 
@@ -91,6 +112,18 @@ for np in ${proc_list}; do
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
 
     RunApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
+
+    RunAppWithELoader ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+    RunAppWithELoader ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+    RunAppWithELoader ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
+
+    RunAppWithELoader ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
 
     RunApp ${np} pagerank --pr_mr=10 --pr_d=0.85

@@ -38,6 +38,48 @@ limitations under the License.
 namespace grape {
 struct EmptyType;
 
+/**
+ * @brief LoadGraphSpec determines the specification to load a graph.
+ *
+ */
+struct LoadGraphSpec {
+  bool directed;
+  bool rebalance;
+  int rebalance_vertex_factor;
+
+  bool serialize;
+  std::string serialization_prefix;
+
+  bool deserialize;
+  std::string deserialization_prefix;
+
+  void set_directed(bool val = true) { directed = val; }
+  void set_rebalance(bool flag, int weight) {
+    rebalance = flag;
+    rebalance_vertex_factor = weight;
+  }
+
+  void set_serialize(bool flag, const std::string& prefix) {
+    serialize = flag;
+    serialization_prefix = prefix;
+  }
+
+  void set_deserialize(bool flag, const std::string& prefix) {
+    deserialize = flag;
+    deserialization_prefix = prefix;
+  }
+};
+
+inline LoadGraphSpec DefaultLoadGraphSpec() {
+  LoadGraphSpec spec;
+  spec.directed = true;
+  spec.rebalance = true;
+  spec.rebalance_vertex_factor = 0;
+  spec.serialize = false;
+  spec.deserialize = false;
+  return spec;
+}
+
 template <typename OID_T, typename VDATA_T>
 inline bool compare_by_id(const internal::Vertex<OID_T, VDATA_T>& lhs,
                           const internal::Vertex<OID_T, VDATA_T>& rhs) {

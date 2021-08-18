@@ -26,8 +26,8 @@ limitations under the License.
 #include <vector>
 
 #include <grape/config.h>
+#include <grape/fragment/basic_fragment_loader.h>
 #include <grape/fragment/edgecut_fragment_base.h>
-#include <grape/fragment/ev_fragment_loader.h>
 #include <grape/fragment/fragment_base.h>
 #include <grape/fragment/partitioner.h>
 #include <grape/graph/adj_list.h>

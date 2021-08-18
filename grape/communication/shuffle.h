@@ -19,6 +19,7 @@ limitations under the License.
 #include <mpi.h>
 
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "grape/communication/sync_comm.h"
@@ -32,8 +33,67 @@ namespace grape {
  *
  * @tparam T The data type to be shuffle.
  */
-template <typename T>
+template <typename T, typename Enable = void>
 class ShuffleUnit {
+ public:
+  ShuffleUnit() {}
+  ~ShuffleUnit() {}
+
+  using BufferT = std::vector<T>;
+  using ValueT = T;
+
+  void emplace(const ValueT& v) { buffer_.emplace_back(v); }
+  void clear() { buffer_.clear(); }
+
+  size_t size() const { return buffer_.size(); }
+
+  BufferT& data() { return buffer_; }
+  const BufferT& data() const { return buffer_; }
+
+  void SendTo(int dst_worker_id, int tag, MPI_Comm comm) {
+    size_t size = buffer_.size();
+    MPI_Send(&size, static_cast<int>(sizeof(size_t)), MPI_CHAR, dst_worker_id,
+             tag, comm);
+    if (size) {
+      InArchive arc;
+      for (auto& item : buffer_) {
+        arc << item;
+      }
+      size_t length = arc.GetSize();
+      MPI_Send(&length, static_cast<int>(sizeof(size_t)), MPI_CHAR,
+               dst_worker_id, tag, comm);
+      MPI_Send(arc.GetBuffer(), static_cast<int>(arc.GetSize()), MPI_CHAR,
+               dst_worker_id, tag, comm);
+    }
+  }
+
+  void RecvFrom(int src_worker_id, int tag, MPI_Comm comm) {
+    size_t old_size = buffer_.size();
+    size_t to_recv;
+    MPI_Recv(&to_recv, static_cast<int>(sizeof(size_t)), MPI_CHAR,
+             src_worker_id, tag, comm, MPI_STATUS_IGNORE);
+    if (to_recv) {
+      buffer_.resize(to_recv + old_size);
+      size_t length;
+      MPI_Recv(&length, static_cast<int>(sizeof(size_t)), MPI_CHAR,
+               src_worker_id, tag, comm, MPI_STATUS_IGNORE);
+      OutArchive arc(length);
+      MPI_Recv(arc.GetBuffer(), static_cast<int>(length), MPI_CHAR,
+               src_worker_id, tag, comm, MPI_STATUS_IGNORE);
+      size_t index = old_size;
+      for (size_t i = 0; i < to_recv; ++i) {
+        arc >> buffer_[index];
+        ++index;
+      }
+    }
+  }
+
+ private:
+  BufferT buffer_;
+};
+
+template <typename T>
+class ShuffleUnit<T, typename std::enable_if<std::is_pod<T>::value>::type> {
  public:
   ShuffleUnit() {}
   ~ShuffleUnit() {}

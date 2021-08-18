@@ -64,8 +64,11 @@ void Init() {
   }
   if (FLAGS_deserialize && FLAGS_serialization_prefix.empty()) {
     LOG(FATAL) << "Please assign a serialization prefix.";
-  } else if (FLAGS_vfile.empty() || FLAGS_efile.empty()) {
-    LOG(FATAL) << "Please assign input vertex/edge files.";
+  } else if (FLAGS_efile.empty()) {
+    LOG(FATAL) << "Please assign input edge files.";
+  } else if (FLAGS_vfile.empty() && FLAGS_segmented_partition) {
+    LOG(FATAL) << "EFragmentLoader dosen't support Segmented Partitioner. "
+                  "Please assign vertex files or use Hash Partitioner";
   }
 
   if (access(FLAGS_out_prefix.c_str(), 0) != 0) {

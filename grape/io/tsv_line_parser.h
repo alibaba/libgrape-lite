@@ -51,7 +51,6 @@ class TSVLineParser : public LineParserBase<OID_T, VDATA_T, EDATA_T> {
   template <typename... Ts>
   inline const char* LineParserForEverything(const std::string& line,
                                              Ts&... vals) {
-    std::cmatch matches;
     return this->LineParserForEverything(
         line.c_str(),
         std::forward<typename std::add_lvalue_reference<Ts>::type>(vals)...);

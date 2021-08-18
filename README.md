@@ -120,7 +120,7 @@ The latest version of online documentation can be found at [https://alibaba.gith
 ## Getting involved
 
 - Read [contribution guide](./CONTRIBUTING.md).
-- Join in the [Slack channel](https://join.slack.com/t/graphscope/shared_invite/zt-fo88h3o7-4FGkoEFuzSBxmkGxOriPTw)
+- Join in the [Slack channel](http://slack.graphscope.io/)
 - Please report bugs by submitting a GitHub issue.
 - Submit contributions using pull requests.
 

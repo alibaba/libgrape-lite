@@ -180,6 +180,7 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
         DESTINATION include
         FILES_MATCHING
         PATTERN "*.h"
+        PATTERN "*.hpp"
 )
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/grape
         DESTINATION include

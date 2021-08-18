@@ -31,6 +31,11 @@ jobs:
           sudo scutil --set HostName my_computer.local
           echo '127.0.0.1       my_computer.local' | sudo tee -a /etc/hosts
           brew install mpich glog gflags librdkafka
+
+          # install cmake 3.20 for a temporary fix for https://gitlab.kitware.com/cmake/cmake/-/issues/21955
+          wget https://github.com/Kitware/CMake/releases/download/v3.20.0-rc5/cmake-3.20.0-rc5-macos-universal.tar.gz
+          tar zxf cmake-3.20.0-rc5-macos-universal.tar.gz
+          sudo ln -sf $(pwd)/cmake-3.20.0-rc5-macos-universal/CMake.app/Contents/bin/cmake `which cmake`
       - name: Build
         run: |
           mkdir build

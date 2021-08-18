@@ -55,7 +55,9 @@ class CommSpec {
         comm_(comm_spec.comm_),
         local_comm_(comm_spec.local_comm_),
         owner_(false),
-        local_owner_(false) {}
+        local_owner_(false),
+        worker_host_id_(comm_spec.worker_host_id_),
+        host_worker_list_(comm_spec.host_worker_list_) {}
 
   __attribute__((no_sanitize_address)) ~CommSpec() {
     if (owner_ && ValidComm(comm_)) {
@@ -90,11 +92,18 @@ class CommSpec {
   }
 
   __attribute__((no_sanitize_address)) void Init(MPI_Comm comm) {
+    if (owner_ && ValidComm(comm_)) {
+      MPI_Comm_free(&comm_);
+    }
+    if (local_owner_ && ValidComm(local_comm_)) {
+      MPI_Comm_free(&local_comm_);
+    }
     MPI_Comm_rank(comm, &worker_id_);
     MPI_Comm_size(comm, &worker_num_);
 
     comm_ = comm;
     owner_ = false;
+    local_owner_ = false;
 
     initLocalInfo();
 
@@ -138,6 +147,19 @@ class CommSpec {
   __attribute__((no_sanitize_address)) inline MPI_Comm local_comm() const {
     return local_comm_;
   }
+  inline int host_num() const { return host_worker_list_.size(); }
+
+  inline int host_id() const { return worker_host_id_[worker_id_]; }
+
+  inline int host_id(int worker_id) const { return worker_host_id_[worker_id]; }
+
+  inline std::vector<int>& host_worker_list(int host_id) {
+    return host_worker_list_[host_id];
+  }
+
+  inline const std::vector<int>& host_worker_list(int host_id) const {
+    return host_worker_list_[host_id];
+  }
 
  private:
   __attribute__((no_sanitize_address)) void initLocalInfo() {
@@ -158,27 +180,34 @@ class CommSpec {
     }
     free(recv_buf);
 
-    local_num_ = 0;
-    local_id_ = -1;
-    for (int i = 0; i < worker_num_; ++i) {
-      if (i == worker_id_) {
-        local_id_ = local_num_;
-      }
-      if (worker_host_names[i] == worker_host_names[worker_id_]) {
-        ++local_num_;
-      }
-    }
+    std::map<std::string, int> hostname2id;
+    worker_host_id_.clear();
+    worker_host_id_.resize(worker_num_);
 
-    std::sort(worker_host_names.begin(), worker_host_names.end());
-    std::map<std::string, int> hostname_to_host_id;
-    for (size_t idx = 0; idx < worker_host_names.size(); ++idx) {
-      hostname_to_host_id[worker_host_names[idx]] = idx;
+    host_worker_list_.clear();
+
+    for (int i = 0; i < worker_num_; ++i) {
+      auto iter = hostname2id.find(worker_host_names[i]);
+      if (iter == hostname2id.end()) {
+        int new_id = hostname2id.size();
+        worker_host_id_[i] = new_id;
+        hostname2id[worker_host_names[i]] = new_id;
+
+        std::vector<int> vec;
+        vec.push_back(i);
+        host_worker_list_.emplace_back(std::move(vec));
+      } else {
+        worker_host_id_[i] = iter->second;
+        host_worker_list_[iter->second].push_back(i);
+      }
     }
-    int color = hostname_to_host_id[worker_host_names[worker_id_]];
     if (local_owner_ && ValidComm(local_comm_)) {
       MPI_Comm_free(&local_comm_);
     }
-    MPI_Comm_split(comm_, color, worker_id_, &local_comm_);
+    MPI_Comm_split(comm_, worker_host_id_[worker_id_], worker_id_,
+                   &local_comm_);
+    MPI_Comm_size(local_comm_, &local_num_);
+    MPI_Comm_rank(local_comm_, &local_id_);
     local_owner_ = true;
   }
 
@@ -195,6 +224,9 @@ class CommSpec {
   MPI_Comm local_comm_;
   bool owner_;
   bool local_owner_;
+
+  std::vector<int> worker_host_id_;
+  std::vector<std::vector<int>> host_worker_list_;
 };
 
 }  // namespace grape
