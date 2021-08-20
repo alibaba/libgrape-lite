@@ -492,11 +492,12 @@ class Array<EmptyType, _Alloc> {
   const_pointer data() const noexcept { return nullptr; }
 
   struct iterator {
-    iterator() noexcept : index_(0) {}
-    explicit iterator(size_t index) noexcept : index_(index) {}
+    iterator() noexcept = default;
+    explicit iterator(EmptyType* val, size_t index) noexcept
+        : val_(val), index_(index) {}
 
-    reference operator*() noexcept { return val_; }
-    pointer operator->() noexcept { return index_; }
+    reference operator*() noexcept { return *val_; }
+    pointer operator->() noexcept { return val_; }
 
     iterator& operator++() noexcept {
       ++index_;
@@ -519,16 +520,17 @@ class Array<EmptyType, _Alloc> {
     }
 
    private:
-    EmptyType val_;
+    EmptyType* val_;
     size_t index_;
   };
 
   struct const_iterator {
-    const_iterator() noexcept : index_(0) {}
-    explicit const_iterator(size_t index) noexcept : index_(index) {}
+    const_iterator() noexcept = default;
+    explicit const_iterator(EmptyType* val, size_t index) noexcept
+        : val_(val), index_(index) {}
 
-    const_reference operator*() const noexcept { return val_; }
-    const_pointer operator->() const noexcept { return index_; }
+    const_reference operator*() const noexcept { return *val_; }
+    const_pointer operator->() const noexcept { return val_; }
 
     const_iterator& operator++() noexcept {
       ++index_;
@@ -553,15 +555,17 @@ class Array<EmptyType, _Alloc> {
     }
 
    private:
-    EmptyType val_;
+    EmptyType* val_;
     size_t index_;
   };
 
-  iterator begin() noexcept { return iterator(0); }
-  const_iterator begin() const noexcept { return const_iterator(0); }
+  iterator begin() noexcept { return iterator(&__val, 0); }
+  const_iterator begin() const noexcept { return const_iterator(&__val, 0); }
 
-  iterator end() noexcept { return iterator(this->__size); }
-  const_iterator end() const noexcept { return const_iterator(this->__size); }
+  iterator end() noexcept { return iterator(&__val, this->__size); }
+  const_iterator end() const noexcept {
+    return const_iterator(&__val, this->__size);
+  }
 
   void swap(Array& __x) noexcept {
     std::swap(this->__alloc(), __x.__alloc());
