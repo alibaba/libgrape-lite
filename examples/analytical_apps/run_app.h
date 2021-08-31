@@ -56,6 +56,10 @@ limitations under the License.
 #include "wcc/wcc.h"
 #include "wcc/wcc_auto.h"
 
+#ifndef __AFFINITY__
+#define __AFFINITY__ false
+#endif
+
 namespace grape {
 
 void Init() {
@@ -161,11 +165,19 @@ void Run() {
   std::string efile = FLAGS_efile;
   std::string vfile = FLAGS_vfile;
   std::string out_prefix = FLAGS_out_prefix;
-  auto spec = DefaultParallelEngineSpec();
+  auto spec = MultiProcessSpec(comm_spec, __AFFINITY__);
   if (FLAGS_app_concurrency != -1) {
     spec.thread_num = FLAGS_app_concurrency;
-  } else {
-    spec = MultiProcessSpec(comm_spec, false);
+    if (__AFFINITY__) {
+      if (spec.cpu_list.size() >= spec.thread_num) {
+        spec.cpu_list.resize(spec.thread_num);
+      } else {
+        uint32_t num_to_append = spec.thread_num - spec.cpu_list.size();
+        for (uint32_t i = 0; i < num_to_append; ++i) {
+          spec.cpu_list.push_back(spec.cpu_list[i]);
+        }
+      }
+    }
   }
   int fnum = comm_spec.fnum();
   std::string name = FLAGS_application;
