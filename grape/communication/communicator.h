@@ -79,13 +79,13 @@ class Communicator {
     msg_out[worker_id] = msg_in;
     std::thread send_thread([&]() {
       for (int i = 1; i < worker_num; ++i) {
-        int dst_worker = (worker_id + 1) % worker_num;
+        int dst_worker = (worker_id + i) % worker_num;
         SendTo<T>(dst_worker, msg_in);
       }
     });
     std::thread recv_thread([&]() {
       for (int i = 1; i < worker_num; ++i) {
-        int src_worker = (worker_id + worker_num - 1) % worker_num;
+        int src_worker = (worker_id + worker_num - i) % worker_num;
         RecvFrom<T>(src_worker, msg_out[src_worker]);
       }
     });
