@@ -106,7 +106,8 @@ The latest version of online documentation can be found at [https://alibaba.gith
 
 - [flat_hash_map](https://github.com/skarupke/flat_hash_map), an efficient hashmap implementation;
 - [granula](https://github.com/atlarge-research/granula), a tool for gathering performance information for LDBC Benchmark;
-- [xoroshiro](http://prng.di.unimi.it/), a pseudo-random number generator.
+- [xoroshiro](http://prng.di.unimi.it/), a pseudo-random number generator;
+- [threadpool](https://github.com/progschj/threadpool), a concise C++11 Thread Pool implementation.
 
 
 ## Publications
