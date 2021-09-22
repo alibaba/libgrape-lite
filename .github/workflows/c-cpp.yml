@@ -26,6 +26,7 @@ jobs:
           # sudo apt update -y
           cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
           chmod og-wx ~/.ssh/authorized_keys
+          chmod 750 $HOME
           sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev
       - name: Install Dependencies for macOS
         if: runner.os == 'macOS'
