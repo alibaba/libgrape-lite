@@ -24,6 +24,7 @@ jobs:
         run: |
           # microsoft repo in 18.04 is broken
           # sudo apt update -y
+          ls ~/.ssh
           cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
           chmod og-wx ~/.ssh/authorized_keys
           chmod 750 $HOME
