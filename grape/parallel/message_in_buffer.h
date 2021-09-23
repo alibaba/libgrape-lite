@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H
-#define GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H
+#ifndef GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H_
+#define GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H_
 
 #include "grape/serialization/out_archive.h"
 
@@ -60,4 +60,4 @@ class MessageInBuffer {
 
 }  // namespace grape
 
-#endif  // GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H
+#endif  // GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H_
