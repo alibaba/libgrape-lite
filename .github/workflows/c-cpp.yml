@@ -28,6 +28,8 @@ jobs:
           cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
           chmod og-wx ~/.ssh/authorized_keys
           chmod 750 $HOME
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+          sudo systemctl restart sshd
           sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev
       - name: Install Dependencies for macOS
         if: runner.os == 'macOS'
@@ -56,9 +58,6 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           ./misc/sampler_test.sh
-      - name: Setup tmate session
-        if: runner.os == 'Linux'
-        uses: mxschmitt/action-tmate@v2
       - name: Run LDBC
         if: runner.os == 'Linux'
         run: |
