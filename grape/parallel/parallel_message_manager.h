@@ -27,6 +27,7 @@ limitations under the License.
 #include <vector>
 
 #include "grape/communication/sync_comm.h"
+#include "grape/parallel/message_in_buffer.h"
 #include "grape/parallel/message_manager_base.h"
 #include "grape/parallel/thread_local_message_buffer.h"
 #include "grape/serialization/in_archive.h"
@@ -283,6 +284,22 @@ class ParallelMessageManager : public MessageManagerBase {
                                   const typename GRAPH_T::vertex_t& v,
                                   const MESSAGE_T& msg, int channel_id = 0) {
     channels_[channel_id].SendMsgThroughEdges<GRAPH_T, MESSAGE_T>(frag, v, msg);
+  }
+
+  /**
+   * @brief Get a bunch of messages, stored in a MessageInBuffer.
+   *
+   * @param buf Message buffer which holds a grape::OutArchive.
+   */
+  inline bool GetMessageInBuffer(MessageInBuffer& buf) {
+    grape::OutArchive arc;
+    auto& que = recv_queues_[round_ % 2];
+    if (que.Get(arc)) {
+      buf.Init(std::move(arc));
+      return true;
+    } else {
+      return false;
+    }
   }
 
   /**
