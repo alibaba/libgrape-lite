@@ -29,7 +29,6 @@ jobs:
           chmod og-wx ~/.ssh/authorized_keys
           chmod 750 $HOME
           echo "StrictHostKeyChecking no" >> ~/.ssh/config
-          sudo systemctl restart sshd
           sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev
       - name: Install Dependencies for macOS
         if: runner.os == 'macOS'
