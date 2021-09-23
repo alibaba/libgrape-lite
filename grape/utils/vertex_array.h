@@ -226,7 +226,7 @@ class VertexArray : public Array<T, Allocator<T>> {
         &Base::data()[range.begin().GetValue() - range_.begin().GetValue()],
         range.size(), value);
   }
-  void SetValue(const Vertex<VID_T>& loc, const T value) {
+  void SetValue(const Vertex<VID_T>& loc, const T& value) {
     fake_start_[loc.GetValue()] = value;
   }
 
