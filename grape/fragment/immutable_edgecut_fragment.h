@@ -723,14 +723,14 @@ class ImmutableEdgecutFragment
   }
 
   inline OID_T GetInnerVertexId(const vertex_t& v) const override {
-    OID_T internal_oid;
+    OID_T internal_oid{};
     vm_ptr_->GetOid(fid_, v.GetValue(), internal_oid);
     return internal_oid;
   }
 
   inline OID_T GetOuterVertexId(const vertex_t& v) const override {
     VID_T gid = ovgid_[v.GetValue() - ivnum_];
-    OID_T internal_oid;
+    OID_T internal_oid{};
     vm_ptr_->GetOid(gid, internal_oid);
     return internal_oid;
   }
