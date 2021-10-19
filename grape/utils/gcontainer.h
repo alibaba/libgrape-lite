@@ -67,7 +67,7 @@ __construct_range_forward(_Alloc&, _SourceTp* __begin1, _SourceTp* __end1,
 /**
  * @brief Array a std::vector-like container type without reserving memory.
  *
- * Unlike std::array, Array is unsizable, and unlike std::vector, Array takes
+ * Unlike std::array, Array is resizable, and unlike std::vector, Array takes
  * exactly memory for elements without reserving spaces for further insertions.
  *
  * @tparam _Tp Type of elements in the array.

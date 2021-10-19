@@ -239,7 +239,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
     if (message_strategy == MessageStrategy::kAlongEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
-          DestList dsts = frag.IOEDests(v);
+          auto dsts = frag.IOEDests(v);
           fid_t* ptr = dsts.begin;
           while (ptr != dsts.end) {
             ++message_num[*(ptr++)];
@@ -250,7 +250,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
                MessageStrategy::kAlongIncomingEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
-          DestList dsts = frag.IEDests(v);
+          auto dsts = frag.IEDests(v);
           fid_t* ptr = dsts.begin;
           while (ptr != dsts.end) {
             ++message_num[*(ptr++)];
@@ -261,7 +261,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
                MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
-          DestList dsts = frag.OEDests(v);
+          auto dsts = frag.OEDests(v);
           fid_t* ptr = dsts.begin;
           while (ptr != dsts.end) {
             ++message_num[*(ptr++)];

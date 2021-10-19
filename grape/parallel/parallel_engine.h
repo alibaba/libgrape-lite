@@ -489,6 +489,24 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
 
+   /**
+   * @brief Iterate on vertexs of a set of VertexRanges, each vertex range
+   * iterate concurrently.
+   *
+   * @tparam ITER_FUNC_T Type of vertex program.
+   * @tparam VID_T Type of vertex id.
+   * @param ranges The set of vertex range to be iterated.
+   * @param iter_func Vertex program to be applied on each vertex.
+   * @param chunk_size Vertices granularity to be scheduled by threads.
+   */
+  template <typename ITER_FUNC_T, typename RANGE_SET_T>
+  inline void ForEach(const RANGE_SET_T& ranges,
+                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+    for (auto& range : ranges.GetVertexRanges()) {
+      ForEach(range, iter_func, chunk_size);
+    }
+  }
+
   uint32_t thread_num() { return thread_num_; }
 
  private:
