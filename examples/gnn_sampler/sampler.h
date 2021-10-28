@@ -75,9 +75,9 @@ class Sampler : public ParallelAppBase<FRAG_T, SamplerContext<FRAG_T>>,
 
     ForEach(begin, end,
             [this, &ctx, &frag, &messages, &for_caches, cur_hop](
-                int tid, const result_entry_t* entry) {
-              if (entry->has_value()) {          // skip empty cells
-                auto root = entry->value.first;  // root is represented by gid
+                int tid, const result_entry_t& entry) {
+              if (entry.has_value()) {          // skip empty cells
+                auto root = entry.value.first;  // root is represented by gid
                 RandomSelect(frag, ctx, messages.Channels()[tid], ctx.rngs[tid],
                              root, root, 0, cur_hop, (*for_caches)[tid]);
               }
@@ -123,11 +123,11 @@ class Sampler : public ParallelAppBase<FRAG_T, SamplerContext<FRAG_T>>,
 #endif
 
     // process random_cache
-    auto begin = &*(random_cache->begin()), end = &*(random_cache->end());
+    auto begin = random_cache->begin(), end = random_cache->end();
     ForEach(begin, end,
             [this, &ctx, &frag, &messages, &for_caches, cur_hop](
-                int tid, const std::vector<message_t>* msgs) {
-              for (auto const& msg : *msgs) {
+                int tid, const std::vector<message_t>& msgs) {
+              for (auto const& msg : msgs) {
                 vid_t root = std::get<0>(msg);
                 vid_t u_id = std::get<1>(msg);
                 vid_t pos = std::get<2>(msg);
