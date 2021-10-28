@@ -105,7 +105,7 @@ class ParallelEngine {
   }
 
   /**
-   * @brief Iterate on vertices of a VertexRange concurrently.
+   * @brief Iterate on vertexes of a VertexRange concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -520,7 +520,7 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
 
-  int32_t thread_num() { return thread_num_; }
+  uint32_t thread_num() { return thread_num_; }
 
  private:
   ThreadPool thread_pool_;
