@@ -91,23 +91,24 @@ class ParallelEngine {
     std::vector<std::future<void>> results(thrd_num);
     for (uint32_t tid = 0; tid < thrd_num; ++tid) {
       results[tid] =
-          thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid, thrd_num] {
-            int round = 0;
-            while (true) {
-              const ITERATOR_T cur_beg =
+          thread_pool_.enqueue(
+            [chunk_size, &iter_func, begin, end, tid, thrd_num] {
+              int round = 0;
+              while (true) {
+                const ITERATOR_T cur_beg =
                   std::min(begin + (round * thrd_num + tid) * chunk_size, end);
-              const ITERATOR_T cur_end =
+                const ITERATOR_T cur_end =
                   std::min(begin + (round * thrd_num + tid + 1) * chunk_size,
                            end);
-              if (cur_beg == cur_end) {
-                break;
+                if (cur_beg == cur_end) {
+                  break;
+                }
+                for (auto iter = cur_beg; iter != cur_end; ++iter) {
+                  iter_func(tid, *iter);
+                }
+                ++round;
               }
-              for (auto iter = cur_beg; iter != cur_end; ++iter) {
-                iter_func(tid, *iter);
-              }
-              ++round;
-            }
-          });
+            });
     }
 
     thread_pool_.WaitEnd(results);
