@@ -94,9 +94,11 @@ class ParallelEngine {
           thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid, thrd_num] {
             int round = 0;
             while (true) {
-              const ITERATOR_T cur_beg = std::min(begin + (round * thrd_num + tid) * chunk_size, end);
+              const ITERATOR_T cur_beg =
+                  std::min(begin + (round * thrd_num + tid) * chunk_size, end);
               const ITERATOR_T cur_end =
-                std::min(begin + (round * thrd_num + tid + 1) * chunk_size, end);
+                  std::min(begin + (round * thrd_num + tid + 1) * chunk_size,
+                           end);
               if (cur_beg == cur_end) {
                 break;
               }
