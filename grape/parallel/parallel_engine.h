@@ -490,11 +490,12 @@ class ParallelEngine {
   }
 
    /**
-   * @brief Iterate on vertexs of a set of VertexRanges, each vertex range
-   * iterate concurrently.
+   * @brief This is a ForEach for instance which contain a set of vertex
+   * ranges(like UnionVertexRange). Each vertex range of the range set iterate
+   * concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
-   * @tparam VID_T Type of vertex id.
+   * @tparam RANGE_SET_T Type of vertex range set,
    * @param ranges The set of vertex range to be iterated.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param chunk_size Vertices granularity to be scheduled by threads.
