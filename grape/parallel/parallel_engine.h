@@ -91,8 +91,9 @@ class ParallelEngine {
     for (uint32_t tid = 0; tid < thread_num_; ++tid) {
       results[tid] =
           thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid] {
-            ITERATOR_T cur_beg = std::min(begin + tid * chunk_size, end);
-            ITERATOR_T cur_end = std::min(begin + (tid + 1) * chunk_size, end);
+            const ITERATOR_T cur_beg = std::min(begin + tid * chunk_size, end);
+            const ITERATOR_T cur_end =
+                std::min(begin + (tid + 1) * chunk_size, end);
             if (cur_beg != cur_end) {
               for (auto iter = cur_beg; iter != cur_end; ++iter) {
                 iter_func(tid, *iter);
