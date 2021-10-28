@@ -87,17 +87,23 @@ class ParallelEngine {
   template <typename ITER_FUNC_T, typename ITERATOR_T>
   inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
                       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
-    std::vector<std::future<void>> results(thread_num_);
-    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
+    uint32_t thrd_num = thread_num_;
+    std::vector<std::future<void>> results(thrd_num);
+    for (uint32_t tid = 0; tid < thrd_num; ++tid) {
       results[tid] =
-          thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid] {
-            const ITERATOR_T cur_beg = std::min(begin + tid * chunk_size, end);
-            const ITERATOR_T cur_end =
-                std::min(begin + (tid + 1) * chunk_size, end);
-            if (cur_beg != cur_end) {
+          thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid, thrd_num] {
+            int round = 0;
+            while (true) {
+              const ITERATOR_T cur_beg = std::min(begin + (round * thrd_num + tid) * chunk_size, end);
+              const ITERATOR_T cur_end =
+                std::min(begin + (round * thrd_num + tid + 1) * chunk_size, end);
+              if (cur_beg == cur_end) {
+                break;
+              }
               for (auto iter = cur_beg; iter != cur_end; ++iter) {
                 iter_func(tid, *iter);
               }
+              ++round;
             }
           });
     }

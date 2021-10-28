@@ -84,7 +84,7 @@ class Vertex {
     return res;
   }
 
-  inline const Vertex operator+(size_t offset) const {
+  inline Vertex operator+(size_t offset) const {
     Vertex res(value_ + offset);
     return res;
   }
