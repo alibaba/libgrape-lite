@@ -47,7 +47,8 @@ class ParallelEngine {
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
-   * @param range The vertex range to be iterated.
+   * @param begin The pointer of range's begin.
+   * @param end The pointer of range's end.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
@@ -73,8 +74,38 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
 
+ /**
+   * @brief Iterate a range specified by iterator pair concurrently.
+   *
+   * @tparam ITER_FUNC_T Type of vertex program.
+   * @tparam ITERATOR_T Type of vertex set container iterator.
+   * @param begin The begin of vertex set container.
+   * @param end The end of vertex set container.
+   * @param iter_func Vertex program to be applied on each vertex.
+   * @param chunk_size Vertices granularity to be scheduled by threads.
+   */
+  template <typename ITER_FUNC_T, typename ITERATOR_T>
+  inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
+                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+    std::vector<std::future<void>> results(thread_num_);
+    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
+      results[tid] =
+          thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid] {
+            ITERATOR_T cur_beg = std::min(begin + tid * chunk_size, end);
+            ITERATOR_T cur_end = std::min(begin + (tid + 1) * chunk_size, end);
+            if (cur_beg != cur_end) {
+              for (auto iter = cur_beg; iter != cur_end; ++iter) {
+                iter_func(tid, *iter);
+              }
+            }
+          });
+    }
+
+    thread_pool_.WaitEnd(results);
+  }
+
   /**
-   * @brief Iterate on vertexs of a VertexRange concurrently.
+   * @brief Iterate on vertices of a VertexRange concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -145,7 +176,7 @@ class ParallelEngine {
   }
 
   /**
-   * @brief Iterate on vertexs of a VertexRange concurrently, initialize
+   * @brief Iterate on vertexes of a VertexRange concurrently, initialize
    * function and finalize function can be provided to each thread.
    *
    * @tparam INIT_FUNC_T Type of thread init program.
@@ -154,10 +185,10 @@ class ParallelEngine {
    * @tparam VID_T Type of vertex id.
    * @param range The vertex range to be iterated.
    * @param init_func Initializing function to be invoked by each thread before
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param finalize_func Finalizing function to be invoked by each thread after
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
@@ -205,10 +236,10 @@ class ParallelEngine {
    * @tparam VID_T Type of vertex id.
    * @param vertices The vertex array to be iterated.
    * @param init_func Initializing function to be invoked by each thread before
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param finalize_func Finalizing function to be invoked by each thread after
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
@@ -246,7 +277,7 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently.
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -294,7 +325,7 @@ class ParallelEngine {
   }
 
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently.
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -386,7 +417,7 @@ class ParallelEngine {
   }
 
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently.
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -426,7 +457,7 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently, initialize
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently, initialize
    * function and finalize function can be provided to each thread.
    *
    * @tparam INIT_FUNC_T Type of thread init program.
@@ -435,10 +466,10 @@ class ParallelEngine {
    * @tparam VID_T Type of vertex id.
    * @param dense_set The vertex set to be iterated.
    * @param init_func Initializing function to be invoked by each thread before
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param finalize_func Finalizing function to be invoked by each thread after
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
@@ -489,26 +520,7 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
 
-   /**
-   * @brief This is a ForEach for instance which contain a set of vertex
-   * ranges(like UnionVertexRange). Each vertex range of the range set iterate
-   * concurrently.
-   *
-   * @tparam ITER_FUNC_T Type of vertex program.
-   * @tparam RANGE_SET_T Type of vertex range set,
-   * @param ranges The set of vertex range to be iterated.
-   * @param iter_func Vertex program to be applied on each vertex.
-   * @param chunk_size Vertices granularity to be scheduled by threads.
-   */
-  template <typename ITER_FUNC_T, typename RANGE_SET_T>
-  inline void ForEach(const RANGE_SET_T& ranges,
-                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
-    for (auto& range : ranges.GetVertexRanges()) {
-      ForEach(range, iter_func, chunk_size);
-    }
-  }
-
-  uint32_t thread_num() { return thread_num_; }
+  int32_t thread_num() { return thread_num_; }
 
  private:
   ThreadPool thread_pool_;
