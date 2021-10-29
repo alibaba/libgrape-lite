@@ -39,7 +39,7 @@ fi
 # check the existance of the tar of driver, build with maven if not exists.
 pushd ${LDBC_HOME}
 if [[ ! -f "graphalytics-1.0.0-libgrape-0.3-SNAPSHOT-bin.tar.gz" ]]; then
-    mvn clean package -DskipTests
+    mvn clean package -DskipTests -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true -Dmaven.wagon.http.ssl.ignore.validity.dates=true
 fi
 
 # extract the driver to the workspace if not exists.

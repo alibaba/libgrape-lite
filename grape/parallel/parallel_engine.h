@@ -42,39 +42,44 @@ class ParallelEngine {
 
   inline ThreadPool& GetThreadPool() { return thread_pool_; }
 
-  /**
-   * @brief Iterate a range specified by pointer pair concurrently.
+ /**
+   * @brief Iterate a range specified by iterator pair concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
-   * @tparam VID_T Type of vertex id.
-   * @param range The vertex range to be iterated.
+   * @tparam ITERATOR_T Type of range iterator.
+   * @param begin The begin iterator of range.
+   * @param end The end iterator of range.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
-  template <typename ITER_FUNC_T, typename T>
-  inline void ForEach(const T* begin, const T* end,
-                      const ITER_FUNC_T& iter_func) {
-    size_t chunk_size = (end - begin) / thread_num_ + 1;
-
+  template <typename ITER_FUNC_T, typename ITERATOR_T>
+  inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
+                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+    std::atomic<size_t> offset(0);
     std::vector<std::future<void>> results(thread_num_);
     for (uint32_t tid = 0; tid < thread_num_; ++tid) {
       results[tid] =
-          thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid] {
-            const T* cur_beg = std::min(begin + tid * chunk_size, end);
-            const T* cur_end = std::min(begin + (tid + 1) * chunk_size, end);
-            if (cur_beg != cur_end) {
-              for (auto iter = cur_beg; iter != cur_end; ++iter) {
-                iter_func(tid, iter);
+          thread_pool_.enqueue(
+            [&offset, chunk_size, &iter_func, begin, end, tid] {
+              while (true) {
+                const ITERATOR_T cur_beg =
+                    std::min(begin + offset.fetch_add(chunk_size), end);
+                const ITERATOR_T cur_end = std::min(cur_beg + chunk_size, end);
+                if (cur_beg == cur_end) {
+                  break;
+                }
+                for (auto iter = cur_beg; iter != cur_end; ++iter) {
+                  iter_func(tid, *iter);
+                }
               }
-            }
-          });
+            });
     }
 
     thread_pool_.WaitEnd(results);
   }
 
   /**
-   * @brief Iterate on vertexs of a VertexRange concurrently.
+   * @brief Iterate on vertexes of a VertexRange concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -145,7 +150,7 @@ class ParallelEngine {
   }
 
   /**
-   * @brief Iterate on vertexs of a VertexRange concurrently, initialize
+   * @brief Iterate on vertexes of a VertexRange concurrently, initialize
    * function and finalize function can be provided to each thread.
    *
    * @tparam INIT_FUNC_T Type of thread init program.
@@ -154,10 +159,10 @@ class ParallelEngine {
    * @tparam VID_T Type of vertex id.
    * @param range The vertex range to be iterated.
    * @param init_func Initializing function to be invoked by each thread before
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param finalize_func Finalizing function to be invoked by each thread after
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
@@ -205,10 +210,10 @@ class ParallelEngine {
    * @tparam VID_T Type of vertex id.
    * @param vertices The vertex array to be iterated.
    * @param init_func Initializing function to be invoked by each thread before
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param finalize_func Finalizing function to be invoked by each thread after
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
@@ -246,7 +251,7 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently.
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -294,7 +299,7 @@ class ParallelEngine {
   }
 
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently.
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -386,7 +391,7 @@ class ParallelEngine {
   }
 
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently.
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
    * @tparam VID_T Type of vertex id.
@@ -426,7 +431,7 @@ class ParallelEngine {
     thread_pool_.WaitEnd(results);
   }
   /**
-   * @brief Iterate on vertexs of a DenseVertexSet concurrently, initialize
+   * @brief Iterate on vertexes of a DenseVertexSet concurrently, initialize
    * function and finalize function can be provided to each thread.
    *
    * @tparam INIT_FUNC_T Type of thread init program.
@@ -435,10 +440,10 @@ class ParallelEngine {
    * @tparam VID_T Type of vertex id.
    * @param dense_set The vertex set to be iterated.
    * @param init_func Initializing function to be invoked by each thread before
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param finalize_func Finalizing function to be invoked by each thread after
-   * iterating on vertexs.
+   * iterating on vertexes.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,

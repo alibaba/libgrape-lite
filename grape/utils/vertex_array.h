@@ -48,6 +48,10 @@ class Vertex {
     return *this;
   }
 
+  inline const Vertex& operator*() const {
+    return *this;
+  }
+
   inline Vertex& operator=(Vertex&& rhs) {
     value_ = rhs.value_;
     return *this;
@@ -79,6 +83,12 @@ class Vertex {
     value_--;
     return res;
   }
+
+  inline Vertex operator+(size_t offset) const {
+    Vertex res(value_ + offset);
+    return res;
+  }
+
   inline bool operator==(const Vertex& rhs) const {
     return value_ == rhs.value_;
   }
