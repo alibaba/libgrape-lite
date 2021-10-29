@@ -42,71 +42,35 @@ class ParallelEngine {
 
   inline ThreadPool& GetThreadPool() { return thread_pool_; }
 
-  /**
-   * @brief Iterate a range specified by pointer pair concurrently.
-   *
-   * @tparam ITER_FUNC_T Type of vertex program.
-   * @tparam VID_T Type of vertex id.
-   * @param begin The pointer of range's begin.
-   * @param end The pointer of range's end.
-   * @param iter_func Vertex program to be applied on each vertex.
-   * @param chunk_size Vertices granularity to be scheduled by threads.
-   */
-  template <typename ITER_FUNC_T, typename T>
-  inline void ForEach(const T* begin, const T* end,
-                      const ITER_FUNC_T& iter_func) {
-    size_t chunk_size = (end - begin) / thread_num_ + 1;
-
-    std::vector<std::future<void>> results(thread_num_);
-    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
-      results[tid] =
-          thread_pool_.enqueue([chunk_size, &iter_func, begin, end, tid] {
-            const T* cur_beg = std::min(begin + tid * chunk_size, end);
-            const T* cur_end = std::min(begin + (tid + 1) * chunk_size, end);
-            if (cur_beg != cur_end) {
-              for (auto iter = cur_beg; iter != cur_end; ++iter) {
-                iter_func(tid, iter);
-              }
-            }
-          });
-    }
-
-    thread_pool_.WaitEnd(results);
-  }
-
  /**
    * @brief Iterate a range specified by iterator pair concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
-   * @tparam ITERATOR_T Type of vertex set container iterator.
-   * @param begin The begin of vertex set container.
-   * @param end The end of vertex set container.
+   * @tparam ITERATOR_T Type of range iterator.
+   * @param begin The begin iterator of range.
+   * @param end The end iterator of range.
    * @param iter_func Vertex program to be applied on each vertex.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
   template <typename ITER_FUNC_T, typename ITERATOR_T>
   inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
                       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
-    uint32_t thrd_num = thread_num_;
-    std::vector<std::future<void>> results(thrd_num);
-    for (uint32_t tid = 0; tid < thrd_num; ++tid) {
+    std::atomic<size_t> offset(0);
+    std::vector<std::future<void>> results(thread_num_);
+    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
       results[tid] =
           thread_pool_.enqueue(
-            [chunk_size, &iter_func, begin, end, tid, thrd_num] {
-              int round = 0;
+            [&offset, chunk_size, &iter_func, begin, end, tid] {
               while (true) {
                 const ITERATOR_T cur_beg =
-                  std::min(begin + (round * thrd_num + tid) * chunk_size, end);
-                const ITERATOR_T cur_end =
-                  std::min(begin + (round * thrd_num + tid + 1) * chunk_size,
-                           end);
+                    std::min(begin + offset.fetch_add(chunk_size), end);
+                const ITERATOR_T cur_end = std::min(cur_beg + chunk_size, end);
                 if (cur_beg == cur_end) {
                   break;
                 }
                 for (auto iter = cur_beg; iter != cur_end; ++iter) {
                   iter_func(tid, *iter);
                 }
-                ++round;
               }
             });
     }
