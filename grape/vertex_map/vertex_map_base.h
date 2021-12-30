@@ -20,6 +20,7 @@ limitations under the License.
 #include <vector>
 
 #include "grape/config.h"
+#include "grape/fragment/id_parser.h"
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"
 #include "grape/worker/comm_spec.h"
@@ -56,95 +57,87 @@ namespace grape {
  * @tparam OID_T
  * @tparam VID_T
  */
-template <typename OID_T, typename VID_T>
+template <typename OID_T, typename VID_T, typename PARTITIONER_T>
 class VertexMapBase {
  public:
-  explicit VertexMapBase(const CommSpec& comm_spec) : comm_spec_(comm_spec) {}
+  using partitioner_t = PARTITIONER_T;
+  explicit VertexMapBase(const CommSpec& comm_spec)
+      : comm_spec_(comm_spec), partitioner_() {
+    comm_spec_.Dup();
+    id_parser_.init(comm_spec_.fnum());
+  }
   virtual ~VertexMapBase() = default;
 
-  virtual void Init() {
-    fnum_ = comm_spec_.fnum();
-    initOffsetAndMask();
+  void SetPartitioner(const PARTITIONER_T& partitioner) {
+    partitioner_ = partitioner;
   }
 
-  virtual void Init(fid_t fnum) {
-    fnum_ = fnum;
-    initOffsetAndMask();
+  void SetPartitioner(PARTITIONER_T&& partitioner) {
+    partitioner_ = std::move(partitioner);
   }
 
-  fid_t GetFragmentNum() const { return fnum_; }
+  fid_t GetFragmentNum() const { return comm_spec_.fnum(); }
 
   VID_T Lid2Gid(fid_t fid, const VID_T& lid) const {
-    VID_T gid = fid;
-    gid = (gid << fid_offset_) | lid;
-    return gid;
+    return id_parser_.generate_global_id(fid, lid);
   }
 
   fid_t GetFidFromGid(const VID_T& gid) const {
-    return (fid_t)(gid >> fid_offset_);
+    return id_parser_.get_fragment_id(gid);
   }
 
-  VID_T GetLidFromGid(const VID_T& gid) const { return (gid & id_mask_); }
+  VID_T GetLidFromGid(const VID_T& gid) const {
+    return id_parser_.get_local_id(gid);
+  }
 
-  VID_T MaxVertexNum() const { return (static_cast<VID_T>(1) << fid_offset_); }
+  VID_T MaxVertexNum() const { return id_parser_.max_local_id(); }
 
   const CommSpec& GetCommSpec() const { return comm_spec_; }
 
-  void BaseSerialize(InArchive& in_archive) const {
-    in_archive << fnum_ << fid_offset_ << id_mask_;
+  template <typename IOADAPTOR_T>
+  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
+    partitioner_.template serialize<IOADAPTOR_T>(writer);
   }
 
-  void BaseDeserialize(OutArchive& out_archive) {
-    out_archive >> fnum_ >> fid_offset_ >> id_mask_;
-    CHECK_EQ(comm_spec_.fnum(), fnum_);
+  template <typename IOADAPTOR_T>
+  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+    id_parser_.init(comm_spec_.fnum());
+    partitioner_.template deserialize<IOADAPTOR_T>(reader);
   }
 
-  int GetFidOffset() const { return fid_offset_; }
-
- private:
-  inline void initOffsetAndMask() {
-    fid_t maxfid = fnum_ - 1;
-    if (maxfid == 0) {
-      fid_offset_ = (sizeof(VID_T) * 8) - 1;
-    } else {
-      int i = 0;
-      while (maxfid) {
-        maxfid >>= 1;
-        ++i;
-      }
-      fid_offset_ = (sizeof(VID_T) * 8) - i;
-    }
-    id_mask_ = ((VID_T) 1 << fid_offset_) - (VID_T) 1;
+  fid_t GetFragmentId(const OID_T& oid) const {
+    return partitioner_.GetPartitionId(oid);
   }
+
+  const PARTITIONER_T& GetPartitioner() const { return partitioner_; }
+
+  PARTITIONER_T& GetPartitioner() { return partitioner_; }
 
  protected:
-  fid_t fnum_;
-  int fid_offset_;
-  VID_T id_mask_;
   CommSpec comm_spec_;
+  PARTITIONER_T partitioner_;
+  IdParser<VID_T> id_parser_;
 
  public:
   // get metadata of the graph.
-  virtual size_t GetTotalVertexSize() = 0;
-  virtual size_t GetInnerVertexSize(fid_t fid) = 0;
+  virtual size_t GetTotalVertexSize() const = 0;
+  virtual size_t GetInnerVertexSize(fid_t fid) const = 0;
 
   // for constructing the vertexmap.
-  virtual void Clear() = 0;
-  virtual void AddVertex(fid_t fid, const OID_T& oid) = 0;
-  virtual bool AddVertex(fid_t fid, const OID_T& oid, VID_T& gid) = 0;
-  virtual void Construct() = 0;
+  virtual void AddVertex(const OID_T& oid) = 0;
+  virtual bool AddVertex(const OID_T& oid, VID_T& gid) = 0;
 
   virtual void UpdateToBalance(std::vector<VID_T>& vnum_list,
                                std::vector<std::vector<VID_T>>& gid_maps) = 0;
 
   // convert the vertex ids with the help of mappings.
-  virtual bool GetOid(const VID_T& vid, OID_T& oid) = 0;
+  virtual bool GetOid(const VID_T& vid, OID_T& oid) const = 0;
 
-  virtual bool GetOid(fid_t fid, const VID_T& vid, OID_T& oid) = 0;
+  virtual bool GetOid(fid_t fid, const VID_T& vid, OID_T& oid) const = 0;
 
-  virtual bool GetGid(const OID_T& oid, VID_T& gid) = 0;
+  virtual bool GetGid(fid_t fid, const OID_T& oid, VID_T& gid) const = 0;
 
-  virtual bool GetGid(fid_t fid, const OID_T& oid, VID_T& gid) = 0;
+  virtual bool GetGid(const OID_T& oid, VID_T& gid) const = 0;
 };
 
 }  // namespace grape

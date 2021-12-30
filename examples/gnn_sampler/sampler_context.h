@@ -64,9 +64,12 @@ class SamplerContext : public grape::VoidContext<FRAG_T> {
       vid_t gid;
       for (auto& v : queries) {
         grape::internal::match<oid_t>(v.c_str(), oid, nullptr);
-        if (frag.Oid2Gid(frag.fid(), oid, gid) &&
-            random_result.find(gid) == random_result.end()) {
-          random_result[gid].resize(hop_size.back(), 0);
+        vertex_t vert;
+        if (frag.GetInnerVertex(oid, vert)) {
+          gid = frag.GetInnerVertexGid(vert);
+          if (random_result.find(gid) == random_result.end()) {
+            random_result[gid].resize(hop_size.back(), 0);
+          }
         }
       }
     } else {

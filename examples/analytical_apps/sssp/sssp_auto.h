@@ -51,8 +51,8 @@ class SSSPAuto : public AutoAppBase<FRAG_T, SSSPAutoContext<FRAG_T>> {
                 std::priority_queue<std::pair<double, vertex_t>>& heap) {
     {
       auto inner_vertices = frag.InnerVertices();
-      typename FRAG_T::template vertex_array_t<bool> modified(inner_vertices,
-                                                              false);
+      VertexArray<typename FRAG_T::inner_vertices_t, bool> modified(
+          inner_vertices, false);
 
       double distu, distv, ndistv;
       vertex_t v, u;

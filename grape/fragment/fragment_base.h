@@ -18,11 +18,21 @@ limitations under the License.
 
 #include <vector>
 
+#include "grape/fragment/id_parser.h"
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
+#include "grape/worker/comm_spec.h"
 
 namespace grape {
+
+struct PrepareConf {
+  MessageStrategy message_strategy;
+  bool need_split_edges;
+  bool need_split_edges_by_fragment;
+  bool need_mirror_info;
+};
+
 /**
  * @brief FragmentBase is the base class for fragments.
  *
@@ -34,9 +44,32 @@ namespace grape {
  * @tparam VID_T
  * @tparam VDATA_T
  * @tparam EDATA_T
+ * @tparam TRAITS_T
  */
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
+          typename TRAITS_T>
 class FragmentBase {
+ public:
+  using vertex_map_t = typename TRAITS_T::vertex_map_t;
+
+  using fragment_adj_list_t = typename TRAITS_T::fragment_adj_list_t;
+  using fragment_const_adj_list_t =
+      typename TRAITS_T::fragment_const_adj_list_t;
+
+  explicit FragmentBase(std::shared_ptr<vertex_map_t> vm_ptr)
+      : vm_ptr_(vm_ptr) {}
+
+  std::shared_ptr<vertex_map_t> GetVertexMap() { return vm_ptr_; }
+  const std::shared_ptr<vertex_map_t> GetVertexMap() const { return vm_ptr_; }
+
+ protected:
+  void init(fid_t fid) {
+    fid_ = fid;
+    fnum_ = vm_ptr_->GetFragmentNum();
+    id_parser_.init(fnum_);
+    ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
+  }
+
  public:
   /**
    * @brief Construct a fragment with a set of vertices and edges.
@@ -56,22 +89,21 @@ class FragmentBase {
    * @param strategy
    * @param need_split_edge
    */
-  virtual void PrepareToRunApp(MessageStrategy strategy,
-                               bool need_split_edge) = 0;
+  virtual void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) = 0;
 
   /**
    * @brief Returns the ID of this fragment.
    *
    * @return The ID of this fragment.
    */
-  virtual fid_t fid() const = 0;
+  fid_t fid() const { return fid_; }
 
   /**
    * @brief Returns the number of fragments.
    *
    * @return The number of fragments.
    */
-  virtual fid_t fnum() const = 0;
+  fid_t fnum() const { return fnum_; }
 
   /**
    * @brief Returns the number of edges in this fragment.
@@ -85,21 +117,22 @@ class FragmentBase {
    *
    * @return The number of vertices in this fragment.
    */
-  virtual VID_T GetVerticesNum() const = 0;
+  VID_T GetVerticesNum() const { return vertices_.size(); }
 
   /**
    * @brief Returns the number of vertices in the entire graph.
    *
    * @return The number of vertices in the entire graph.
    */
-  virtual size_t GetTotalVerticesNum() const = 0;
+  size_t GetTotalVerticesNum() const { return vm_ptr_->GetTotalVertexSize(); }
 
+  using vertices_t = typename TRAITS_T::vertices_t;
   /**
    * @brief Get all vertices referenced to this fragment.
    *
    * @return A vertex set can be iterate on.
    */
-  virtual VertexRange<VID_T> Vertices() const = 0;
+  const vertices_t& Vertices() const { return vertices_; }
 
   /**
    * @brief Get a vertex with original ID vid.
@@ -110,7 +143,13 @@ class FragmentBase {
    * @return If find the vertex in this fragment, return true. Otherwise, return
    * false.
    */
-  virtual bool GetVertex(const OID_T& vid, Vertex<VID_T>& v) const = 0;
+  bool GetVertex(const OID_T& oid, Vertex<VID_T>& v) const {
+    VID_T gid;
+    if (vm_ptr_->GetGid(oid, gid)) {
+      return Gid2Vertex(gid, v);
+    }
+    return false;
+  }
 
   /**
    * @brief Get the original ID of a vertex.
@@ -119,7 +158,17 @@ class FragmentBase {
    *
    * @return Its original ID.
    */
-  virtual OID_T GetId(const Vertex<VID_T>& v) const = 0;
+  OID_T GetId(const Vertex<VID_T>& v) const {
+    OID_T oid;
+    vm_ptr_->GetOid(Vertex2Gid(v), oid);
+    return oid;
+  }
+
+  OID_T Gid2Oid(VID_T gid) const {
+    OID_T oid;
+    vm_ptr_->GetOid(gid, oid);
+    return oid;
+  }
 
   /**
    * @brief Get the ID of fragment the input vertex belongs to.
@@ -128,7 +177,10 @@ class FragmentBase {
    *
    * @return Its fragment ID.
    */
-  virtual fid_t GetFragId(const Vertex<VID_T>& u) const = 0;
+  fid_t GetFragId(const Vertex<VID_T>& u) const {
+    VID_T gid = Vertex2Gid(u);
+    return id_parser_.get_fragment_id(gid);
+  }
 
   /**
    * @brief Get the data of a vertex.
@@ -217,6 +269,12 @@ class FragmentBase {
 
   virtual ConstAdjList<VID_T, EDATA_T> GetIncomingAdjList(
       const Vertex<VID_T>& v) const = 0;
+
+  virtual fragment_adj_list_t GetIncomingAdjList(const Vertex<VID_T>& v,
+                                                 fid_t fid) = 0;
+
+  virtual fragment_const_adj_list_t GetIncomingAdjList(const Vertex<VID_T>& v,
+                                                       fid_t fid) const = 0;
   /**
    * @brief Returns the outgoing adjacent vertices of v.
    *
@@ -229,6 +287,36 @@ class FragmentBase {
 
   virtual ConstAdjList<VID_T, EDATA_T> GetOutgoingAdjList(
       const Vertex<VID_T>& v) const = 0;
+
+  virtual fragment_adj_list_t GetOutgoingAdjList(const Vertex<VID_T>& v,
+                                                 fid_t fid) = 0;
+
+  virtual fragment_const_adj_list_t GetOutgoingAdjList(const Vertex<VID_T>& v,
+                                                       fid_t fid) const = 0;
+
+ protected:
+  template <typename IOADAPTOR_T>
+  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
+    InArchive arc;
+    arc << fid_ << fnum_ << ivnum_ << vertices_;
+    CHECK(writer->WriteArchive(arc));
+  }
+
+  template <typename IOADAPTOR_T>
+  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+    OutArchive arc;
+    CHECK(reader->ReadArchive(arc));
+    arc >> fid_ >> fnum_ >> ivnum_ >> vertices_;
+    id_parser_.init(fnum_);
+  }
+
+  fid_t fid_, fnum_;
+  VID_T ivnum_;
+
+  vertices_t vertices_;
+  std::shared_ptr<vertex_map_t> vm_ptr_;
+
+  IdParser<VID_T> id_parser_;
 };
 
 }  // namespace grape

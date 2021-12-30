@@ -106,23 +106,23 @@ class Rebalancer<
       degree_list.resize(vm_ptr->GetInnerVertexSize(fid), 0);
       if (load_strategy == LoadStrategy::kOnlyOut) {
         for (auto& e : edges) {
-          if (vm_ptr->GetFidFromGid(e.src_) == fid) {
-            ++degree_list[vm_ptr->GetLidFromGid(e.src_)];
+          if (vm_ptr->GetFidFromGid(e.src) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.src)];
           }
         }
       } else if (load_strategy == LoadStrategy::kOnlyIn) {
         for (auto& e : edges) {
-          if (vm_ptr->GetFidFromGid(e.dst_) == fid) {
-            ++degree_list[vm_ptr->GetLidFromGid(e.dst_)];
+          if (vm_ptr->GetFidFromGid(e.dst) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
           }
         }
       } else if (load_strategy == LoadStrategy::kBothOutIn) {
         for (auto& e : edges) {
-          if (vm_ptr->GetFidFromGid(e.src_) == fid) {
-            ++degree_list[vm_ptr->GetLidFromGid(e.src_)];
+          if (vm_ptr->GetFidFromGid(e.src) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.src)];
           }
-          if (vm_ptr->GetFidFromGid(e.dst_) == fid) {
-            ++degree_list[vm_ptr->GetLidFromGid(e.dst_)];
+          if (vm_ptr->GetFidFromGid(e.dst) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
           }
         }
       }
@@ -134,16 +134,16 @@ class Rebalancer<
         int src_worker_id = (worker_id + 1) % worker_num;
         while (src_worker_id != worker_id) {
           fid_t src_fid = comm_spec_.WorkerToFrag(src_worker_id);
-          RecvVector(degree_lists_[src_fid], src_worker_id, comm_spec_.comm(),
-                     degree_tag);
+          sync_comm::Recv(degree_lists_[src_fid], src_worker_id, degree_tag,
+                          comm_spec_.comm());
           src_worker_id = (src_worker_id + 1) % worker_num;
         }
       });
       std::thread send_thread([&]() {
         int dst_worker_id = (worker_id + worker_num - 1) % worker_num;
         while (dst_worker_id != worker_id) {
-          SendVector(degree_lists_[comm_spec_.fid()], dst_worker_id,
-                     comm_spec_.comm(), degree_tag);
+          sync_comm::Send(degree_lists_[comm_spec_.fid()], dst_worker_id,
+                          degree_tag, comm_spec_.comm());
           dst_worker_id = (dst_worker_id + worker_num - 1) % worker_num;
         }
       });
@@ -242,13 +242,13 @@ class Rebalancer<
         for (size_t i = 0; i < evec_size; ++i) {
           edge_t e;
           auto& old_e = edges[i];
-          e.src_ = gid_maps_[vm_ptr->GetFidFromGid(old_e.src_)]
-                            [vm_ptr->GetLidFromGid(old_e.src_)];
-          e.dst_ = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst_)]
-                            [vm_ptr->GetLidFromGid(old_e.dst_)];
-          if (vm_ptr->GetFidFromGid(old_e.src_) == fid) {
-            e.set_edata(std::move(old_e.edata_));
-            if (vm_ptr->GetFidFromGid(e.src_) == fid) {
+          e.src = gid_maps_[vm_ptr->GetFidFromGid(old_e.src)]
+                           [vm_ptr->GetLidFromGid(old_e.src)];
+          e.dst = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst)]
+                           [vm_ptr->GetLidFromGid(old_e.dst)];
+          if (vm_ptr->GetFidFromGid(old_e.src) == fid) {
+            e.edata = std::move(old_e.edata);
+            if (vm_ptr->GetFidFromGid(e.src) == fid) {
               edges[i - count] = std::move(e);
             } else {
               edges_to_send.emplace_back(std::move(e));
@@ -263,13 +263,13 @@ class Rebalancer<
         for (size_t i = 0; i < evec_size; ++i) {
           edge_t e;
           auto& old_e = edges[i];
-          e.src_ = gid_maps_[vm_ptr->GetFidFromGid(old_e.src_)]
-                            [vm_ptr->GetLidFromGid(old_e.src_)];
-          e.dst_ = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst_)]
-                            [vm_ptr->GetLidFromGid(old_e.dst_)];
-          if (vm_ptr->GetFidFromGid(old_e.dst_) == fid) {
-            e.set_edata(std::move(old_e.edata_));
-            if (vm_ptr->GetFidFromGid(e.dst_) == fid) {
+          e.src = gid_maps_[vm_ptr->GetFidFromGid(old_e.src)]
+                           [vm_ptr->GetLidFromGid(old_e.src)];
+          e.dst = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst)]
+                           [vm_ptr->GetLidFromGid(old_e.dst)];
+          if (vm_ptr->GetFidFromGid(old_e.dst) == fid) {
+            e.edata = std::move(old_e.edata);
+            if (vm_ptr->GetFidFromGid(e.dst) == fid) {
               edges[i - count] = std::move(e);
             } else {
               edges_to_send.emplace_back(std::move(e));
@@ -284,17 +284,17 @@ class Rebalancer<
         for (size_t i = 0; i < evec_size; ++i) {
           edge_t e;
           auto& old_e = edges[i];
-          fid_t old_src_fid = vm_ptr->GetFidFromGid(old_e.src_);
-          fid_t old_dst_fid = vm_ptr->GetFidFromGid(old_e.dst_);
-          e.src_ = gid_maps_[old_src_fid][vm_ptr->GetLidFromGid(old_e.src_)];
-          e.dst_ = gid_maps_[old_dst_fid][vm_ptr->GetLidFromGid(old_e.dst_)];
-          fid_t new_src_fid = vm_ptr->GetFidFromGid(e.src_);
-          fid_t new_dst_fid = vm_ptr->GetFidFromGid(e.dst_);
+          fid_t old_src_fid = vm_ptr->GetFidFromGid(old_e.src);
+          fid_t old_dst_fid = vm_ptr->GetFidFromGid(old_e.dst);
+          e.src = gid_maps_[old_src_fid][vm_ptr->GetLidFromGid(old_e.src)];
+          e.dst = gid_maps_[old_dst_fid][vm_ptr->GetLidFromGid(old_e.dst)];
+          fid_t new_src_fid = vm_ptr->GetFidFromGid(e.src);
+          fid_t new_dst_fid = vm_ptr->GetFidFromGid(e.dst);
           if (new_src_fid == old_src_fid && new_dst_fid == old_dst_fid) {
-            e.set_edata(std::move(old_e.edata_));
+            e.edata = std::move(old_e.edata);
             edges[i - count] = std::move(e);
           } else if (old_src_fid == fid) {
-            e.set_edata(std::move(old_e.edata_));
+            e.edata = std::move(old_e.edata);
             edges_to_send.emplace_back(std::move(e));
             ++count;
           } else {
@@ -308,7 +308,7 @@ class Rebalancer<
     gid_maps_.clear();
     gid_maps_.shrink_to_fit();
 
-    std::vector<ShuffleOutTriple<vid_t, vid_t, edata_t>> delta_edges_to_frag(
+    std::vector<ShuffleOut<vid_t, vid_t, edata_t>> delta_edges_to_frag(
         comm_spec_.fnum());
     for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
       int worker_id = comm_spec_.FragToWorker(fid);
@@ -320,8 +320,8 @@ class Rebalancer<
     }
 
     std::thread deltaEdgesRecvThread([&]() {
-      ShuffleInTriple<vid_t, vid_t, edata_t> data_in(comm_spec_.fnum() - 1);
-      data_in.Init(comm_spec_.comm(), delta_edge_tag);
+      ShuffleIn<vid_t, vid_t, edata_t> data_in;
+      data_in.Init(comm_spec_.fnum(), comm_spec_.comm(), delta_edge_tag);
       int src_worker_id;
       fid_t dst_fid;
       while (!data_in.Finished()) {
@@ -330,43 +330,41 @@ class Rebalancer<
           break;
         }
         CHECK_EQ(dst_fid, comm_spec_.fid());
-        size_t to_append = data_in.Buffer0().size();
+        size_t to_append = get_buffer<0>(data_in).size();
         size_t old_size = edges.size();
         edges.resize(old_size + to_append);
         auto* buf_ptr = &edges[old_size];
-        auto src_iter = data_in.Buffer0().begin();
-        auto dst_iter = data_in.Buffer1().begin();
-        auto data_iter = data_in.Buffer2().begin();
-        auto src_end = data_in.Buffer0().end();
+        auto src_iter = get_buffer<0>(data_in).begin();
+        auto dst_iter = get_buffer<1>(data_in).begin();
+        auto data_iter = get_buffer<2>(data_in).begin();
+        auto src_end = get_buffer<0>(data_in).end();
         while (src_iter != src_end) {
-          buf_ptr->SetEndpoint(*src_iter, *dst_iter);
-          buf_ptr->set_edata(*data_iter);
-          ++src_iter;
-          ++dst_iter;
-          ++data_iter;
+          buf_ptr->src = *src_iter++;
+          buf_ptr->dst = *dst_iter++;
+          buf_ptr->edata = *data_iter++;
           ++buf_ptr;
         }
+        data_in.Clear();
       }
     });
 
     if (load_strategy == LoadStrategy::kOnlyOut) {
       for (auto& e : edges_to_send) {
-        fid_t src_fid = vm_ptr->GetFidFromGid(e.src_);
-        delta_edges_to_frag[src_fid].Emplace(e.src_, e.dst_, edata_t(e.edata_));
+        fid_t src_fid = vm_ptr->GetFidFromGid(e.src);
+        delta_edges_to_frag[src_fid].Emplace(e.src, e.dst, edata_t(e.edata));
       }
     } else if (load_strategy == LoadStrategy::kOnlyIn) {
       for (auto& e : edges_to_send) {
-        fid_t dst_fid = vm_ptr->GetFidFromGid(e.dst_);
-        delta_edges_to_frag[dst_fid].Emplace(e.src_, e.dst_, edata_t(e.edata_));
+        fid_t dst_fid = vm_ptr->GetFidFromGid(e.dst);
+        delta_edges_to_frag[dst_fid].Emplace(e.src, e.dst, edata_t(e.edata));
       }
     } else if (load_strategy == LoadStrategy::kBothOutIn) {
       for (auto& e : edges_to_send) {
-        fid_t src_fid = vm_ptr->GetFidFromGid(e.src_);
-        fid_t dst_fid = vm_ptr->GetFidFromGid(e.dst_);
-        delta_edges_to_frag[src_fid].Emplace(e.src_, e.dst_, edata_t(e.edata_));
+        fid_t src_fid = vm_ptr->GetFidFromGid(e.src);
+        fid_t dst_fid = vm_ptr->GetFidFromGid(e.dst);
+        delta_edges_to_frag[src_fid].Emplace(e.src, e.dst, edata_t(e.edata));
         if (src_fid != dst_fid) {
-          delta_edges_to_frag[dst_fid].Emplace(e.src_, e.dst_,
-                                               edata_t(e.edata_));
+          delta_edges_to_frag[dst_fid].Emplace(e.src, e.dst, edata_t(e.edata));
         }
       }
     }
@@ -381,22 +379,21 @@ class Rebalancer<
 
     {
       fid_t fid = comm_spec_.fid();
-      size_t to_append = delta_edges_to_frag[fid].Buffer0().size();
+      size_t to_append = get_buffer<0>(delta_edges_to_frag[fid]).size();
       size_t old_size = edges.size();
       edges.resize(old_size + to_append);
       auto* buf_ptr = &edges[old_size];
-      auto src_iter = delta_edges_to_frag[fid].Buffer0().begin();
-      auto dst_iter = delta_edges_to_frag[fid].Buffer1().begin();
-      auto data_iter = delta_edges_to_frag[fid].Buffer2().begin();
-      auto src_end = delta_edges_to_frag[fid].Buffer0().end();
+      auto src_iter = get_buffer<0>(delta_edges_to_frag[fid]).begin();
+      auto dst_iter = get_buffer<1>(delta_edges_to_frag[fid]).begin();
+      auto data_iter = get_buffer<2>(delta_edges_to_frag[fid]).begin();
+      auto src_end = get_buffer<0>(delta_edges_to_frag[fid]).end();
       while (src_iter != src_end) {
-        buf_ptr->SetEndpoint(*src_iter, *dst_iter);
-        buf_ptr->set_edata(*data_iter);
-        ++src_iter;
-        ++dst_iter;
-        ++data_iter;
+        buf_ptr->src = *src_iter++;
+        buf_ptr->dst = *dst_iter++;
+        buf_ptr->edata = *data_iter++;
         ++buf_ptr;
       }
+      delta_edges_to_frag[fid].Clear();
     }
   }
 

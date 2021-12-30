@@ -267,55 +267,79 @@ class NbrMapSpace {
   size_t index_;
 };
 
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
+struct AppendOnlyEdgecutFragmentTraits {
+  using inner_vertices_t = VertexRange<VID_T>;
+  using outer_vertices_t = VertexRange<VID_T>;
+  using vertices_t = DualVertexRange<VID_T>;
+
+  using sub_vertices_t = VertexVector<VID_T>;
+  using fragment_adj_list_t = AdjList<VID_T, EDATA_T>;
+  using fragment_const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
+  using vertex_map_t = GlobalVertexMap<OID_T, VID_T>;
+  using mirror_vertices_t = std::vector<Vertex<VID_T>>;
+};
+
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           LoadStrategy _load_strategy = LoadStrategy::kBothOutIn>
 class AppendOnlyEdgecutFragment
-    : public EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T> {
+    : public EdgecutFragmentBase<
+          OID_T, VID_T, VDATA_T, EDATA_T,
+          AppendOnlyEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T>> {
  public:
+  using traits_t =
+      AppendOnlyEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T>;
+  using base_t = EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>;
   using internal_vertex_t = internal::Vertex<VID_T, VDATA_T>;
   using edge_t = Edge<VID_T, EDATA_T>;
   using nbr_t = Nbr<VID_T, EDATA_T>;
-  using nbr_vertex_t = NbrVertex<VID_T, EDATA_T>;
   using nbr_iterator_t = NbrIterator<VID_T, EDATA_T>;
   using vertex_t = Vertex<VID_T>;
-  using vertex_range_t = VertexRange<VID_T>;
   using adj_list_t = AdjList<VID_T, EDATA_T>;
   using const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
   using vid_t = VID_T;
   using oid_t = OID_T;
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
-  template <typename DATA_T>
-  using vertex_array_t = VertexArray<DATA_T, vid_t>;
+  using vertex_map_t = typename traits_t::vertex_map_t;
   using nbr_space_iter_impl = NbrSpaceIterImpl<VID_T, EDATA_T>;
   using nbr_mapspace_iter_impl = NbrMapSpaceIterImpl<VID_T, EDATA_T>;
-
-  using vertex_map_t = GlobalVertexMap<oid_t, vid_t>;
 
   using IsEdgeCut = std::true_type;
   using IsVertexCut = std::false_type;
 
   static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
 
-  AppendOnlyEdgecutFragment() {}
+  using inner_vertices_t = typename traits_t::inner_vertices_t;
+  using outer_vertices_t = typename traits_t::outer_vertices_t;
+  using vertices_t = typename traits_t::vertices_t;
+
+  template <typename T>
+  using inner_vertex_array_t = VertexArray<inner_vertices_t, T>;
+
+  template <typename T>
+  using outer_vertex_array_t = VertexArray<outer_vertices_t, T>;
+
+  template <typename T>
+  using vertex_array_t = VertexArray<vertices_t, T>;
 
   /** Constructor.
    * @param vm_ptr the vertex map.
    */
   explicit AppendOnlyEdgecutFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : vm_ptr_(vm_ptr) {}
+      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
 
   virtual ~AppendOnlyEdgecutFragment() {}
 
+  using base_t::Gid2Lid;
+  using base_t::init;
+  using base_t::InnerVertexGid2Lid;
+  using base_t::IsInnerVertexGid;
   void Init(fid_t fid, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    fid_ = fid;
-    fnum_ = vm_ptr_->GetFragmentNum();
-    calcFidBitWidth(fnum_, id_mask_, fid_offset_);
+    init(fid);
 
-    ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
     ovnum_ = 0;
-
     oenum_ = 0;
     oe_.clear();
     oeoffset_.clear();
@@ -323,16 +347,15 @@ class AppendOnlyEdgecutFragment
     ovg2i_.clear();
 
     vid_t invalid_vid = std::numeric_limits<vid_t>::max();
-    auto is_iv_gid = [this](vid_t id) { return (id >> fid_offset_) == fid_; };
     {
       std::vector<vid_t> outer_vertices;
       for (auto& e : edges) {
-        if (is_iv_gid(e.src())) {
-          if (!is_iv_gid(e.dst())) {
-            outer_vertices.push_back(e.dst());
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
           }
         } else {
-          e.set_src(invalid_vid);
+          e.src = invalid_vid;
         }
       }
       DistinctSort(outer_vertices);
@@ -348,21 +371,21 @@ class AppendOnlyEdgecutFragment
     }
     tvnum_ = ivnum_ + ovnum_;
     max_old_ilid_ = ivnum_;
-    min_old_olid_ = id_mask_ - ovnum_;
+    min_old_olid_ = id_parser_.max_local_id() - ovnum_;
+    this->inner_vertices_.SetRange(0, ivnum_);
+    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
+                                   id_parser_.max_local_id());
+    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
+                             id_parser_.max_local_id());
 
     {
       std::vector<int> odegree(ivnum_, 0);
       oenum_ = 0;
-      auto gid_to_lid = [this](vid_t gid) {
-        return ((gid >> fid_offset_) == fid_) ? (gid & id_mask_)
-                                              : (id_mask_ - ovg2i_.at(gid));
-      };
-      auto iv_gid_to_lid = [this](vid_t gid) { return gid & id_mask_; };
       for (auto& e : edges) {
-        if (e.src() != invalid_vid) {
-          e.set_src(iv_gid_to_lid(e.src()));
-          e.set_dst(gid_to_lid(e.dst()));
-          ++odegree[e.src()];
+        if (e.src != invalid_vid) {
+          InnerVertexGid2Lid(e.src, e.src);
+          Gid2Lid(e.dst, e.dst);
+          ++odegree[e.src];
           ++oenum_;
         }
       }
@@ -377,9 +400,10 @@ class AppendOnlyEdgecutFragment
     {
       Array<nbr_t*, Allocator<nbr_t*>> oeiter(oeoffset_);
       for (auto& e : edges) {
-        if (e.src() != invalid_vid) {
-          oeiter[e.src()]->GetEdgeDst(e);
-          ++oeiter[e.src()];
+        if (e.src != invalid_vid) {
+          oeiter[e.src]->neighbor = e.dst;
+          oeiter[e.src]->data = e.edata;
+          ++oeiter[e.src];
         }
       }
     }
@@ -399,12 +423,14 @@ class AppendOnlyEdgecutFragment
     ivdata_.resize(ivnum_);
     if (sizeof(internal_vertex_t) > sizeof(vid_t)) {
       for (auto& v : vertices) {
-        vid_t gid = v.vid();
-        if (gid >> fid_offset_ == fid_) {
-          ivdata_[(gid & id_mask_)] = v.vdata();
+        vid_t gid = v.vid;
+        if (id_parser_.get_fragment_id(gid) == fid_) {
+          ivdata_[id_parser_.get_local_id(gid)] = v.vdata;
         }
       }
     }
+
+    initOuterVerticesOfFragment();
   }
 
   void InitIndices() {
@@ -415,11 +441,7 @@ class AppendOnlyEdgecutFragment
 
   void ExtendFragment(std::vector<std::string>& edge_messages,
                       const CommSpec& comm_spec, const LoadGraphSpec& spec) {
-    if (comm_spec.worker_id() == kCoordinatorRank) {
-      BcastSend(edge_messages, comm_spec.comm());
-    } else {
-      BcastRecv(edge_messages, comm_spec.comm(), kCoordinatorRank);
-    }
+    sync_comm::Bcast(edge_messages, kCoordinatorRank, comm_spec.comm());
 
     if (edge_messages.empty()) {
       return;
@@ -428,7 +450,7 @@ class AppendOnlyEdgecutFragment
     std::vector<edge_t> edges;
     edges.reserve(edge_messages.size());
     std::vector<oid_t> empty_id_list;
-    HashPartitioner<oid_t> partitioner(fnum_, empty_id_list);
+    auto& partitioner = vm_ptr_->GetPartitioner();
     {
       edata_t e_data;
       oid_t src, dst, src_gid, dst_gid;
@@ -447,8 +469,8 @@ class AppendOnlyEdgecutFragment
         }
         src_fid = partitioner.GetPartitionId(src);
         dst_fid = partitioner.GetPartitionId(dst);
-        vm_ptr_->AddVertex(src_fid, src, src_gid);
-        vm_ptr_->AddVertex(dst_fid, dst, dst_gid);
+        vm_ptr_->AddVertex(src, src_gid);
+        vm_ptr_->AddVertex(dst, dst_gid);
         if (src_fid == fid_ || dst_fid == fid_) {
           edges.emplace_back(src_gid, dst_gid, e_data);
         }
@@ -463,48 +485,55 @@ class AppendOnlyEdgecutFragment
       vid_t src_lid, dst_lid;
       vid_t old_ovnum = ovnum_;
       std::vector<vid_t> ov_to_extend;
-      auto is_iv_gid = [this](vid_t id) { return (id >> fid_offset_) == fid_; };
       for (auto& e : edges) {
-        if (is_iv_gid(e.src())) {
-          src_lid = e.src() & id_mask_;
-          if (is_iv_gid(e.dst())) {
-            dst_lid = e.dst() & id_mask_;
+        if (IsInnerVertexGid(e.src)) {
+          src_lid = id_parser_.get_local_id(e.src);
+          if (IsInnerVertexGid(e.dst)) {
+            dst_lid = id_parser_.get_local_id(e.dst);
             if (!spec.directed) {
-              addOutgoingEdge(dst_lid, src_lid, e.edata());
-              fragment_indices_->Insert(dst_lid, e.src(), e.edata());
+              addOutgoingEdge(dst_lid, src_lid, e.edata);
+              fragment_indices_->Insert(dst_lid, e.src, e.edata);
             }
           } else {
-            auto iter = ovg2i_.find(e.dst());
+            auto iter = ovg2i_.find(e.dst);
             if (iter != ovg2i_.end()) {
-              dst_lid = id_mask_ - iter->second;
+              dst_lid = id_parser_.max_local_id() - iter->second;
             } else {
-              ovg2i_.emplace(e.dst(), ovnum_);
-              ov_to_extend.emplace_back(e.dst());
-              dst_lid = id_mask_ - ovnum_;
+              ovg2i_.emplace(e.dst, ovnum_);
+              ov_to_extend.emplace_back(e.dst);
+              dst_lid = id_parser_.max_local_id() - ovnum_;
               ++ovnum_;
             }
           }
-          addOutgoingEdge(src_lid, dst_lid, e.edata());
-          fragment_indices_->Insert(src_lid, e.dst(), e.edata());
-        } else if (!spec.directed && is_iv_gid(e.dst())) {
-          dst_lid = e.dst() & id_mask_;
-          auto iter = ovg2i_.find(e.src());
+          addOutgoingEdge(src_lid, dst_lid, e.edata);
+          fragment_indices_->Insert(src_lid, e.dst, e.edata);
+        } else if (!spec.directed && IsInnerVertexGid(e.dst)) {
+          dst_lid = id_parser_.get_local_id(e.dst);
+          auto iter = ovg2i_.find(e.src);
           if (iter != ovg2i_.end()) {
-            src_lid = id_mask_ - iter->second;
+            src_lid = id_parser_.max_local_id() - iter->second;
           } else {
-            ovg2i_.emplace(e.src(), ovnum_);
-            ov_to_extend.emplace_back(e.src());
-            src_lid = id_mask_ - ovnum_;
+            ovg2i_.emplace(e.src, ovnum_);
+            ov_to_extend.emplace_back(e.src);
+            src_lid = id_parser_.max_local_id() - ovnum_;
             ++ovnum_;
           }
-          addOutgoingEdge(dst_lid, src_lid, e.edata());
-          fragment_indices_->Insert(dst_lid, e.src(), e.edata());
+          addOutgoingEdge(dst_lid, src_lid, e.edata);
+          fragment_indices_->Insert(dst_lid, e.src, e.edata);
         }
       }
+      this->inner_vertices_.SetRange(0, ivnum_);
+      this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
+                                     id_parser_.max_local_id());
+      this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
+                               id_parser_.max_local_id());
       tvnum_ = ivnum_ + ovnum_;
       ovgid_.resize(ovnum_);
       memcpy(&ovgid_[old_ovnum], &ov_to_extend[0],
              sizeof(vid_t) * ov_to_extend.size());
+      if (old_ovnum != ovnum_) {
+        initOuterVerticesOfFragment();
+      }
     }
 
     fragment_indices_->Rebuild();
@@ -520,13 +549,15 @@ class AppendOnlyEdgecutFragment
     auto io_adaptor =
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
     io_adaptor->Open("wb");
+
+    base_t::serialize(io_adaptor);
+
     InArchive ia;
 
     vid_t xivnum = max_old_ilid_;
-    vid_t xovnum = id_mask_ - min_old_olid_;
+    vid_t xovnum = id_parser_.max_local_id() - min_old_olid_;
 
-    ia << xivnum << xovnum << oenum_ << fid_offset_ << fid_ << id_mask_
-       << fnum_;
+    ia << xivnum << xovnum << oenum_;
     io_adaptor->WriteArchive(ia);
     ia.Clear();
 
@@ -576,8 +607,7 @@ class AppendOnlyEdgecutFragment
 
     OutArchive oa;
     CHECK(io_adaptor->ReadArchive(oa));
-    oa >> ivnum_ >> ovnum_ >> oenum_ >> fid_offset_ >> fid_ >> id_mask_ >>
-        fnum_;
+    oa >> ivnum_ >> ovnum_ >> oenum_;
     tvnum_ = ivnum_ + ovnum_;
     oa.Clear();
 
@@ -620,58 +650,32 @@ class AppendOnlyEdgecutFragment
     io_adaptor->Close();
 
     max_old_ilid_ = ivnum_;
-    min_old_olid_ = id_mask_ - ovnum_;
+    min_old_olid_ = id_parser_.max_local_id() - ovnum_;
     extra_oenum_ = 0;
     extra_oe_.clear();
     extra_oe_.resize(ivnum_, -1);
+    this->inner_vertices_.SetRange(0, ivnum_);
+    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
+                                   id_parser_.max_local_id());
+    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
+                             id_parser_.max_local_id());
+
+    initOuterVerticesOfFragment();
   }
 
-  void PrepareToRunApp(MessageStrategy strategy,
-                       bool need_split_edge) override {}
-
-  fid_t fid() const override { return fid_; }
-
-  fid_t fnum() const override { return fnum_; }
-
-  vid_t id_mask() const { return id_mask_; }
-
-  int fid_offfset() const { return fid_offset_; }
-
-  fid_t GetFragId(const vertex_t& u) const override {
-    return IsInnerVertex(u)
-               ? fid_
-               : (fid_t)(ovgid_[id_mask_ - u.GetValue()] >> fid_offset_);
-  }
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) override {}
 
   fid_t GetFragIdByGid(const vid_t& gid) const {
-    return (fid_t)(gid >> fid_offset_);
+    return id_parser_.get_fragment_id(gid);
   }
 
   size_t GetEdgeNum() const override { return oenum_ + extra_oenum_; }
 
-  vid_t GetVerticesNum() const override { return tvnum_; }
-
-  size_t GetTotalVerticesNum() const override {
-    return vm_ptr_->GetTotalVertexSize();
-  }
-
-  bool GetVertex(const oid_t& oid, vertex_t& v) const override {
-    vid_t gid;
-    if (vm_ptr_->GetGid(oid, gid)) {
-      return ((gid >> fid_offset_) == fid_) ? InnerVertexGid2Vertex(gid, v)
-                                            : OuterVertexGid2Vertex(gid, v);
-    } else {
-      return false;
-    }
-  }
-
-  oid_t GetId(const vertex_t& v) const override {
-    return (IsInnerVertex(v)) ? GetInnerVertexId(v) : GetOuterVertexId(v);
-  }
-
   const vdata_t& GetData(const vertex_t& v) const override {
     return ivdata_[v.GetValue()];
   }
+
+  using base_t::IsInnerVertex;
 
   void SetData(const vertex_t& v, const vdata_t& val) override {
     if (IsInnerVertex(v)) {
@@ -698,110 +702,18 @@ class AppendOnlyEdgecutFragment
 
   int GetLocalInDegree(const vertex_t& v) const override { return 0; }
 
-  const std::vector<vid_t>& GetOuterVerticesGid() const { return ovgid_; }
-
-  bool Gid2Vertex(const vid_t& gid, vertex_t& v) const override {
-    return ((gid >> fid_offset_) == fid_) ? InnerVertexGid2Vertex(gid, v)
-                                          : OuterVertexGid2Vertex(gid, v);
-  }
-
-  vid_t Vertex2Gid(const vertex_t& v) const override {
-    return IsInnerVertex(v) ? GetInnerVertexGid(v) : GetOuterVertexGid(v);
-  }
-
-  bool Oid2Gid(const oid_t& oid, vid_t& gid) const {
-    return vm_ptr_->GetGid(oid, gid);
-  }
-
-  bool Oid2Gid(fid_t fid, const oid_t& oid, vid_t& gid) const {
-    return vm_ptr_->GetGid(fid, oid, gid);
-  }
-
-  oid_t Gid2Oid(const vid_t& gid) const {
-    OID_T oid;
-    vm_ptr_->GetOid(gid, oid);
-    return oid;
-  }
-
-  vid_t GetInnerVerticesNum() const override { return ivnum_; }
-
-  vid_t GetOuterVerticesNum() const override { return ovnum_; }
-
-  vertex_range_t InnerVertices() const override {
-    return vertex_range_t(0, ivnum_);
-  }
-
-  vertex_range_t OuterVertices() const override {
-    return vertex_range_t(id_mask_ - ovnum_ + 1, id_mask_ + 1);
-  }
-
-  vertex_range_t OuterVertices(fid_t fid) const { return vertex_range_t(0, 0); }
-
-  vertex_range_t Vertices() const override { return vertex_range_t(0, 0); }
-
-  bool IsInnerVertex(const vertex_t& v) const override {
-    return (v.GetValue() < ivnum_);
-  }
-
-  bool IsInnerVertex(const vid_t& v) const { return (v < ivnum_); }
-
-  bool IsOuterVertex(const vertex_t& v) const override {
-    return (v.GetValue() >= ivnum_);
-  }
-
-  bool GetInnerVertex(const oid_t& oid, vertex_t& v) const override {
-    vid_t gid;
-    bool res = vm_ptr_->GetGid(oid, gid);
-    if (res && ((gid >> fid_offset_) == fid_)) {
-      return InnerVertexGid2Vertex(gid, v);
-    } else {
-      return false;
-    }
-  }
-
-  bool GetOuterVertex(const oid_t& oid, vertex_t& v) const override {
-    vid_t gid;
-    if (vm_ptr_->GetGid(oid, gid)) {
-      return OuterVertexGid2Vertex(gid, v);
-    } else {
-      return false;
-    }
-  }
-
-  oid_t GetInnerVertexId(const vertex_t& v) const override {
-    oid_t oid;
-    vm_ptr_->GetOid(fid_, v.GetValue(), oid);
-    return oid;
-  }
-
-  oid_t GetOuterVertexId(const vertex_t& v) const override {
-    vid_t gid = ovgid_[id_mask_ - v.GetValue()];
-    oid_t oid;
-    vm_ptr_->GetOid(gid, oid);
-    return oid;
-  }
-
-  bool InnerVertexGid2Vertex(const vid_t& gid, vertex_t& v) const override {
-    v.SetValue(gid & id_mask_);
-    return true;
-  }
-
-  bool OuterVertexGid2Vertex(const vid_t& gid, vertex_t& v) const override {
+  bool OuterVertexGid2Lid(VID_T gid, VID_T& lid) const override {
     auto iter = ovg2i_.find(gid);
     if (iter != ovg2i_.end()) {
-      v.SetValue(id_mask_ - iter->second);
+      lid = id_parser_.max_local_id() - iter->second;
       return true;
     } else {
       return false;
     }
   }
 
-  vid_t GetOuterVertexGid(const vertex_t& v) const override {
-    return ovgid_[id_mask_ - v.GetValue()];
-  }
-
-  vid_t GetInnerVertexGid(const vertex_t& v) const override {
-    return (v.GetValue() | ((vid_t) fid_ << fid_offset_));
+  VID_T GetOuterVertexGid(vertex_t v) const override {
+    return ovgid_[id_parser_.max_local_id() - v.GetValue()];
   }
 
   // AppendOnlyEdgecutFragment doesn't support along edge message strategy
@@ -842,6 +754,26 @@ class AppendOnlyEdgecutFragment
                ? const_adj_list_t(oeoffset_[v.GetValue()],
                                   oeoffset_[v.GetValue() + 1])
                : const_adj_list_t(NULL, NULL);
+  }
+
+  inline adj_list_t GetIncomingAdjList(const vertex_t& v,
+                                       fid_t src_fid) override {
+    return adj_list_t(NULL, NULL);
+  }
+
+  inline const_adj_list_t GetIncomingAdjList(const vertex_t& v,
+                                             fid_t src_fid) const override {
+    return const_adj_list_t(NULL, NULL);
+  }
+
+  inline adj_list_t GetOutgoingAdjList(const vertex_t& v,
+                                       fid_t dst_fid) override {
+    return adj_list_t(NULL, NULL);
+  }
+
+  inline const_adj_list_t GetOutgoingAdjList(const vertex_t& v,
+                                             fid_t dst_fid) const override {
+    return const_adj_list_t(NULL, NULL);
   }
 
   adj_list_t GetIncomingInnerVertexAdjList(const vertex_t& v) override {
@@ -924,14 +856,7 @@ class AppendOnlyEdgecutFragment
     return fragment_indices_;
   }
 
-  void SetupMirrorInfo(fid_t fid, const VertexRange<vid_t>& range,
-                       const std::vector<vid_t>& gid_list) {}
-
  private:
-  vid_t lid2Index(const vid_t& lid) const {
-    return (lid < ivnum_) ? lid : (id_mask_ - lid + ivnum_);
-  }
-
   bool binarySearchAndUpdate(adj_list_t& edge_list, vid_t lid,
                              const edata_t& edata) {
     if (edge_list.NotEmpty()) {
@@ -972,29 +897,27 @@ class AppendOnlyEdgecutFragment
     }
   }
 
-  template <typename T>
-  void calcFidBitWidth(fid_t fnum, T& id_mask, int& fid_offset) {
-    fid_t maxfid = fnum - 1;
-    if (maxfid == 0) {
-      fid_offset = (sizeof(T) * 8) - 1;
-    } else {
-      int i = 0;
-      while (maxfid) {
-        maxfid >>= 1;
-        ++i;
-      }
-      fid_offset = (sizeof(T) * 8) - i;
+  void initOuterVerticesOfFragment() {
+    outer_vertices_of_frag_.resize(fnum_);
+    for (auto& vec : outer_vertices_of_frag_) {
+      vec.clear();
     }
-    id_mask = ((T) 1 << fid_offset) - (T) 1;
+    for (VID_T i = 0; i < ovnum_; ++i) {
+      fid_t fid = id_parser_.get_fragment_id(ovgid_[i]);
+      outer_vertices_of_frag_[fid].push_back(
+          vertex_t(id_parser_.max_local_id() - i));
+    }
   }
 
-  std::shared_ptr<vertex_map_t> vm_ptr_;
-  vid_t ivnum_, ovnum_, tvnum_, id_mask_;
+  vid_t ovnum_, tvnum_;
   vid_t max_old_ilid_, min_old_olid_;
   size_t oenum_;
   size_t extra_oenum_;
-  int fid_offset_;
-  fid_t fid_, fnum_;
+  using base_t::fid_;
+  using base_t::fnum_;
+  using base_t::id_parser_;
+  using base_t::ivnum_;
+  using base_t::vm_ptr_;
 
   ska::flat_hash_map<vid_t, vid_t> ovg2i_;
   std::vector<vid_t> ovgid_;
@@ -1006,6 +929,8 @@ class AppendOnlyEdgecutFragment
 
   std::unique_ptr<FragmentIndicesBase<oid_t, vid_t, vdata_t, edata_t>>
       fragment_indices_;
+
+  using base_t::outer_vertices_of_frag_;
 };
 
 }  // namespace grape

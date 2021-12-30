@@ -78,7 +78,7 @@ class WCCAutoContext : public WCCAutoContextType<FRAG_T> {
   std::vector<std::vector<vertex_t>> outer_vertices;
   typename FRAG_T::template vertex_array_t<vid_t> local_comp_id;
   std::vector<cid_t> global_comp_id;
-  SyncBuffer<cid_t, vid_t> global_cluster_id;
+  SyncBuffer<typename FRAG_T::vertices_t, cid_t> global_cluster_id;
 };
 }  // namespace grape
 

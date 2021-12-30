@@ -68,7 +68,8 @@ class BFSContext : public VertexDataContext<FRAG_T, int64_t> {
 
   oid_t source_id;
   typename FRAG_T::template vertex_array_t<depth_type>& partial_result;
-  DenseVertexSet<vid_t> curr_inner_updated, next_inner_updated;
+  DenseVertexSet<typename FRAG_T::inner_vertices_t> curr_inner_updated,
+      next_inner_updated;
 
   depth_type current_depth = 0;
   double avg_degree = 0;

@@ -46,13 +46,12 @@ class WCCAuto : public AutoAppBase<FRAG_T, WCCAutoContext<FRAG_T>> {
   void PEval(const fragment_t& frag, context_t& ctx) {
     auto inner_vertices = frag.InnerVertices();
     auto outer_vertices = frag.OuterVertices();
-    auto vertices = frag.Vertices();
 
-    typename FRAG_T::template vertex_array_t<bool> visited(inner_vertices,
-                                                           false);
-    std::vector<vertex_t> outers;
-    typename FRAG_T::template vertex_array_t<bool> outer_visited(outer_vertices,
+    typename FRAG_T::template inner_vertex_array_t<bool> visited(inner_vertices,
                                                                  false);
+    std::vector<vertex_t> outers;
+    typename FRAG_T::template outer_vertex_array_t<bool> outer_visited(
+        outer_vertices, false);
 
     vid_t comp_id = 0;
 
@@ -148,8 +147,6 @@ class WCCAuto : public AutoAppBase<FRAG_T, WCCAutoContext<FRAG_T>> {
 
   void IncEval(const fragment_t& frag, context_t& ctx) {
     auto inner_vertices = frag.InnerVertices();
-    auto outer_vertices = frag.OuterVertices();
-    auto vertices = frag.Vertices();
 
     std::vector<bool> updated(ctx.outer_vertices.size(), false);
 

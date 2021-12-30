@@ -19,13 +19,11 @@ limitations under the License.
 #include <memory>
 
 #include "grape/types.h"
+#include "grape/worker/worker.h"
 
 namespace grape {
 
 class ParallelMessageManager;
-
-template <typename T>
-class ParallelWorker;
 
 /**
  * @brief ParallelAppBase is a base class for parallel apps. Users can process
@@ -41,6 +39,7 @@ template <typename FRAG_T, typename CONTEXT_T>
 class ParallelAppBase {
  public:
   static constexpr bool need_split_edges = false;
+  static constexpr bool need_split_edges_by_fragment = false;
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kSyncOnOuterVertex;
   static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;

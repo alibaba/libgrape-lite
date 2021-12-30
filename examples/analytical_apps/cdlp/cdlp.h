@@ -49,7 +49,7 @@ class CDLP : public ParallelAppBase<FRAG_T, CDLPContext<FRAG_T>>,
 #endif
 
     auto inner_vertices = frag.InnerVertices();
-    typename FRAG_T::template vertex_array_t<label_t> new_ilabels;
+    typename FRAG_T::template inner_vertex_array_t<label_t> new_ilabels;
     new_ilabels.Init(inner_vertices);
 
 #ifdef PROFILING

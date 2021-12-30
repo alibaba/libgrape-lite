@@ -33,9 +33,10 @@ template <typename OID_T>
 class HashPartitioner {
  public:
   HashPartitioner() : fnum_(1) {}
+  explicit HashPartitioner(size_t frag_num) : fnum_(frag_num) {}
   HashPartitioner(size_t frag_num, std::vector<OID_T>&) : fnum_(frag_num) {}
 
-  inline fid_t GetPartitionId(const OID_T& oid) {
+  inline fid_t GetPartitionId(const OID_T& oid) const {
     return static_cast<fid_t>(static_cast<uint64_t>(oid) % fnum_);
   }
 
@@ -53,6 +54,16 @@ class HashPartitioner {
     }
     fnum_ = other.fnum_;
     return *this;
+  }
+
+  template <typename IOADAPTOR_T>
+  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
+    CHECK(writer->Write(&fnum_, sizeof(fid_t)));
+  }
+
+  template <typename IOADAPTOR_T>
+  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+    CHECK(reader->Read(&fnum_, sizeof(fid_t)));
   }
 
  private:
@@ -80,7 +91,7 @@ class SegmentedPartitioner {
     }
   }
 
-  inline fid_t GetPartitionId(const OID_T& oid) { return o2f_.at(oid); }
+  inline fid_t GetPartitionId(const OID_T& oid) const { return o2f_.at(oid); }
 
   SegmentedPartitioner& operator=(const SegmentedPartitioner& other) {
     if (this == &other) {
@@ -98,6 +109,20 @@ class SegmentedPartitioner {
     fnum_ = other.fnum_;
     o2f_ = std::move(other.o2f_);
     return *this;
+  }
+
+  template <typename IOADAPTOR_T>
+  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
+    InArchive arc;
+    arc << fnum_ << o2f_;
+    CHECK(writer->WriteArchive(arc));
+  }
+
+  template <typename IOADAPTOR_T>
+  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+    OutArchive arc;
+    CHECK(reader->ReadArchive(arc));
+    arc >> fnum_ >> o2f_;
   }
 
  private:

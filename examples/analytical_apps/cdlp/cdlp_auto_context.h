@@ -86,8 +86,8 @@ class CDLPAutoContext
     }
   }
 
-  SyncBuffer<label_t, vid_t> labels;
-  typename FRAG_T::template vertex_array_t<bool> changed;
+  SyncBuffer<typename FRAG_T::vertices_t, label_t> labels;
+  typename FRAG_T::template inner_vertex_array_t<bool> changed;
 
 #ifdef PROFILING
   double preprocess_time = 0;
