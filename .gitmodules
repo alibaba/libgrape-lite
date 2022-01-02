@@ -1,0 +1,15 @@
+[submodule "thirdparty/libgrape-lite"]
+	path = thirdparty/libgrape-lite
+	url = git@github.com:alibaba/libgrape-lite.git
+[submodule "thirdparty/moderngpu"]
+	path = thirdparty/moderngpu
+	url = git@github.com:moderngpu/moderngpu.git
+[submodule "thirdparty/thrust"]
+	path = thirdparty/thrust
+	url = git@github.com:NVIDIA/thrust.git
+[submodule "thirdparty/cub"]
+	path = thirdparty/cub
+	url = git@github.com:NVIDIA/cub.git
+[submodule "thirdparty/variadic_table"]
+	path = thirdparty/variadic_table
+	url = git@github.com:friedmud/variadic_table.git

@@ -1,0 +1,5 @@
+dataset/*                       linguist-detectable=false
+ldbc_driver/*                   linguist-vendored
+misc/cpplint.py                 linguist-detectable=false
+thirdparty/*                    linguist-vendored
+*.v                             linguist-language=Text

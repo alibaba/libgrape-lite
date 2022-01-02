@@ -1,0 +1,275 @@
+
+#ifndef GRAPEGPU_GRAPE_GPU_FRAGMENT_REMOTE_FRAGMENT_H_
+#define GRAPEGPU_GRAPE_GPU_FRAGMENT_REMOTE_FRAGMENT_H_
+#include "grape_gpu/fragment/host_fragment.h"
+
+namespace grape_gpu {
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
+          grape::LoadStrategy _load_strategy>
+class RemoteFragment;
+
+namespace dev {
+
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
+          grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut>
+class RemoteFragment {
+ public:
+  using vertex_t = Vertex<VID_T>;
+  using nbr_t = Nbr<VID_T, EDATA_T>;
+  using vertex_range_t = VertexRange<VID_T>;
+  using adj_list_t = AdjList<VID_T, EDATA_T>;
+  using const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
+  using vid_t = VID_T;
+  using oid_t = OID_T;
+  using vdata_t = VDATA_T;
+  using edata_t = EDATA_T;
+
+  DEV_INLINE const_adj_list_t GetOutgoingAdjList(VID_T gid) const {
+    auto fid = id_parser_.GetFid(gid);
+    auto lid = id_parser_.GetLid(gid);
+    ArrayView<nbr_t*> oeoffset = oeoffset_[fid];
+
+    return const_adj_list_t(oeoffset[lid], oeoffset[lid + 1]);
+  }
+
+  DEV_INLINE VID_T Vertex2Sid(fid_t fid, const vertex_t& v) const {
+    auto ivnum = ivnum_[fid];
+    vid_t lid;
+
+    if (v.GetValue() < ivnum) {
+      lid = v.GetValue();
+    } else {
+      vid_t gid = ovgid_[fid][v.GetValue() - ivnum];
+      fid = id_parser_.GetFid(gid);
+      lid = id_parser_.GetLid(gid);
+    }
+    return ps_ivnum_[fid] + lid;
+  }
+
+  DEV_INLINE VID_T Gid2Sid(VID_T gid) const {
+    auto fid = id_parser_.GetFid(gid);
+    auto lid = id_parser_.GetLid(gid);
+
+    return ps_ivnum_[fid] + lid;
+  }
+
+  DEV_INLINE VID_T Vertex2Gid(fid_t fid, const vertex_t& v) const {
+    return IsInnerVertex(fid, v) ? GetInnerVertexGid(fid, v)
+                                 : GetOuterVertexGid(fid, v);
+  }
+
+  DEV_INLINE fid_t GetFid(vid_t gid) const { return id_parser_.GetFid(gid); }
+
+  DEV_INLINE VID_T GetInnerVertexGid(fid_t fid, const vertex_t& v) const {
+    return id_parser_.Lid2Gid(fid, v.GetValue());
+  }
+
+  DEV_INLINE VID_T GetOuterVertexGid(fid_t fid, const vertex_t& v) const {
+    return ovgid_[fid][v.GetValue() - ivnum_[fid]];
+  }
+
+  DEV_INLINE bool IsInnerVertex(fid_t fid, const vertex_t& v) const {
+    return (v.GetValue() < ivnum_[fid]);
+  }
+
+ private:
+  IdParser<VID_T> id_parser_;
+  ArrayView<ArrayView<nbr_t*>> ieoffset_, oeoffset_;
+  ArrayView<ArrayView<VID_T>> ovgid_;
+  ArrayView<VID_T> ivnum_;
+  ArrayView<VID_T> ps_ivnum_;
+
+  template <typename _OID_T, typename _VID_T, typename _VDATA_T,
+            typename _EDATA_T, grape::LoadStrategy __load_strategy>
+  friend class grape_gpu::RemoteFragment;
+};
+}  // namespace dev
+
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
+          grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut>
+class RemoteFragment
+    : public HostFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy> {
+ public:
+  using host_fragment =
+      HostFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy>;
+  using vertex_map_t = typename host_fragment::vertex_map_t;
+  using nbr_t = typename host_fragment::nbr_t;
+
+  explicit RemoteFragment(std::shared_ptr<vertex_map_t> vm_ptr)
+      : host_fragment(vm_ptr) {}
+
+  void __allocate_device_fragment__() override {
+    host_fragment::__allocate_device_fragment__();
+    auto& comm_spec = this->vm_ptr_->GetCommSpec();
+    remote_remote_ieoffset_ = GatherRemoteVector(comm_spec, this->d_ieoffset_,
+                                                 mem_handle_remote_ieoffset_);
+    remote_remote_oeoffset_ = GatherRemoteVector(comm_spec, this->d_oeoffset_,
+                                                 mem_handle_remote_oeoffset_);
+    thrust::host_vector<ArrayView<VID_T>> all_ovgid =
+        GatherRemoteVector(comm_spec, this->d_ovgid_, mem_handle_ovgid_);
+    remote_ie_ = GatherRemoteVector(comm_spec, this->d_ie_, mem_handle_ie_);
+    remote_oe_ = GatherRemoteVector(comm_spec, this->d_oe_, mem_handle_oe_);
+
+    if (comm_spec.fid() == 0) {
+      Stream stream;
+
+      remote_ieoffset_.resize(this->fnum_);
+      remote_oeoffset_.resize(this->fnum_);
+      d_remote_ieoffset_.resize(this->fnum_);
+      d_remote_oeoffset_.resize(this->fnum_);
+      all_ovgid_.resize(this->fnum_);
+      d_all_ovgid_.resize(this->fnum_);
+
+      for (fid_t fid = 0; fid < this->fnum_; fid++) {
+        remote_ieoffset_[fid] = transformRowOffset(
+            stream, remote_remote_ieoffset_[fid], remote_ie_[fid].data());
+        remote_oeoffset_[fid] = transformRowOffset(
+            stream, remote_remote_oeoffset_[fid], remote_oe_[fid].data());
+        d_remote_ieoffset_[fid] = ArrayView<nbr_t*>(remote_ieoffset_[fid]);
+        d_remote_oeoffset_[fid] = ArrayView<nbr_t*>(remote_oeoffset_[fid]);
+        all_ovgid_[fid].assign(all_ovgid[fid].data(),
+                               all_ovgid[fid].data() + all_ovgid[fid].size());
+        d_all_ovgid_[fid] = ArrayView<VID_T>(all_ovgid_[fid]);
+        //        auto ivnum = this->vm_ptr_->GetInnerVertexSize(fid);
+        //        LaunchKernel(
+        //            stream,
+        //            [=] __device__(ArrayView<nbr_t*> row_offset) {
+        //              if (TID_1D == 0) {
+        //                for (VID_T i = 0; i < ivnum; i++) {
+        //                  nbr_t *begin = row_offset[i], *end = row_offset[i +
+        //                  1];
+        //
+        //                  for (nbr_t* e = begin; e != end; e++) {
+        //                    printf("%u %u\n", i,
+        //                    e->get_neighbor().GetValue());
+        //                  }
+        //                }
+        //              }
+        //            },
+        //            ArrayView<nbr_t*>(remote_oeoffset_[fid]));
+      }
+      stream.Sync();
+      thrust::host_vector<VID_T> ivnum(comm_spec.worker_num());
+      MPI_Gather(&this->ivnum_, sizeof(VID_T), MPI_CHAR, ivnum.data(),
+                 sizeof(VID_T), MPI_CHAR, 0, comm_spec.comm());
+
+      d_ivnum_ = ivnum;
+
+      VID_T offset = 0;
+      for (auto nv : ivnum) {
+        d_ps_ivnum_.push_back(offset);
+        offset += nv;
+      }
+      d_ps_ivnum_.push_back(offset);
+    } else {
+      MPI_Gather(&this->ivnum_, sizeof(VID_T), MPI_CHAR, nullptr, 0, MPI_CHAR,
+                 0, comm_spec.comm());
+    }
+  }
+
+  template <typename T>
+  thrust::host_vector<ArrayView<T>> GatherRemoteVector(
+      const grape::CommSpec& comm_spec, thrust::device_vector<T>& data,
+      std::vector<cudaIpcMemHandle_t>& mem_handles) {
+    thrust::host_vector<ArrayView<T>> remote_views(comm_spec.worker_num());
+    int root = 0;
+    uint64_t len = data.size();
+
+    if (comm_spec.worker_id() == root) {
+      cudaIpcMemHandle_t mem_handle;
+      std::vector<uint64_t> len_arr(comm_spec.worker_num());
+
+      mem_handles.resize(comm_spec.worker_num());
+
+      MPI_Gather(&len, 1, MPI_UINT64_T, len_arr.data(), 1, MPI_UINT64_T, root,
+                 comm_spec.comm());
+      MPI_Gather(&mem_handle, sizeof(cudaIpcMemHandle_t), MPI_CHAR,
+                 mem_handles.data(), sizeof(cudaIpcMemHandle_t), MPI_CHAR, root,
+                 comm_spec.comm());
+
+      remote_views[root] =
+          ArrayView<T>(thrust::raw_pointer_cast(data.data()), len);
+
+      for (int worker_id = 0; worker_id < comm_spec.worker_num(); worker_id++) {
+        if (worker_id != root && len_arr[worker_id] > 0) {
+          T* d_ptr;
+
+          CHECK_CUDA(cudaIpcOpenMemHandle((void**) &d_ptr,
+                                          mem_handles[worker_id],
+                                          cudaIpcMemLazyEnablePeerAccess));
+          remote_views[worker_id] = ArrayView<T>(d_ptr, len_arr[worker_id]);
+        }
+      }
+    } else {
+      MPI_Gather(&len, 1, MPI_UINT64_T, nullptr, 0, MPI_UINT64_T, root,
+                 comm_spec.comm());
+      mem_handles.resize(1);
+      if (len > 0) {
+        CHECK_CUDA(cudaIpcGetMemHandle(&mem_handles[0],
+                                       thrust::raw_pointer_cast(data.data())));
+      }
+      MPI_Gather(&mem_handles[0], sizeof(cudaIpcMemHandle_t), MPI_CHAR, nullptr,
+                 0, MPI_CHAR, root, comm_spec.comm());
+    }
+    return remote_views;
+  }
+
+  thrust::device_vector<nbr_t*> transformRowOffset(Stream& stream,
+                                                   ArrayView<nbr_t*> in_eoffset,
+                                                   nbr_t* e_begin) {
+    thrust::device_vector<nbr_t*> offset(in_eoffset.size());
+    LaunchKernel(
+        stream,
+        [=] __device__(ArrayView<nbr_t*> out_eoffset) {
+          for (size_t i = TID_1D; i < in_eoffset.size();
+               i += TOTAL_THREADS_1D) {
+            auto offset = in_eoffset[i] - in_eoffset[0];
+            out_eoffset[i] = e_begin + offset;
+          }
+        },
+        ArrayView<nbr_t*>(offset));
+    return offset;
+  }
+
+  dev::RemoteFragment<OID_T, VID_T, VDATA_T, EDATA_T> DeviceObjectRemote()
+      const {
+    if (this->fid_ != 0) {
+      LOG(INFO) << "Illegal using of DeviceObjectRemote";
+    }
+    dev::RemoteFragment<OID_T, VID_T, VDATA_T, EDATA_T> remote_frag;
+
+    remote_frag.id_parser_ = this->id_parser_;
+    remote_frag.ieoffset_ = ArrayView<ArrayView<nbr_t*>>(d_remote_ieoffset_);
+    remote_frag.oeoffset_ = ArrayView<ArrayView<nbr_t*>>(d_remote_oeoffset_);
+    remote_frag.ovgid_ = ArrayView<ArrayView<VID_T>>(d_all_ovgid_);
+    remote_frag.ivnum_ = ArrayView<VID_T>(d_ivnum_);
+    remote_frag.ps_ivnum_ = ArrayView<VID_T>(d_ps_ivnum_);
+    return remote_frag;
+  }
+
+ private:
+  std::vector<cudaIpcMemHandle_t> mem_handle_remote_ieoffset_,
+      mem_handle_remote_oeoffset_, mem_handle_ovgid_, mem_handle_ie_,
+      mem_handle_oe_;
+
+  // nbr_t* points at the remote address that is invalid for local GPU but
+  // ArrayView is accessible
+  thrust::host_vector<ArrayView<nbr_t*>> remote_remote_ieoffset_,
+      remote_remote_oeoffset_;
+  // nbr_t* is a transformed address with IPC
+  thrust::host_vector<thrust::device_vector<nbr_t*>> remote_ieoffset_,
+      remote_oeoffset_;
+  thrust::device_vector<ArrayView<nbr_t*>> d_remote_ieoffset_,
+      d_remote_oeoffset_;
+
+  thrust::host_vector<ArrayView<nbr_t>> remote_ie_, remote_oe_;
+
+  thrust::host_vector<thrust::device_vector<VID_T>> all_ovgid_;
+  thrust::device_vector<ArrayView<VID_T>> d_all_ovgid_;
+
+  thrust::device_vector<VID_T> d_ivnum_;
+  thrust::device_vector<VID_T> d_ps_ivnum_;
+};
+
+}  // namespace grape_gpu
+#endif  // GRAPEGPU_GRAPE_GPU_FRAGMENT_REMOTE_FRAGMENT_H_

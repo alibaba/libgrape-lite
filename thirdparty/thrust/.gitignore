@@ -1,0 +1,4 @@
+*.log
+.p4config
+doc/html
+discrete_voronoi.pgm

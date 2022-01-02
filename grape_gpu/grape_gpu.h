@@ -1,0 +1,25 @@
+#ifndef GRAPE_GPU_GRAPE_GPU_H_
+#define GRAPE_GPU_GRAPE_GPU_H_
+#include "grape/app/void_context.h"
+#include "grape/util.h"
+#include "grape_gpu/app/async_gpu_app_base.h"
+#include "grape_gpu/app/batch_shuffle_app_base.h"
+#include "grape_gpu/app/gpu_app_base.h"
+#include "grape_gpu/communication/communicator.h"
+#include "grape_gpu/fragment/coo_fragment.h"
+#include "grape_gpu/parallel/async_gpu_message_manager.h"
+#include "grape_gpu/parallel/batch_shuffle_message_manager.h"
+#include "grape_gpu/parallel/gpu_message_manager.h"
+#include "grape_gpu/parallel/parallel_engine.h"
+#include "grape_gpu/utils/atomic_sum.h"
+#include "grape_gpu/utils/counter.h"
+#include "grape_gpu/utils/dev_utils.h"
+#include "grape_gpu/utils/global_shared_value.h"
+#include "grape_gpu/utils/launcher.h"
+#include "grape_gpu/utils/multi_device_barrier.h"
+#include "grape_gpu/utils/queue.h"
+#include "grape_gpu/utils/vertex_array.h"
+#include "grape_gpu/utils/vertex_set.h"
+#include "grape_gpu/utils/work_source.h"
+namespace grape_gpu {}
+#endif  // GRAPE_GPU_GRAPE_GPU_H_
