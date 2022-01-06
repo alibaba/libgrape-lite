@@ -15,7 +15,7 @@ option(BUILD_SHARED_LIBS "Whether to build libgrape-lite as shared library" ON)
 option(PROFILING "Whether to enable profiling" OFF)
 option(WITH_ASAN "Build with Address Sanitizer" OFF)
 option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
-option(WITH_CUDA "Whether to enable cuda support" OFF)
+option(WITH_CUDA "Whether to enable cuda support" ON)
 
 if (USE_HUGEPAGES AND LINUX)
     add_definitions(-DUSE_HUGEPAGES)
@@ -275,7 +275,7 @@ else ()
             examples/gnn_sampler
             examples/gnn_sampler/thirdparty
             ${RDKAFKA_INCLUDE_DIR})
-    target_link_libraries(gnn_sampler grape-lite  ${MPI_CXX_LIBRARIES}
+    target_link_libraries(gnn_sampler grape-lite ${MPI_CXX_LIBRARIES}
             ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES})
     install_libgrapelite_target(gnn_sampler)
 endif ()
@@ -287,7 +287,7 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/atlarge-research-granula
         DESTINATION include # target directory
         FILES_MATCHING      # install only matched files
         PATTERN "*.h"       # select header files
-)        
+) 
 endif()
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
         DESTINATION include
