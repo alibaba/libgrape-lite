@@ -1,9 +1,9 @@
 [submodule "thirdparty/cub"]
 	path = thirdparty/cub
-	url = https://github.com/NVIDIA/cub.git
+	url = git@github.com:NVIDIA/cub.git
 [submodule "thirdparty/thrust"]
 	path = thirdparty/thrust
-	url = https://github.com/NVIDIA/thrust.git
+	url = git@github.com:NVIDIA/thrust.git
 [submodule "thirdparty/moderngpu"]
 	path = thirdparty/moderngpu
-	url = https://github.com/moderngpu/moderngpu.git
+	url = git@github.com:moderngpu/moderngpu.git
