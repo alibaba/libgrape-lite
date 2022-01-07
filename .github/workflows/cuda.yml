@@ -16,5 +16,5 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DWITH_CUDA=ON
+          cmake ../
           make
