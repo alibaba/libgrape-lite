@@ -40,7 +40,7 @@ class BasicFragmentLoader;
 template <typename VID_T, typename VDATA_T>
 class Vertex {
  public:
-  DEV_HOST Vertex() = default;
+  DEV_HOST Vertex() {};
 
   DEV_HOST explicit Vertex(const VID_T& vid) : vid_(vid), vdata_() {}
   DEV_HOST Vertex(const VID_T& vid, const VDATA_T& vdata) : vid_(vid), vdata_(vdata) {}
@@ -93,7 +93,7 @@ class Vertex {
 template <typename VID_T>
 class Vertex<VID_T, EmptyType> {
  public:
-  Vertex() : vid_() {}
+  DEV_HOST Vertex() : vid_() {}
 
   DEV_HOST explicit Vertex(const VID_T& vid) : vid_(vid) {}
   DEV_HOST Vertex(const VID_T& vid, const EmptyType&) : vid_(vid) {}

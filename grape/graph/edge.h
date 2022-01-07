@@ -108,7 +108,7 @@ class Edge {
 template <typename VID_T>
 class Edge<VID_T, EmptyType> {
  public:
-  Edge() : src_(), dst_() {}
+  DEV_HOST Edge() : src_(), dst_() {}
   DEV_HOST Edge(const VID_T& src, const VID_T& dst) : src_(src), dst_(dst) {}
   DEV_HOST Edge(const VID_T& src, const VID_T& dst, const EmptyType& edata)
       : src_(src), dst_(dst) {}

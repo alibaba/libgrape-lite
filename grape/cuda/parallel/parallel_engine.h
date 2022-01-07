@@ -114,6 +114,8 @@ struct VertexMetadata {
 
   DEV_HOST VertexMetadata() {}
 
+  DEV_HOST ~VertexMetadata() {}
+
   DEV_INLINE void set_vertex(const Vertex<VID_T>& v) { vertex = v; }
 
   DEV_INLINE void set_metadata(const METADATA_T& data) { metadata = data; }
@@ -127,6 +129,8 @@ struct VertexMetadata<VID_T, grape::EmptyType> {
   };
 
   DEV_HOST VertexMetadata<VID_T, grape::EmptyType>() {}
+
+  DEV_HOST ~VertexMetadata<VID_T, grape::EmptyType>() {}
 
   DEV_INLINE void set_vertex(const Vertex<VID_T>& v) { vertex = v; }
 
@@ -225,6 +229,7 @@ struct empty_np {};
 template <typename ts_type, typename TTB, typename TWP, typename TFG = empty_np>
 union np_shared {
   DEV_HOST np_shared() {}
+  DEV_HOST ~np_shared() {}
   // for scans
   ts_type temp_storage;
 
@@ -242,7 +247,8 @@ union np_shared {
  */
 template <typename VID_T, typename EDATA_T, typename TMetaData>
 struct np_local {
-  np_local() = default;
+  __device__ np_local() {}
+  __device__ ~np_local() {}
 
   __device__ np_local(const ConstAdjList<VID_T, EDATA_T>& adjlist,
                       const TMetaData& metadata)

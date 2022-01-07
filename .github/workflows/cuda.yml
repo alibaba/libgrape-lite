@@ -1,0 +1,20 @@
+name: CUDA CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [self-hosted]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Debug -DWITH_CUDA=ON
+          make

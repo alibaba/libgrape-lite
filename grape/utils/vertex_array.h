@@ -36,7 +36,7 @@ namespace grape {
 template <typename T>
 class Vertex {
  public:
-  Vertex() {}
+  DEV_HOST Vertex() {}
   DEV_HOST explicit Vertex(T value) : value_(value) {}
   DEV_HOST Vertex(const Vertex& rhs) : value_(rhs.value_) {}
   DEV_HOST Vertex(Vertex&& rhs) : value_(rhs.value_) {}

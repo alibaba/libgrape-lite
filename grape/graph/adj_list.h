@@ -41,7 +41,7 @@ struct Nbr {
   DEV_HOST Nbr(const VID_T& nbr_, const EDATA_T& data_) : neighbor(nbr_), data(data_) {}
   DEV_HOST Nbr(const Vertex<VID_T>& nbr_, const EDATA_T& data_)
       : neighbor(nbr_), data(data_) {}
-  ~Nbr() {}
+  DEV_HOST ~Nbr() {}
 
   DEV_HOST_INLINE Nbr& operator=(const Nbr& rhs) {
     neighbor = rhs.neighbor;
@@ -285,7 +285,7 @@ class ConstAdjList {
     const NbrT* current_;
 
    public:
-    DEV_HOST const_iterator() noexcept : current_() {}
+    const_iterator() noexcept : current_() {}
     DEV_HOST explicit const_iterator(const pointer_type& c) noexcept : current_(c) {}
     DEV_HOST reference_type operator*() const noexcept { return *current_; }
     DEV_HOST pointer_type operator->() const noexcept { return current_; }
