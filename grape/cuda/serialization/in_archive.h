@@ -15,10 +15,13 @@ limitations under the License.
 
 #ifndef GRAPE_CUDA_SERIALIZATION_IN_ARCHIVE_H_
 #define GRAPE_CUDA_SERIALIZATION_IN_ARCHIVE_H_
+
+#pragma push
+#pragma diag_suppress=initialization_not_reachable
 #include <thrust/device_vector.h>
 #include <thrust/pair.h>
-
 #include <cub/cub.cuh>
+#pragma pop
 
 #include "grape/cuda/utils/array_view.h"
 #include "grape/cuda/utils/cuda_utils.h"

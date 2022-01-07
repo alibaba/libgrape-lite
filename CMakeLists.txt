@@ -15,7 +15,6 @@ option(BUILD_SHARED_LIBS "Whether to build libgrape-lite as shared library" ON)
 option(PROFILING "Whether to enable profiling" OFF)
 option(WITH_ASAN "Build with Address Sanitizer" OFF)
 option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
-option(WITH_CUDA "Whether to enable cuda support" ON)
 
 if (USE_HUGEPAGES AND LINUX)
     add_definitions(-DUSE_HUGEPAGES)
@@ -27,10 +26,6 @@ if (PROFILING)
 endif ()
 
 include_directories(thirdparty)
-if (WITH_CUDA)
-    message("-- Build with CUDA support")
-#   add_definitions(-DWITH_CUDA)
-endif ()
 # ------------------------------------------------------------------------------
 # setting default cmake type to Release
 # ------------------------------------------------------------------------------
@@ -76,104 +71,72 @@ if (WITH_ASAN)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
 endif ()
 
-if (WITH_CUDA)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 
-    find_package(CUDA 9 REQUIRED)
-
-    include_directories(${CUDA_TOOLKIT_INCLUDE})
-    set(CUDA_LIBS ${CUDA_TOOLKIT_TARGET_DIR}/lib64/stubs/libcuda.so
-            ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libnvToolsExt.so
-            ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libcudart.so)
-
-    if (CUDA_VERSION VERSION_LESS "11.0")
-        option(GEN_SM_30 "Whether to generate code for Compute Capability 3.0 devices" OFF)
-        if (GEN_SM_30)
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30")
-        endif ()
-    endif ()
-
-    option(GEN_SM_35 "Whether to generate code for Compute Capability 3.5 devices" OFF)
-    if (GEN_SM_35)
-        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_35,code=sm_35")
-    endif ()
-
-    option(GEN_SM_37 "Whether to generate code for Compute Capability 3.7 devices" OFF)
-    if (GEN_SM_37)
-        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_37,code=sm_37")
-    endif ()
-
-    option(GEN_SM_50 "Whether to generate code for Compute Capability 5.0 devices" OFF)
-    if (GEN_SM_50)
-        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_50,code=sm_50")
-    endif ()
-
-    option(GEN_SM_52 "Whether to generate code for Compute Capability 5.2 devices" OFF)
-    if (GEN_SM_52)
-        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_52,code=sm_52")
-    endif ()
-
-    if (CUDA_VERSION VERSION_GREATER "7.6")
-        option(GEN_SM_60 "Whether to generate code for Compute Capability 6.0 devices" ON)
-        option(GEN_SM_61 "Whether to generate code for Compute Capability 6.1 devices" OFF)
-        if (GEN_SM_60)
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_60,code=sm_60")
-        endif ()
-        if (GEN_SM_61)
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_61,code=sm_61")
-        endif ()
-    endif ()
-
-    if ((CUDA_VERSION VERSION_GREATER "9.0") OR (CUDA_VERSION VERSION_EQUAL "9.0"))
-        option(GEN_SM_70 "Whether to generate code for Compute Capability 7.0 devices" ON)
-        if (GEN_SM_70)
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_70,code=sm_70")
-        endif ()
-    endif ()
-
-    if ((CUDA_VERSION VERSION_GREATER "10.0") OR (CUDA_VERSION VERSION_EQUAL "10.0"))
-        option(GEN_SM_75 "Whether to generate code for Compute Capability 7.5 devices" OFF)
-        if (GEN_SM_75)
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")
-        endif ()
-    endif ()
-
-    if ((CUDA_VERSION VERSION_GREATER "11.0") OR (CUDA_VERSION VERSION_EQUAL "11.0"))
-        option(GEN_SM_80 "Whether to generate code for Compute Capability 8.0 devices" OFF)
-        if (GEN_SM_80)
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")
-        endif ()
-    endif ()
-
-    if ((CUDA_VERSION VERSION_GREATER "11.2") OR (CUDA_VERSION VERSION_EQUAL "11.2"))
-        option(GEN_SM_86 "Whether to generate code for Compute Capability 8.6 devices" OFF)
-        if (GEN_SM_86)
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_86,code=sm_86")
-        endif ()
-    endif ()
-
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Wno-deprecated-gpu-targets")
-
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        message("Debug mode")
-        set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-g;-lineinfo;-Xcompiler;-ggdb;-std=c++14;--expt-extended-lambda)
-    else ()
-        set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3;-DNDEBUG;-Xcompiler;-DNDEBUG;-std=c++14;--expt-extended-lambda)
-    endif ()
-
-    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(CUDA_SEPARABLE_COMPILATION OFF)
-    message("-- Host Compiler: ${CUDA_HOST_COMPILER}")
-
-    # find NCCL---------------------------------------------------------------------
-    # 2.7 at least
-    include("cmake/FindNCCL.cmake")
-    include_directories(SYSTEM ${NCCL_INCLUDE_DIRS})
-    if (NCCL_MAJOR_VERSION VERSION_LESS "2" OR NCCL_MINOR_VERSION VERSION_LESS "7")
-        message(FATAL_ERROR "The version of NCCL is required at least 2.7")
-    endif ()
-else ()
+# find CUDA, 9.0 at least
+find_package(CUDA 9 QUIET)
+if (CUDA_VERSION VERSION_LESS "9.0")
+    message(WARNING "Disable gpu support because cuda >= 9.0 not found")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+else()
+    # find NCCL, 2.7 at least
+    include("cmake/FindNCCL.cmake")
+    set(NCCL_VERSION "${NCCL_MAJOR_VERSION}.${NCCL_MINOR_VERSION}")
+    if (NCCL_VERSION VERSION_LESS "2.7")
+        message(WARNING "Disable gpu support because NCCL >= 2.7 not found")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    else ()
+        option(WITH_CUDA "Whether to enable cuda support" ON)
+        message("-- Build with CUDA support")
+    
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+    
+        include_directories(${CUDA_TOOLKIT_INCLUDE})
+        set(CUDA_LIBS ${CUDA_TOOLKIT_TARGET_DIR}/lib64/stubs/libcuda.so
+                ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libnvToolsExt.so
+                ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libcudart.so)
+    
+        if ((CUDA_VERSION VERSION_GREATER "9.0") OR (CUDA_VERSION VERSION_EQUAL "9.0"))
+            option(GEN_SM_70 "Whether to generate code for Compute Capability 7.0 devices" ON)
+            if (GEN_SM_70)
+                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_70,code=sm_70")
+            endif ()
+        endif ()
+    
+        if ((CUDA_VERSION VERSION_GREATER "10.0") OR (CUDA_VERSION VERSION_EQUAL "10.0"))
+            option(GEN_SM_75 "Whether to generate code for Compute Capability 7.5 devices" ON)
+            if (GEN_SM_75)
+                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")
+            endif ()
+        endif ()
+    
+        if ((CUDA_VERSION VERSION_GREATER "11.0") OR (CUDA_VERSION VERSION_EQUAL "11.0"))
+            option(GEN_SM_80 "Whether to generate code for Compute Capability 8.0 devices" ON)
+            if (GEN_SM_80)
+                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")
+            endif ()
+        endif ()
+    
+        if ((CUDA_VERSION VERSION_GREATER "11.2") OR (CUDA_VERSION VERSION_EQUAL "11.2"))
+            option(GEN_SM_86 "Whether to generate code for Compute Capability 8.6 devices" ON)
+            if (GEN_SM_86)
+                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_86,code=sm_86")
+            endif ()
+        endif ()
+    
+        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Wno-deprecated-gpu-targets")
+    
+        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+            set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-g;-lineinfo;-Xcompiler;-ggdb;-std=c++14;--expt-extended-lambda)
+        else ()
+            set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3;-DNDEBUG;-Xcompiler;-DNDEBUG;-std=c++14;--expt-extended-lambda)
+        endif ()
+    
+        set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+        set(CUDA_SEPARABLE_COMPILATION OFF)
+        message("-- Host Compiler: ${CUDA_HOST_COMPILER}")
+    
+        include_directories(SYSTEM ${NCCL_INCLUDE_DIRS})
+    endif() 
 endif ()
 
 # ------------------------------------------------------------------------------
@@ -257,10 +220,12 @@ else ()
     install_libgrapelite_target(analytical_apps)
 
     if (WITH_CUDA)
-        cuda_add_executable(run_cuda_app examples/analytical_apps/flags.cc examples/analytical_apps/run_cuda_app.cu)
-        target_include_directories(run_cuda_app PRIVATE examples/analytical_apps thirdparty/cub thirdparty/thrust thirdparty/moderngpu/src)
-        target_link_libraries(run_cuda_app grape-lite ${MPI_CXX_LIBRARIES}
-          ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${CUDA_LIBS} ${NCCL_LIBRARIES})
+        cuda_add_executable(gpu_analytical_apps examples/analytical_apps/flags.cc examples/analytical_apps/run_cuda_app.cu)
+        target_include_directories(gpu_analytical_apps SYSTEM PRIVATE thirdparty/cub thirdparty/thrust thirdparty/moderngpu/src)
+        target_include_directories(gpu_analytical_apps PRIVATE examples/analytical_apps)
+        set_target_properties(gpu_analytical_apps PROPERTIES OUTPUT_NAME run_cuda_app)
+        target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})
+        install_libgrapelite_target(gpu_analytical_apps)
     endif ()
 endif ()
 
@@ -289,12 +254,27 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/atlarge-research-granula
         PATTERN "*.h"       # select header files
 ) 
 endif()
+
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
         DESTINATION include
         FILES_MATCHING
         PATTERN "*.h"
         PATTERN "*.hpp"
 )
+
+if (WITH_CUDA)
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/cub/cub
+                  ${PROJECT_SOURCE_DIR}/thirdparty/thrust/thrust
+                  ${PROJECT_SOURCE_DIR}/thirdparty/moderngpu/src/moderngpu
+        DESTINATION include
+        FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "*.cuh"
+        PATTERN "*.hpp"
+        PATTERN "*.hxx"
+)
+endif ()
+
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/grape
         DESTINATION include
         FILES_MATCHING
@@ -306,6 +286,7 @@ install(DIRECTORY ${EXAMPLES_DIR}/analytical_apps/bfs
                   ${EXAMPLES_DIR}/analytical_apps/pagerank
                   ${EXAMPLES_DIR}/analytical_apps/sssp
                   ${EXAMPLES_DIR}/analytical_apps/wcc
+                  ${EXAMPLES_DIR}/analytical_apps/cuda
         DESTINATION include/grape/analytical_apps
         FILES_MATCHING
         PATTERN "*.h"

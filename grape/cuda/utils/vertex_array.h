@@ -15,9 +15,12 @@ limitations under the License.
 
 #ifndef GRAPE_CUDA_UTILS_VERTEX_ARRAY_H_
 #define GRAPE_CUDA_UTILS_VERTEX_ARRAY_H_
-#include <thrust/device_vector.h>
 
+#pragma push
+#pragma diag_suppress=initialization_not_reachable
+#include <thrust/device_vector.h>
 #include <cub/util_type.cuh>
+#pragma pop
 
 #include "grape/cuda/utils/cuda_utils.h"
 #include "grape/cuda/utils/stream.h"

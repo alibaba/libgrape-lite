@@ -15,16 +15,19 @@ limitations under the License.
 
 #ifndef GRAPE_CUDA_UTILS_QUEUE_H_
 #define GRAPE_CUDA_UTILS_QUEUE_H_
-#include <cooperative_groups.h>
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <thrust/device_vector.h>
-
-#include <cassert>
-#include <cub/util_ptx.cuh>
-#include <initializer_list>
 #include <memory>
 #include <vector>
+#include <cassert>
+#include <initializer_list>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cooperative_groups.h>
+
+#pragma push
+#pragma diag_suppress=initialization_not_reachable
+#include <thrust/device_vector.h>
+#include <cub/util_ptx.cuh>
+#pragma pop
 
 #include "grape/cuda/utils/array_view.h"
 #include "grape/cuda/utils/cuda_utils.h"
