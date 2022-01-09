@@ -367,7 +367,7 @@ class GPUMessageManager {
   inline void ParallelProcess(FUNC_T func) {
     int grid_size = 256, block_size = 256;
 
-    // TODO(liang): Fuse
+    // TODO(mengke): Fuse
     for (fid_t src_fid = 0; src_fid < fnum_; src_fid++) {
       if (src_fid != fid_) {
         dev::ProcessMsg<MESSAGE_T, FUNC_T>

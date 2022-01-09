@@ -128,7 +128,7 @@ else()
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-g;-lineinfo;-Xcompiler;-ggdb;-std=c++14;--expt-extended-lambda)
         else ()
-            set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3;-DNDEBUG;-Xcompiler;-DNDEBUG;-std=c++14;--expt-extended-lambda)
+            set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3;-std=c++14;--expt-extended-lambda)
         endif ()
     
         set(CUDA_PROPAGATE_HOST_FLAGS OFF)

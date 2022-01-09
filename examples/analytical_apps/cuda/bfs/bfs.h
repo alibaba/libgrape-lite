@@ -166,9 +166,9 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
           }
         },
         ctx.lb);
+    stream.Sync();
     auto local_out_size = out_q_local.size(stream);
 #ifdef PROFILING
-    stream.Sync();
     traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
     VLOG(2) << "Frag " << frag.fid() << " Local out: " << local_out_size
             << " Kernel time: " << traversal_kernel_time * 1000;
