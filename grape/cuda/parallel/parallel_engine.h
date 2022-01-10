@@ -1008,6 +1008,9 @@ class ParallelEngine {
 
     int grid_size, block_size;
     size_t size = ws.size();
+    if(size==0) {
+      return;
+    }
 
     __calc_prefix_sum__<FRAG_T, WORK_SOURCE_T, ed>(stream, dev_frag, ws);
 
