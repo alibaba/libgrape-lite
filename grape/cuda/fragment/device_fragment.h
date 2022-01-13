@@ -111,6 +111,24 @@ class DeviceFragment {
                                           : OuterVertexGid2Vertex(gid, v);
   }
 
+  DEV_INLINE bool Gid2Vertex_test1(const VID_T& gid, vertex_t& v, vertex_t& u) const {
+    auto t = id_parser_.GetFid(gid) == fid_ ? InnerVertexGid2Vertex(gid, v)
+                                          : OuterVertexGid2Vertex(gid, v);
+    if(t==true){
+      printf("_fid:%d, %u(%d->%d)\n", fid_, gid, Vertex2Gid(u), gid);
+    }
+    return t;
+  }
+
+  DEV_INLINE bool Gid2Vertex_test2(const VID_T& gid, vertex_t& v) const {
+    auto t = id_parser_.GetFid(gid) == fid_ ? InnerVertexGid2Vertex(gid, v)
+                                          : OuterVertexGid2Vertex(gid, v);
+    if(t == false){
+      printf("_fid:%d, %u, t= %d\n", fid_, gid, t);
+    }
+    return t;
+  }
+
   DEV_INLINE VID_T Vertex2Gid(const vertex_t& v) const {
     return IsInnerVertex(v) ? GetInnerVertexGid(v) : GetOuterVertexGid(v);
   }

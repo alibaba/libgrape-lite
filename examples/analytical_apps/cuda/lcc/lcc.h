@@ -53,13 +53,16 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
     row_offset.resize(vertices.size() + 1, 0);
 
     size_t n_edges = 0;
+    size_t n_vertices = 0;
     using nbr_t = typename FRAG_T::nbr_t;
     for (auto u : frag.InnerVertices()) {
       n_edges += frag.GetLocalOutDegree(u) + frag.GetLocalInDegree(u);
+      n_vertices += 1;
     }
 
-    messages.InitBuffer(1.5 * n_edges * sizeof(nbr_t),
-                        1.5 * n_edges * sizeof(nbr_t));
+    //VLOG(1) << "Message buffer size is 2*" << n_edges << "*" << sizeof(nbr_t) + sizeof(vid_t) << "=" << 2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t));
+    messages.InitBuffer(10 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)),
+                        10 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)));
   }
 
   void Output(std::ostream& os) override {
@@ -84,11 +87,11 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
   LoadBalancing lb{};
   VertexArray<int, vid_t> valid_out_degree;
   VertexArray<vid_t, vid_t> global_degree;
+  VertexArray<int, vid_t> filling_offset;
+  VertexArray<int, vid_t> tricnt;
   thrust::device_vector<int> row_offset;
   thrust::device_vector<vid_t> col_indices;
   thrust::device_vector<vid_t> col_sorted_indices;
-  VertexArray<int, vid_t> filling_offset;
-  VertexArray<int, vid_t> tricnt;
   int stage{};
   double get_msg_time{};
   double traversal_kernel_time{};
@@ -154,7 +157,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
 
       ForEachOutgoingEdge(
           stream, dev_frag, ws_in,
-          [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
+        [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
             vertex_t v = nbr.get_neighbor();
             vid_t u_degree = d_global_degree[u];
             vid_t v_degree = d_global_degree[v];
@@ -208,6 +211,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
       ctx.col_sorted_indices.resize(n_filtered_edges);
 
       auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
+      auto* d_msg_col_indices = thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
       WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
 
       // filling edges with precomputed gids
@@ -223,7 +227,8 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             if (u_degree > v_degree ||
                 (u_degree == v_degree && u_gid < v_gid)) {
               auto pos = atomicAdd(&d_filling_offset[u], 1);
-              d_col_indices[pos] = v_gid;
+              d_col_indices[pos] = v.GetValue();
+              d_msg_col_indices[pos] = v_gid;
             }
           },
           ctx.lb);
@@ -231,9 +236,9 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
       ForEachWithIndex(
           stream, ws_in, [=] __device__(size_t idx, vertex_t u) mutable {
             // TODO(liang): Load balancing
-            for (auto begin = d_row_offset[idx]; begin < d_row_offset[idx + 1];
+            for (auto begin = d_row_offset[idx]; begin < d_row_offset[idx+1];
                  begin++) {
-              auto v_gid = d_col_indices[begin];
+              auto v_gid = d_msg_col_indices[begin];
 
               d_mm.template SendMsgThroughOEdges(dev_frag, u, v_gid);
             }
@@ -254,11 +259,11 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             if (dev_frag.Gid2Vertex(v_gid, v)) {
               auto pos = atomicAdd(&d_filling_offset[u], 1);
               assert(pos + 1 <= d_row_offset[u.GetValue() + 1]);
-              d_col_indices[pos] = v_gid;
+              d_col_indices[pos] = v.GetValue();
             }
           });
 
-      ctx.filling_offset.resize(0);
+      //ctx.filling_offset.resize(0);
 
       // Sort destinations with segmented sort
       {
@@ -268,9 +273,9 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
         int num_items = n_edges;
         int num_segments = n_vertices;
         auto* d_offsets = thrust::raw_pointer_cast(ctx.row_offset.data());
+        auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
         auto* d_keys_in = thrust::raw_pointer_cast(ctx.col_indices.data());
-        auto* d_keys_out =
-            thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
+        auto* d_keys_out = thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
 
         auto begin = grape::GetCurrentTime();
         // Determine temporary device storage requirements
@@ -278,41 +283,41 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
         size_t temp_storage_bytes = 0;
         CHECK_CUDA(cub::DeviceSegmentedRadixSort::SortKeys(
             d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out,
-            num_items, num_segments, d_offsets, d_offsets + 1));
+            num_items, num_segments, d_offsets, d_filling_offset));
         // Allocate temporary storage
         CHECK_CUDA(cudaMalloc(&d_temp_storage, temp_storage_bytes));
         // Run sorting operation
         CHECK_CUDA(cub::DeviceSegmentedRadixSort::SortKeys(
             d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out,
-            num_items, num_segments, d_offsets, d_offsets + 1));
+            num_items, num_segments, d_offsets, d_filling_offset));
         CHECK_CUDA(cudaFree(d_temp_storage));
         LOG(INFO) << "Sort time: " << grape::GetCurrentTime() - begin;
 
         // Now, we pre-compute lid
-        LaunchKernel(
-            stream,
-            [=] __device__(vid_t * in_gid, vid_t * out_lid) {
-              auto tid = TID_1D;
-              auto nthreads = TOTAL_THREADS_1D;
+        //LaunchKernel(
+        //    stream,
+        //    [=] __device__(vid_t * in_gid, vid_t * out_lid) {
+        //      auto tid = TID_1D;
+        //      auto nthreads = TOTAL_THREADS_1D;
 
-              for (size_t eid = 0 + tid; eid < n_edges; eid += nthreads) {
-                vertex_t dst;
-                bool ok = dev_frag.Gid2Vertex(in_gid[eid], dst);
-
-                assert(ok);
-                out_lid[eid] = dst.GetValue();
-              }
-            },
-            thrust::raw_pointer_cast(ctx.col_sorted_indices.data()),
-            thrust::raw_pointer_cast(ctx.col_indices.data()));
+        //      for (size_t eid = 0 + tid; eid < n_edges; eid += nthreads) {
+        //        vertex_t dst;
+        //        bool ok = dev_frag.Gid2Vertex_test2(in_gid[eid], dst);
+        //        if(ok==false) printf("n_edges is %d, eid is %d, dst is %d\n", n_edges, eid, dst.GetValue());
+        //        assert(ok);
+        //        out_lid[eid] = dst.GetValue();
+        //      }
+        //    },
+        //    thrust::raw_pointer_cast(ctx.col_sorted_indices.data()),
+        //    thrust::raw_pointer_cast(ctx.col_indices.data()));
       }
 
       {
         WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
 
         auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
-        auto* d_col_indices =
-            thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
+        auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
+        auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
         auto* d_dst_lid = thrust::raw_pointer_cast(ctx.col_indices.data());
 
         // Calculate intersection
@@ -320,14 +325,14 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             stream, ws_in, [=] __device__(size_t idx, vertex_t u) mutable {
               int triangle_count = 0;
 
-              for (auto eid = d_row_offset[idx]; eid < d_row_offset[idx + 1];
+              for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
                    eid++) {
                 vertex_t v(d_dst_lid[eid]);
 
                 auto edge_begin_u = d_row_offset[u.GetValue()],
-                     edge_end_u = d_row_offset[u.GetValue() + 1];
+                     edge_end_u = d_filling_offset[u.GetValue()];
                 auto edge_begin_v = d_row_offset[v.GetValue()],
-                     edge_end_v = d_row_offset[v.GetValue() + 1];
+                     edge_end_v = d_filling_offset[v.GetValue()];
                 auto degree_u = edge_end_u - edge_begin_u;
                 auto degree_v = edge_end_v - edge_begin_v;
 
