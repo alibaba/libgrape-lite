@@ -325,7 +325,7 @@
             </releases>
             <id>graphalytics</id>
             <name>Graphalytics</name>
-            <url>https://atlarge.ewi.tudelft.nl/graphalytics/mvn</url>
+            <url>https://ldbcouncil.org/graphalytics-mvn/</url>
             <layout>default</layout>
         </repository>
     </repositories>
