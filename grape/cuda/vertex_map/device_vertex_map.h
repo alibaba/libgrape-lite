@@ -97,7 +97,8 @@ class DeviceVertexMap {
  public:
   explicit DeviceVertexMap(
       std::shared_ptr<grape::GlobalVertexMap<OID_T, VID_T>> vm_ptr)
-      : vm_ptr_(std::move(vm_ptr)) {}
+    : vm_ptr_(std::move(vm_ptr)) {
+    }
 
   void Init(const Stream& stream) {
     auto& comm_spec = vm_ptr_->GetCommSpec();

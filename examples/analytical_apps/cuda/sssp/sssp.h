@@ -27,14 +27,15 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
   using vid_t = typename FRAG_T::vid_t;
   using oid_t = typename FRAG_T::oid_t;
   using vertex_t = typename FRAG_T::vertex_t;
-#ifdef FLOAT_WEIGHT
-  using dist_t = float;
-#else
+#ifdef INT_WEIGHT
   using dist_t = uint32_t;
+#else
+  using dist_t = float;
 #endif
   explicit SSSPContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
 
   ~SSSPContext() {
+//#ifdef PROFILING
     VLOG(1) << "Get msg time: " << get_msg_time * 1000;
     VLOG(1) << "SSSP kernel time: " << traversal_kernel_time * 1000;
     int dev;
@@ -42,6 +43,7 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
     LOG(INFO) << "GPU " << dev << " Compute time: " << compute_time * 1000
               << " ms Comm time: " << mm->GetAccumulatedCommTime() * 1000
               << " ms Ratio: " << compute_time / mm->GetAccumulatedCommTime();
+//#endif
   }
 
   void Init(GPUMessageManager& messages, AppConfig app_config, oid_t src_id,
@@ -56,11 +58,11 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
     dist.Init(vertices, std::numeric_limits<dist_t>::max());
     dist.H2D();
 
-    auto in_cap = app_config.wl_alloc_factor_in * frag.GetEdgeNum();
+    auto in_cap = 2 * app_config.wl_alloc_factor_in * frag.GetEdgeNum();
     auto local_out_cap =
         (frag.fnum() == 1 ? app_config.wl_alloc_factor_in
                           : app_config.wl_alloc_factor_out_local) *
-        frag.GetEdgeNum();
+        frag.GetEdgeNum() * 2;
     auto remote_out_cap = ov.size();
 
     tmp_q.Init(iv.size());
@@ -181,7 +183,11 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
         d_frag, [=] __device__(vertex_t v, dist_t received_dist) mutable {
           assert(d_frag.IsInnerVertex(v));
 
+#ifdef INT_WEIGHT
           if (received_dist < atomicMin(&d_dist[v], received_dist)) {
+#else
+          if (received_dist < dev::atomicMinFloat(&d_dist[v], received_dist)) {
+#endif
             d_in_q.Insert(v);
           }
         });
@@ -223,10 +229,10 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
                          const nbr_t& nbr) mutable {
             dist_t new_depth = metadata.metadata + nbr.get_data();
             vertex_t v = nbr.get_neighbor();
-#ifdef FLOAT_WEIGHT
-            if (new_depth < atomicMinFloat(&d_dist[v], new_depth)) {
-#else
+#ifdef INT_WEIGHT
             if (new_depth < atomicMin(&d_dist[v], new_depth)) {
+#else
+            if (new_depth < dev::atomicMinFloat(&d_dist[v], new_depth)) {
 #endif
               if (d_frag.IsInnerVertex(v)) {
                 if (new_depth < prio) {

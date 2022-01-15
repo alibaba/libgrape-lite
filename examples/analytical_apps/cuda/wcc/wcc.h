@@ -65,7 +65,7 @@ class WCCContext : public grape::VoidContext<FRAG_T> {
     label.D2H();
 
     for (auto v : iv) {
-      os << frag.GetId(v) << " " << frag.Gid2Oid(label[v]) << std::endl;
+      os << frag.GetId(v) << " " << label[v] << std::endl;
     }
   }
 
@@ -81,6 +81,7 @@ template <typename FRAG_T>
 class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
             public ParallelEngine {
  public:
+  static constexpr bool need_build_device_vm = true;
   INSTALL_GPU_WORKER(WCC<FRAG_T>, WCCContext<FRAG_T>, FRAG_T)
   using label_t = typename context_t::label_t;
   using dev_fragment_t = typename fragment_t::device_t;
@@ -91,8 +92,8 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
-    auto iv = frag.InnerVertices();
-    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+    auto av = frag.Vertices();
+    WorkSourceRange<vertex_t> ws_in(av.begin(), av.size());
 
     LaunchKernel(
         messages.stream(),
@@ -106,7 +107,7 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
           for (size_t idx = 0 + tid; idx < size; idx += total_nthreads) {
             vertex_t v = ws_in.GetWork(idx);
 
-            label[v] = d_frag.Vertex2Gid(v);
+            label[v] = d_frag.GetId(v);
             d_in_q.Insert(v);
           }
         },

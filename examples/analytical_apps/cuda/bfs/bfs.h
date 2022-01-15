@@ -28,7 +28,7 @@ class BFSContext : public grape::VoidContext<FRAG_T> {
   using vid_t = typename FRAG_T::vid_t;
   using oid_t = typename FRAG_T::oid_t;
   using vertex_t = typename FRAG_T::vertex_t;
-  using depth_t = uint32_t;
+  using depth_t = int64_t;
 
   explicit BFSContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
 

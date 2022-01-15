@@ -38,10 +38,10 @@ int main(int argc, char* argv[]) {
 
   std::string name = FLAGS_application;
   if (name.find("sssp") != std::string::npos) {
-#ifdef FLOAT_WEIGHT
-    grape::cuda::Run<int64_t, uint32_t, grape::EmptyType, float>();
-#else
+#ifdef INT_WEIGHT
     grape::cuda::Run<int64_t, uint32_t, grape::EmptyType, uint32_t>();
+#else
+    grape::cuda::Run<int64_t, uint32_t, grape::EmptyType, float>();
 #endif
   } else {
     grape::cuda::Run<int64_t, uint32_t, grape::EmptyType, grape::EmptyType>();

@@ -20,9 +20,9 @@ limitations under the License.
 namespace grape {
 namespace cuda {
 struct AppConfig {
-  float wl_alloc_factor_in;
-  float wl_alloc_factor_out_local;
-  float wl_alloc_factor_out_remote;
+  double wl_alloc_factor_in;
+  double wl_alloc_factor_out_local;
+  double wl_alloc_factor_out_remote;
   LoadBalancing lb;
 };
 }  // namespace cuda

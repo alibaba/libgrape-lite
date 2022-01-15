@@ -159,11 +159,11 @@ void Run() {
     CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
                                        app_config, FLAGS_bfs_source);
   } else if (application == "sssp") {
-#ifdef FLOAT_WEIGHT
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, float,
+#ifdef INT_WEIGHT
+    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, uint32_t,
                                                 grape::LoadStrategy::kOnlyOut>;
 #else
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, uint32_t,
+    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, float,
                                                 grape::LoadStrategy::kOnlyOut>;
 #endif
     using AppType = SSSP<GraphType>;

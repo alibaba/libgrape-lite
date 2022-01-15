@@ -46,6 +46,7 @@ limitations under the License.
 #include "grape/cuda/utils/vertex_array.h"
 #include "grape/cuda/utils/vertex_set.h"
 #include "grape/cuda/utils/work_source.h"
+#include "grape/cuda/utils/cuda_utils.h"
 #endif
 
 namespace grape {}
