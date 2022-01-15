@@ -81,7 +81,6 @@ template <typename FRAG_T>
 class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
             public ParallelEngine {
  public:
-  static constexpr bool need_build_device_vm = true;
   INSTALL_GPU_WORKER(WCC<FRAG_T>, WCCContext<FRAG_T>, FRAG_T)
   using label_t = typename context_t::label_t;
   using dev_fragment_t = typename fragment_t::device_t;
@@ -89,6 +88,7 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
   using edata_t = typename fragment_t::edata_t;
   using vertex_t = typename dev_fragment_t::vertex_t;
   using nbr_t = typename dev_fragment_t::nbr_t;
+  static constexpr bool need_build_device_vm = true;
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {

@@ -61,8 +61,8 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
     }
 
     //VLOG(1) << "Message buffer size is 2*" << n_edges << "*" << sizeof(nbr_t) + sizeof(vid_t) << "=" << 2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t));
-    messages.InitBuffer(10 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)),
-                        10 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)));
+    messages.InitBuffer(2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)),
+                        2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)));
   }
 
   void Output(std::ostream& os) override {
@@ -77,7 +77,7 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
       if (global_degree[v] >= 2) {
         score = 2.0 * (tricnt[v]) /
                 (static_cast<int64_t>(global_degree[v]) *
-                 (static_cast<int64_t>(global_degree[v]) - 1));
+                (static_cast<int64_t>(global_degree[v]) - 1));
       }
       os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
          << score << std::endl;
@@ -113,6 +113,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
       grape::MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
   static constexpr grape::LoadStrategy load_strategy =
       grape::LoadStrategy::kOnlyOut;
+  static constexpr bool need_build_device_vm = true;
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
@@ -163,11 +164,13 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             vid_t v_degree = d_global_degree[v];
             vid_t u_gid = dev_frag.GetInnerVertexGid(u);
             vid_t v_gid = dev_frag.Vertex2Gid(v);
+            vid_t cnt = 0;
 
             if (u_degree > v_degree ||
-                (u_degree == v_degree && u_gid < v_gid)) {
-              atomicAdd(&d_valid_out_degree[u], 1);
+                (u_degree == v_degree && u_gid > v_gid)) {
+              cnt ++;
             }
+            atomicAdd(&d_valid_out_degree[u], cnt);
           },
           ctx.lb);
 
@@ -225,7 +228,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             vid_t v_gid = dev_frag.Vertex2Gid(v);
 
             if (u_degree > v_degree ||
-                (u_degree == v_degree && u_gid < v_gid)) {
+                (u_degree == v_degree && u_gid > v_gid)) {
               auto pos = atomicAdd(&d_filling_offset[u], 1);
               d_col_indices[pos] = v.GetValue();
               d_msg_col_indices[pos] = v_gid;
@@ -235,7 +238,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
 
       ForEachWithIndex(
           stream, ws_in, [=] __device__(size_t idx, vertex_t u) mutable {
-            // TODO(liang): Load balancing
+            // TODO(mengke): replace it with ForEachOutgoingEdge
             for (auto begin = d_row_offset[idx]; begin < d_row_offset[idx+1];
                  begin++) {
               auto v_gid = d_msg_col_indices[begin];
