@@ -591,7 +591,6 @@ class HostFragment {
     }
 
     if (need_build_device_vm) {
-      printf("are your kidding me???");
       d_vm_ptr_->Init(stream);
     }
     stream.Sync();

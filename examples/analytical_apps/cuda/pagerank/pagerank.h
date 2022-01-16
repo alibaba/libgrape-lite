@@ -30,6 +30,7 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
   explicit PagerankContext(const FRAG_T& frag)
       : grape::VoidContext<FRAG_T>(frag) {}
 
+#ifdef PROFILING
   ~PagerankContext() {
     VLOG(1) << "Get msg time: " << get_msg_time * 1000;
     VLOG(1) << "Pagerank kernel time: " << traversal_kernel_time * 1000;
@@ -40,6 +41,7 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
               << " ms Comm time: " << mm->GetAccumulatedCommTime() * 1000
               << " ms Ratio: " << compute_time / mm->GetAccumulatedCommTime();
   }
+#endif
 
   void Init(GPUMessageManager& messages, AppConfig app_config,
             float damping_factor, int max_iter) {
@@ -196,8 +198,10 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
     traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
     ctx.traversal_kernel_time += traversal_kernel_time;
 
+#ifdef PROFILING
     VLOG(1) << "Frag " << frag.fid()
             << " Kernel time: " << traversal_kernel_time * 1000;
+#endif
 
     ctx.rank.Swap(ctx.next_rank);
   }

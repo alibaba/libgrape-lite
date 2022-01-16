@@ -34,10 +34,12 @@ class CDLPContext : public grape::VoidContext<FRAG_T> {
 
   explicit CDLPContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
 
+#ifdef PROFILING
   ~CDLPContext() {
     VLOG(1) << "Get msg time: " << get_msg_time * 1000;
     VLOG(1) << "CDLP kernel time: " << traversal_kernel_time * 1000;
   }
+#endif
 
   void Init(GPUMessageManager& messages, AppConfig app_config, int max_round) {
     auto& frag = this->fragment();
@@ -192,7 +194,9 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
                       ctx.h_col_indices.begin() + end);
           },
           2048);
+#ifdef PROFILING
       VLOG(1) << "Sort time: " << grape::GetCurrentTime() - begin;
+#endif
     }
 
     CHECK_CUDA(

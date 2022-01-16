@@ -31,11 +31,13 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
 
   explicit LCCContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
 
+#ifdef PROFILING
   ~LCCContext() {
     VLOG(1) << "Get msg time: " << get_msg_time * 1000;
     VLOG(1) << "Pagerank kernel time: " << traversal_kernel_time * 1000;
     VLOG(1) << "Send msg time: " << send_msg_time * 1000;
   }
+#endif
 
   void Init(GPUMessageManager& messages, AppConfig app_config) {
     auto& frag = this->fragment();
@@ -294,7 +296,9 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out,
             num_items, num_segments, d_offsets, d_filling_offset));
         CHECK_CUDA(cudaFree(d_temp_storage));
+#ifdef PROFILING
         LOG(INFO) << "Sort time: " << grape::GetCurrentTime() - begin;
+#endif
       }
 
       {
@@ -326,8 +330,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                   auto max_degree = max(degree_u, degree_v);
                   auto total_degree = degree_u + degree_v;
 
-                  if (min_degree * ilogb(static_cast<double>(max_degree)) * 10 <
-                      total_degree) {
+                  if (min_degree * ilogb(static_cast<double>(max_degree)) < total_degree) {
                     auto min_edge_begin =
                         degree_u < degree_v ? edge_begin_u : edge_begin_v;
                     auto min_edge_end = min_edge_begin + min_degree;

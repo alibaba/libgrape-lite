@@ -34,8 +34,8 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
 #endif
   explicit SSSPContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
 
+#ifdef PROFILING
   ~SSSPContext() {
-//#ifdef PROFILING
     VLOG(1) << "Get msg time: " << get_msg_time * 1000;
     VLOG(1) << "SSSP kernel time: " << traversal_kernel_time * 1000;
     int dev;
@@ -43,8 +43,8 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
     LOG(INFO) << "GPU " << dev << " Compute time: " << compute_time * 1000
               << " ms Comm time: " << mm->GetAccumulatedCommTime() * 1000
               << " ms Ratio: " << compute_time / mm->GetAccumulatedCommTime();
-//#endif
   }
+#endif
 
   void Init(GPUMessageManager& messages, AppConfig app_config, oid_t src_id,
             int init_prio) {
@@ -91,8 +91,10 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
     }
     prio = init_prio;
 
+#ifdef PROFILING
     VLOG(1) << "In size: " << in_cap << " Local out size: " << local_out_cap
             << " Remote out size: " << remote_out_cap;
+#endif
 
     messages.InitBuffer((sizeof(vid_t) + sizeof(dist_t)) * remote_out_cap,
                         (sizeof(vid_t) + sizeof(dist_t)) * in_cap);
@@ -195,7 +197,10 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
     size_t in_size = in_q.Count(stream);
 
     ctx.get_msg_time += grape::GetCurrentTime();
+
+#ifdef PROFILING
     VLOG(1) << "Frag " << frag.fid() << " In: " << in_size;
+#endif
 
     out_q_remote.Clear(stream);
 
@@ -269,8 +274,10 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
 
       ctx.traversal_kernel_time += traversal_kernel_time;
 
+#ifdef PROFILING
       VLOG(2) << "Frag " << frag.fid() << " Local out: " << local_size
               << " Kernel time: " << traversal_kernel_time * 1000;
+#endif
     }
 
     for (fid_t fid = 0; fid < frag.fnum(); fid++) {
