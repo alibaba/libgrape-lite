@@ -57,25 +57,6 @@ DEV_INLINE float atomicMinFloat(float* addr, float value) {
   return old;
 }
 
-DEV_INLINE long long atomicCASLL(long long* addr, long long comp,
-                                 long long val) {
-  return (long long) atomicCAS((unsigned long long*) addr,
-                               (unsigned long long) comp,
-                               (unsigned long long) val);
-}
-
-DEV_INLINE double atomicMinDouble(double* addr, double val) {
-  long long* addr_as_longlong = (long long*) addr;
-  long long old = *addr_as_longlong;
-  long long expected;
-  do {
-    expected = old;
-    old = atomicCASLL(
-        addr_as_longlong, expected,
-        __double_as_longlong(fmin(val, __longlong_as_double(expected))));
-  } while (expected != old);
-  return __longlong_as_double(old);
-}
 
 template <typename T>
 DEV_INLINE bool BinarySearch(const ArrayView<T>& array, const T& target) {
