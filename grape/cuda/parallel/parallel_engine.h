@@ -19,7 +19,7 @@ limitations under the License.
 #include <cuda_profiler_api.h>
 #include <unordered_set>
 #pragma push
-#pragma diag_suppress=initialization_not_reachable
+#pragma diag_suppress = initialization_not_reachable
 #include <thrust/binary_search.h>
 #include <cub/cub.cuh>
 #include <moderngpu/kernel_sortedsearch.hxx>
@@ -747,7 +747,7 @@ DEV_INLINE void LBSTRICT(const FRAG_T& dev_frag, const ArrayView<size_t>& sidx,
   while (block_output_processed < block_output_size &&
          iter_input_start < block_input_end) {
     size_t iter_input_size =
-        min((size_t) (blockDim.x - 1), block_input_end - iter_input_start);
+        min((size_t)(blockDim.x - 1), block_input_end - iter_input_start);
     size_t iter_input_end = iter_input_start + iter_input_size;
     size_t iter_output_end =
         iter_input_end < size ? row_offset[iter_input_end] : total_edges;
@@ -1008,7 +1008,7 @@ class ParallelEngine {
 
     int grid_size, block_size;
     size_t size = ws.size();
-    if(size==0) {
+    if (size == 0) {
       return;
     }
 

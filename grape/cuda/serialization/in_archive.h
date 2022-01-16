@@ -17,7 +17,7 @@ limitations under the License.
 #define GRAPE_CUDA_SERIALIZATION_IN_ARCHIVE_H_
 
 #pragma push
-#pragma diag_suppress=initialization_not_reachable
+#pragma diag_suppress = initialization_not_reachable
 #include <thrust/device_vector.h>
 #include <thrust/pair.h>
 #include <cub/cub.cuh>

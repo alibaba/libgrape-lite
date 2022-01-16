@@ -40,13 +40,13 @@ limitations under the License.
 #include "grape/cuda/parallel/batch_shuffle_message_manager.h"
 #include "grape/cuda/parallel/gpu_message_manager.h"
 #include "grape/cuda/parallel/parallel_engine.h"
+#include "grape/cuda/utils/cuda_utils.h"
 #include "grape/cuda/utils/dev_utils.h"
 #include "grape/cuda/utils/launcher.h"
 #include "grape/cuda/utils/queue.h"
 #include "grape/cuda/utils/vertex_array.h"
 #include "grape/cuda/utils/vertex_set.h"
 #include "grape/cuda/utils/work_source.h"
-#include "grape/cuda/utils/cuda_utils.h"
 #endif
 
 namespace grape {}

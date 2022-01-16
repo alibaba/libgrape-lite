@@ -38,7 +38,8 @@ struct Nbr {
   DEV_HOST explicit Nbr(const VID_T& nbr_) : neighbor(nbr_), data() {}
   DEV_HOST explicit Nbr(const Vertex<VID_T>& nbr_) : neighbor(nbr_), data() {}
   DEV_HOST Nbr(const Nbr& rhs) : neighbor(rhs.neighbor), data(rhs.data) {}
-  DEV_HOST Nbr(const VID_T& nbr_, const EDATA_T& data_) : neighbor(nbr_), data(data_) {}
+  DEV_HOST Nbr(const VID_T& nbr_, const EDATA_T& data_)
+      : neighbor(nbr_), data(data_) {}
   DEV_HOST Nbr(const Vertex<VID_T>& nbr_, const EDATA_T& data_)
       : neighbor(nbr_), data(data_) {}
   DEV_HOST ~Nbr() {}
@@ -201,7 +202,8 @@ class AdjList {
 
    public:
     DEV_HOST const_iterator() noexcept : current_() {}
-    DEV_HOST explicit const_iterator(const pointer_type& c) noexcept : current_(c) {}
+    DEV_HOST explicit const_iterator(const pointer_type& c) noexcept
+        : current_(c) {}
     DEV_HOST reference_type operator*() const noexcept { return *current_; }
     DEV_HOST pointer_type operator->() const noexcept { return current_; }
 
@@ -286,7 +288,8 @@ class ConstAdjList {
 
    public:
     const_iterator() noexcept : current_() {}
-    DEV_HOST explicit const_iterator(const pointer_type& c) noexcept : current_(c) {}
+    DEV_HOST explicit const_iterator(const pointer_type& c) noexcept
+        : current_(c) {}
     DEV_HOST reference_type operator*() const noexcept { return *current_; }
     DEV_HOST pointer_type operator->() const noexcept { return current_; }
 

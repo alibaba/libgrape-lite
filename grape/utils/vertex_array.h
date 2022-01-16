@@ -48,9 +48,7 @@ class Vertex {
     return *this;
   }
 
-  DEV_HOST_INLINE const Vertex& operator*() const {
-    return *this;
-  }
+  DEV_HOST_INLINE const Vertex& operator*() const { return *this; }
 
   DEV_HOST_INLINE Vertex& operator=(Vertex&& rhs) {
     value_ = rhs.value_;
@@ -105,7 +103,9 @@ class Vertex {
 #endif
   }
 
-  DEV_HOST_INLINE bool operator<(const Vertex& rhs) const { return value_ < rhs.value_; }
+  DEV_HOST_INLINE bool operator<(const Vertex& rhs) const {
+    return value_ < rhs.value_;
+  }
 
   DEV_HOST_INLINE Vertex& operator*() { return *this; }
 
@@ -141,7 +141,8 @@ template <typename T>
 class VertexRange {
  public:
   DEV_HOST VertexRange() {}
-  DEV_HOST VertexRange(T begin, T end) : begin_(begin), end_(end), size_(end - begin) {}
+  DEV_HOST VertexRange(T begin, T end)
+      : begin_(begin), end_(end), size_(end - begin) {}
   DEV_HOST VertexRange(const Vertex<T>& begin, const Vertex<T>& end)
       : begin_(begin), end_(end), size_(end.GetValue() - begin.GetValue()) {}
   DEV_HOST VertexRange(const VertexRange& r)

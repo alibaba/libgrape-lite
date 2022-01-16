@@ -126,7 +126,8 @@ void CreateAndQuery(const grape::CommSpec& comm_spec, const std::string& efile,
     ostream.open(output_path);
     worker->Output(ostream);
     ostream.close();
-    VLOG(1) << "Worker-" << comm_spec.worker_id() << " finished: " << output_path;
+    VLOG(1) << "Worker-" << comm_spec.worker_id()
+            << " finished: " << output_path;
   }
   worker->Finalize();
   timer_end();

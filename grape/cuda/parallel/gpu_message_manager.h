@@ -300,7 +300,7 @@ class GPUMessageManager {
 
     comm_stream_.Sync();
 
-    float size_in_mb = static_cast<float> (sent_size_) / 1024 / 1024;
+    float size_in_mb = static_cast<float>(sent_size_) / 1024 / 1024;
     memcpy_time = grape::GetCurrentTime() - memcpy_time;
 
     total_memcpy_time_ += memcpy_time;

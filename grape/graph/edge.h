@@ -37,7 +37,8 @@ class Edge {
   DEV_HOST Edge() : src_(), dst_(), edata_() {}
   DEV_HOST ~Edge() {}
 
-  DEV_HOST Edge(const VID_T& src, const VID_T& dst) : src_(src), dst_(dst), edata_() {}
+  DEV_HOST Edge(const VID_T& src, const VID_T& dst)
+      : src_(src), dst_(dst), edata_() {}
   DEV_HOST Edge(const VID_T& src, const VID_T& dst, const EDATA_T& edata)
       : src_(src), dst_(dst), edata_(edata) {}
   DEV_HOST Edge(const Edge& e) : src_(e.src_), dst_(e.dst_), edata_(e.edata_) {}
@@ -70,7 +71,9 @@ class Edge {
     return src_ == other.src() && dst_ == other.dst();
   }
 
-  DEV_HOST bool operator!=(const Edge& other) const { return !(*this == other); }
+  DEV_HOST bool operator!=(const Edge& other) const {
+    return !(*this == other);
+  }
 
  private:
   VID_T src_;
@@ -140,7 +143,9 @@ class Edge<VID_T, EmptyType> {
     return src_ == other.src() && dst_ == other.dst();
   }
 
-  DEV_HOST bool operator!=(const Edge& other) const { return !(*this == other); }
+  DEV_HOST bool operator!=(const Edge& other) const {
+    return !(*this == other);
+  }
 
  private:
   VID_T src_;

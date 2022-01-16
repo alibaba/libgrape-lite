@@ -23,10 +23,10 @@ limitations under the License.
 #include <vector>
 
 #include "grape/communication/sync_comm.h"
+#include "grape/parallel/parallel_engine_spec.h"
 #include "grape/utils/thread_pool.h"
 #include "grape/utils/vertex_set.h"
 #include "grape/worker/comm_spec.h"
-#include "grape/parallel/parallel_engine_spec.h"
 
 namespace grape {
 class ParallelEngine {
@@ -42,7 +42,7 @@ class ParallelEngine {
 
   inline ThreadPool& GetThreadPool() { return thread_pool_; }
 
- /**
+  /**
    * @brief Iterate a range specified by iterator pair concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
@@ -58,21 +58,20 @@ class ParallelEngine {
     std::atomic<size_t> offset(0);
     std::vector<std::future<void>> results(thread_num_);
     for (uint32_t tid = 0; tid < thread_num_; ++tid) {
-      results[tid] =
-          thread_pool_.enqueue(
-            [&offset, chunk_size, &iter_func, begin, end, tid] {
-              while (true) {
-                const ITERATOR_T cur_beg =
-                    std::min(begin + offset.fetch_add(chunk_size), end);
-                const ITERATOR_T cur_end = std::min(cur_beg + chunk_size, end);
-                if (cur_beg == cur_end) {
-                  break;
-                }
-                for (auto iter = cur_beg; iter != cur_end; ++iter) {
-                  iter_func(tid, *iter);
-                }
+      results[tid] = thread_pool_.enqueue(
+          [&offset, chunk_size, &iter_func, begin, end, tid] {
+            while (true) {
+              const ITERATOR_T cur_beg =
+                  std::min(begin + offset.fetch_add(chunk_size), end);
+              const ITERATOR_T cur_end = std::min(cur_beg + chunk_size, end);
+              if (cur_beg == cur_end) {
+                break;
               }
-            });
+              for (auto iter = cur_beg; iter != cur_end; ++iter) {
+                iter_func(tid, *iter);
+              }
+            }
+          });
     }
 
     thread_pool_.WaitEnd(results);
