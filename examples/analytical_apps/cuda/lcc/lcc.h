@@ -295,24 +295,6 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             num_items, num_segments, d_offsets, d_filling_offset));
         CHECK_CUDA(cudaFree(d_temp_storage));
         LOG(INFO) << "Sort time: " << grape::GetCurrentTime() - begin;
-
-        // Now, we pre-compute lid
-        //LaunchKernel(
-        //    stream,
-        //    [=] __device__(vid_t * in_gid, vid_t * out_lid) {
-        //      auto tid = TID_1D;
-        //      auto nthreads = TOTAL_THREADS_1D;
-
-        //      for (size_t eid = 0 + tid; eid < n_edges; eid += nthreads) {
-        //        vertex_t dst;
-        //        bool ok = dev_frag.Gid2Vertex_test2(in_gid[eid], dst);
-        //        if(ok==false) printf("n_edges is %d, eid is %d, dst is %d\n", n_edges, eid, dst.GetValue());
-        //        assert(ok);
-        //        out_lid[eid] = dst.GetValue();
-        //      }
-        //    },
-        //    thrust::raw_pointer_cast(ctx.col_sorted_indices.data()),
-        //    thrust::raw_pointer_cast(ctx.col_indices.data()));
       }
 
       {

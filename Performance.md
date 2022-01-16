@@ -66,6 +66,39 @@ The performance results are shown as below.
 |           | graph500-26    | 4.75        | 12.25 | **2.34**      |
 |           | com-friendster | 8.19        | 15.82 | **5.84**      |
 
+## Performance on GPUs
+We compare the libgrape-lite GPU version with [gunrock](https://github.com/gunrock/gunrock)(commit 0c9a96, tag:v0.5.1) and [groute](https://github.com/groute/groute)(commit 5ce160).
+Each system is built with GCC(v7.3.0), OpenMPI(v4.1.1), and CUDA(v10.0). 
+The experiments were conducted on GPU instances of [gn6v-c8g1.16xlarge](https://www.alibabacloud.com/help/zh/doc-detail/25378.htm#gn6v) on [AlibabaCloud ECS](https://www.alibabacloud.com/product/ecs), 
+equipped with 8x 16GB NVIDIA-V100 GPU, and 256 GB host memory.
+Instances are imaged with [Aliyun Linux (a CentOS-variant)](https://www.alibabacloud.com/help/doc-detail/111881.htm).
+Since the device memory of GPUs is limited, we conducted the comparison on several smaller graphs from the paper of Gunrock and Groute.
+
+The results are reported below. The numbers in the table represent the evaluation time in milliseconds. 
+The best results are marked in **bold**.
+
+| Algorithm | Dataset          | Gunrock | Groute | libgrape-lite-GPU |
+|-----------|------------------|---------|--------|-------------------|
+| SSSP      | soc-LiveJournal1 | 98      | 197    | **45**            |
+|           | soc-orkut        | 176     | 207    | **62**            |
+|           | soc-sinaweibo    | 671     | 1651   | **195**           |
+|           | soc-twitter-2010 | 220     | 378    | **95**            |
+|           | com-freindster   | 2296    | 6755   | **2108**          |
+| WCC       | soc-LiveJournal1 | 50      | 14     | **6.8**           |
+|           | soc-orkut        | 25      | 9      | **7.5**           |
+|           | soc-sinaweibo    | 274     | 273    | **52**            |
+|           | soc-twitter-2010 | 169     | 60     | **27**            |
+|           | com-freindster   | 914     | **166**| 206               |
+| BFS       | soc-LiveJournal1 | 21      | 45     | **6**             |
+|           | soc-orkut        | 40      | 34     | **7**             |
+|           | soc-sinaweibo    | 188     | 162    | **32**            |
+|           | soc-twitter-2010 | 101     | 135    | **19**            |
+|           | com-freindster   | N/A     | 619    | **141**           |
+| PageRank  | soc-LiveJournal1 | 143     | 3425   | **90**            |
+|           | soc-orkut        | 134     | 9858   | **118**           |
+|           | soc-sinaweibo    | 2482    | 5780   | **1166**          |
+|           | soc-twitter-2010 | 1011    | 4840   | **631**           |
+|           | com-freindster   | 12086   | 21225  | **11850**         |
 
 ## Reproducing the results
 
