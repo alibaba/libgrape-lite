@@ -35,6 +35,7 @@ limitations under the License.
 #include "cuda/bfs/bfs.h"
 #include "cuda/cdlp/cdlp.h"
 #include "cuda/lcc/lcc.h"
+#include "cuda/lcc/lcc_opt.h"
 #include "cuda/pagerank/pagerank.h"
 #include "cuda/pagerank/pagerank_pull.h"
 #include "cuda/sssp/sssp.h"
@@ -200,6 +201,12 @@ void Run() {
     using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                                 grape::LoadStrategy::kOnlyOut>;
     using AppType = LCC<GraphType>;
+    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
+                                       app_config);
+  } else if (application == "lcc_opt"){
+    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                                grape::LoadStrategy::kOnlyOut>;
+    using AppType = LCC_OPT<GraphType>;
     CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
                                        app_config);
   } else if (application == "cdlp") {

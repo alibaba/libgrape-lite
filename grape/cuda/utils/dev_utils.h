@@ -77,6 +77,35 @@ DEV_INLINE bool BinarySearch(const ArrayView<T>& array, const T& target) {
   return false;
 }
 
+template <typename T>
+DEV_INLINE bool BinarySearchWarp(const ArrayView<T>& array, const T& target) {
+  size_t cosize = 32;
+  size_t lane = threadIdx.x & (cosize-1);
+  size_t worknum = array.size();
+  size_t x = worknum / cosize;
+  size_t y = worknum % cosize;
+  //size_t per_work = worknum / cosize + (lane < worknum % cosize);
+  size_t l = lane * x + (lane < y ? lane : y);
+  size_t r = l + x + (lane < y ? 1 : 0);
+  bool found = false;
+  __syncwarp();
+  while (l < r) {
+    size_t m = (l + r) >> 1;
+    const T& elem = array[m];
+
+    if (elem == target) {
+      found = true;
+      break;
+    } else if (elem > target) {
+      r = m;
+    } else {
+      l = m + 1;
+    }
+  }
+  __syncwarp();
+  return __any_sync(__activemask(), found); 
+}
+
 template <int NT, typename T>
 DEV_INLINE int BinarySearch(const T* arr, const T& key) {
   int mid = ((NT >> 1) - 1);

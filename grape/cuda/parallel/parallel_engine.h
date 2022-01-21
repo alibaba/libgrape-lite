@@ -89,6 +89,32 @@ inline void ForEach(const Stream& stream, const WORK_SOURCE_T& work_source,
 }
 
 template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
+inline void ForEachWithIndexWarp(const Stream& stream,
+                                 const WORK_SOURCE_T& work_source, FUNC_T func,
+                                 Args... args) {
+  if (work_source.size() == 0) {
+    return;
+  }
+  LaunchKernelFix(
+      stream, work_source.size(),
+      [=] __device__(FUNC_T f, Args... args) mutable {
+        auto tid = TID_1D;
+        auto nthreads = TOTAL_THREADS_1D;
+        auto warp_size = 32;
+        auto warp_id = tid / warp_size;
+        auto lane = tid % warp_size;
+        auto n_warp  = nthreads / warp_size;
+
+        for (size_t i = 0 + warp_id; i < work_source.size(); i += n_warp) {
+          auto work = work_source.GetWork(i);
+
+          f(lane, i, work, args...); // A warp will do this
+        }
+      },
+      func, args...);
+}
+
+template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
 inline void ForEachWithIndex(const Stream& stream,
                              const WORK_SOURCE_T& work_source, FUNC_T func,
                              Args... args) {
