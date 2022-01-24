@@ -5,8 +5,7 @@ set -ex
 MODE="normal"
 
 # we use a moderate size graph as example, see full list of dataset at https://graphalytics.org/datasets
-#GRAPH_NAME="datagen-7_6-fb"
-GRAPH_NAME="datagen-p2p-31"
+GRAPH_NAME="datagen-7_6-fb"
 
 # if in CI mode, use a smaller graph
 if [[ $1 == "ci" ]]; then
