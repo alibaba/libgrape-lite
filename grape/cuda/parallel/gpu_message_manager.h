@@ -260,7 +260,9 @@ class GPUMessageManager {
     to_recv_.Clear(comm_stream_);
     comm_stream_.Sync();
 
+#ifdef PROFILING
     RangeMarker marker(true, "nccl calling");
+#endif
     double memcpy_time = grape::GetCurrentTime();
 
     CHECK_NCCL(ncclGroupStart());
@@ -290,7 +292,9 @@ class GPUMessageManager {
       }
     }
     CHECK_NCCL(ncclGroupEnd());
+#ifdef PROFILING
     marker.Stop();
+#endif
 
     CHECK_CUDA(cudaMemcpyAsync(thrust::raw_pointer_cast(d_to_recv_.data()),
                                thrust::raw_pointer_cast(pinned_to_recv_.data()),
@@ -300,6 +304,7 @@ class GPUMessageManager {
 
     comm_stream_.Sync();
 
+#ifdef PROFILING
     float size_in_mb = static_cast<float>(sent_size_) / 1024 / 1024;
     memcpy_time = grape::GetCurrentTime() - memcpy_time;
 
@@ -309,13 +314,16 @@ class GPUMessageManager {
             << "Time: " << memcpy_time * 1000 << " ms, "
             << "Acc Time: " << total_memcpy_time_ * 1000 << " ms, "
             << "Bandwith: " << size_in_mb / memcpy_time << " MB/S";
+#endif
   }
 
   /**
    * @brief This function will be called after the evaluation of applications.
    */
   void Finalize() const {
+#ifdef PROFILING
     VLOG(2) << "Memory copy time: " << total_memcpy_time_ * 1000 << " ms";
+#endif
   }
 
   /**
@@ -354,13 +362,17 @@ class GPUMessageManager {
   inline void ParallelProcess(const GRAPH_T& frag, FUNC_T func) {
     int grid_size = 256, block_size = 256;
 
+#ifdef PROFILING
     RangeMarker marker(true, "ParallelProcess");
+#endif
 
     dev::ProcessMsg<GRAPH_T, MESSAGE_T, FUNC_T>
         <<<grid_size, block_size, 0, compute_stream_.cuda_stream()>>>(
             ArrayView<dev::OutArchive>(d_to_recv_), frag, func);
     compute_stream_.Sync();
+#ifdef PROFILING
     marker.Stop();
+#endif
   }
 
   template <typename MESSAGE_T = grape::EmptyType, typename FUNC_T>
@@ -401,39 +413,46 @@ class GPUMessageManager {
     }
 
     {
+#ifdef PROFILING
       RangeMarker marker(true, "MsgManager - Allgather");
+#endif
       MPI_Allgather(&lengths_out_[0], fnum_ * sizeof(size_t), MPI_CHAR,
                     &lengths_in_[0], fnum_ * sizeof(size_t), MPI_CHAR,
                     comm_spec_.comm());
+#ifdef PROFILING
       marker.Stop();
+#endif
     }
 
     return std::all_of(lengths_in_.begin(), lengths_in_.end(),
                        [](size_t size) { return size == 0; });
   }
 
-  grape::CommSpec comm_spec_;
-  fid_t fid_;
-  fid_t fnum_;
-  std::shared_ptr<ncclComm_t> nccl_comm_;
-  Stream compute_stream_;
-  Stream comm_stream_;
   InArchiveGroup to_send_;
-  thrust::device_vector<dev::InArchive> d_to_send_;
   OutArchiveGroup to_recv_;
   pinned_vector<dev::OutArchive> pinned_to_recv_;
+  thrust::device_vector<dev::InArchive> d_to_send_;
   thrust::device_vector<dev::OutArchive> d_to_recv_;
+
+  Event computation_finished_;
+
+  grape::CommSpec comm_spec_;
+  std::shared_ptr<ncclComm_t> nccl_comm_;
+
+  Stream compute_stream_;
+  Stream comm_stream_;
 
   std::vector<size_t> lengths_out_;
   std::vector<size_t> lengths_in_;
-
-  Event computation_finished_;
 
   size_t sent_size_{};
   double total_memcpy_time_{};
 
   bool to_terminate_{};
   bool force_continue_{};
+
+  fid_t fid_;
+  fid_t fnum_;
 };
 }  // namespace cuda
 }  // namespace grape

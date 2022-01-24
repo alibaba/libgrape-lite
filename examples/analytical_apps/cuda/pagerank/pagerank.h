@@ -72,7 +72,8 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
     rank.D2H();
 
     for (auto v : iv) {
-      os << frag.GetId(v) << " " << rank[v] << std::endl;
+      os << frag.GetId(v) << " " << std::scientific << std::setprecision(15) 
+         << rank[v] << std::endl;
     }
   }
 

@@ -108,7 +108,12 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
     dist.D2H();
 
     for (auto v : iv) {
-      os << frag.GetId(v) << " " << dist[v] << std::endl;
+      if(dist[v] == std::numeric_limits<dist_t>::max()){
+        os << frag.GetId(v) << " infinity" << std::endl;
+      }else{
+        os << frag.GetId(v) << " " << std::scientific << std::setprecision(15) 
+           << dist[v] << std::endl;
+      }
     }
   }
 
@@ -120,9 +125,11 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
   DenseVertexSet<vid_t> out_q_remote;
   dist_t init_prio{};
   dist_t prio{};
+#ifdef PROFILING
   double get_msg_time{};
   double traversal_kernel_time{};
   double compute_time{};
+#endif
   GPUMessageManager* mm;
 };
 
@@ -180,7 +187,9 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
     auto& prio = ctx.prio;
     auto iv = frag.InnerVertices();
 
+#ifdef PROFILING
     ctx.get_msg_time -= grape::GetCurrentTime();
+#endif
     messages.template ParallelProcess<dev_fragment_t, dist_t>(
         d_frag, [=] __device__(vertex_t v, dist_t received_dist) mutable {
           assert(d_frag.IsInnerVertex(v));
@@ -196,16 +205,18 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
 
     size_t in_size = in_q.Count(stream);
 
-    ctx.get_msg_time += grape::GetCurrentTime();
 
 #ifdef PROFILING
+    ctx.get_msg_time += grape::GetCurrentTime();
     VLOG(1) << "Frag " << frag.fid() << " In: " << in_size;
 #endif
 
     out_q_remote.Clear(stream);
 
     if (in_size > 0) {
+#ifdef PROFILING
       auto traversal_kernel_time = grape::GetCurrentTime();
+#endif
       auto d_in = in_q.DeviceObject();
       auto d_out_q_local_near = out_q_local_near.DeviceObject();
       auto d_out_q_local_far = out_q_local_far.DeviceObject();
@@ -225,7 +236,9 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
 
       stream.Sync();
 
+#ifdef PROFILING
       ctx.compute_time -= grape::GetCurrentTime();
+#endif
 
       ForEachOutgoingEdge(
           stream, d_frag, ws_in,
@@ -253,7 +266,9 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
           ctx.lb);
 
       stream.Sync();
+#ifdef PROFILING
       ctx.compute_time += grape::GetCurrentTime();
+#endif
       in_q.Clear(stream);
 
       auto local_size = out_q_local_near.Count(stream);
@@ -270,11 +285,10 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
         messages.ForceContinue();
       }
 
-      traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
-
-      ctx.traversal_kernel_time += traversal_kernel_time;
 
 #ifdef PROFILING
+      traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
+      ctx.traversal_kernel_time += traversal_kernel_time;
       VLOG(2) << "Frag " << frag.fid() << " Local out: " << local_size
               << " Kernel time: " << traversal_kernel_time * 1000;
 #endif

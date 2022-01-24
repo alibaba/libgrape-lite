@@ -1068,13 +1068,17 @@ class ParallelEngine {
                              const WORK_SOURCE_T& ws, ASSIGN_OP assign_op,
                              EDGE_OP op) {
     int grid_size, block_size;
+    auto size = ws.size();
+    if(size == 0) {
+      return;
+    }
 
     auto lb_wrapper = [=] __device__() {
       LBCTA<FRAG_T, WORK_SOURCE_T, ASSIGN_OP, EDGE_OP, ed>(dev_frag, ws,
                                                            assign_op, op);
     };  // NOLINT
 
-    KernelSizing(grid_size, block_size, ws.size());
+    KernelSizing(grid_size, block_size, size);
     KernelWrapper<<<grid_size, block_size, 0, stream.cuda_stream()>>>(
         lb_wrapper);
   }
@@ -1110,6 +1114,10 @@ class ParallelEngine {
                               const WORK_SOURCE_T& ws, ASSIGN_OP assign_op,
                               EDGE_OP op) {
     int grid_size, block_size;
+    auto size = ws.size();
+    if(size == 0) {
+      return;
+    }
     auto calc_shmem_size = [] DEV_HOST(int block_size) -> int {
       using vid_t = typename FRAG_T::vid_t;
       using vertex_t = typename FRAG_T::vertex_t;
@@ -1119,16 +1127,17 @@ class ParallelEngine {
       int warp_size = 32;
       auto n_warp = (block_size + warp_size - 1) / warp_size;
 
-      return block_size * (sizeof(VertexMetadata<vid_t, metadata_t>) +
-                           sizeof(const nbr_t*)) +
-             n_warp * warp_size * sizeof(vid_t);
+      auto smem_size = block_size * (sizeof(VertexMetadata<vid_t, metadata_t>) +
+                       sizeof(const nbr_t*)) + n_warp * warp_size * sizeof(vid_t);
+      return smem_size;
     };
+
     auto lb_wrapper = [=] __device__() {
       LBWARP<FRAG_T, WORK_SOURCE_T, ASSIGN_OP, EDGE_OP, ed>(dev_frag, ws,
                                                             assign_op, op);
     };  // NOLINT
 
-    KernelSizing(grid_size, block_size, ws.size());
+    KernelSizing(grid_size, block_size, size);
     KernelWrapper<<<grid_size, block_size, calc_shmem_size(block_size),
                     stream.cuda_stream()>>>(lb_wrapper);
   }
@@ -1207,12 +1216,16 @@ class ParallelEngine {
                               const WORK_SOURCE_T& ws, ASSIGN_OP assign_op,
                               EDGE_OP op) {
     int grid_size, block_size;
+    auto size = ws.size();
+    if (size==0) {
+      return;
+    } 
     auto lb_wrapper = [=] __device__() {
       LBNONE<FRAG_T, WORK_SOURCE_T, ASSIGN_OP, EDGE_OP, ed>(dev_frag, ws,
                                                             assign_op, op);
     };  // NOLINT
 
-    KernelSizing(grid_size, block_size, ws.size());
+    KernelSizing(grid_size, block_size, size);
     KernelWrapper<<<grid_size, block_size, 0, stream.cuda_stream()>>>(
         lb_wrapper);
   }
