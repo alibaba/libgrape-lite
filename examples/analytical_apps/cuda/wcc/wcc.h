@@ -107,7 +107,8 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
           for (size_t idx = 0 + tid; idx < size; idx += total_nthreads) {
             vertex_t v = ws_in.GetWork(idx);
 
-            label[v] = d_frag.GetId(v);
+            //label[v] = d_frag.GetId(v);
+            label[v] = d_frag.Vertex2Gid(v);
             d_in_q.Insert(v);
           }
         },
