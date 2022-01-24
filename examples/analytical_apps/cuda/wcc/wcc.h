@@ -133,7 +133,9 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
     auto& stream = messages.stream();
     auto d_mm = messages.DeviceObject();
 
+#ifdef PROFILING
     ctx.get_msg_time -= grape::GetCurrentTime();
+#endif
     messages.template ParallelProcess<dev_fragment_t, label_t>(
         d_frag, [=] __device__(vertex_t v, label_t received_gid) mutable {
           assert(d_frag.IsInnerVertex(v));

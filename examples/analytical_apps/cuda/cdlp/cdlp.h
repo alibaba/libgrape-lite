@@ -72,8 +72,10 @@ class CDLPContext : public grape::VoidContext<FRAG_T> {
     }
     labels.H2D();
 
+#ifdef PROFILING
     get_msg_time = 0;
     traversal_kernel_time = 0;
+#endif
 
     messages.InitBuffer(100 * 1024 * 1024, 100 * 1024 * 1024);
   }
@@ -100,8 +102,10 @@ class CDLPContext : public grape::VoidContext<FRAG_T> {
   thrust::device_vector<int> d_row_offset;
   thrust::device_vector<label_t> d_col_indices;
 
+#ifdef PROFILING
   double get_msg_time;
   double traversal_kernel_time;
+#endif
 };
 
 template <typename FRAG_T>
@@ -180,9 +184,11 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
     stream.Sync();
 
     {
-      // TODO(liang): A hybrid segmented sort. We may sort high-degree vertices
+      // TODO(mengke): A hybrid segmented sort. We may sort high-degree vertices
       // on GPU, sort relative low-degree vertices on CPU
+#ifdef PROFILING
       auto begin = grape::GetCurrentTime();
+#endif
       ForEachHost(
           iv,
           [&ctx](int tid, vertex_t v) {

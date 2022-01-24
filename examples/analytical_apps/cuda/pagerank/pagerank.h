@@ -84,11 +84,13 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
   LoadBalancing lb{};
   VertexArray<rank_t, vid_t> rank;
   VertexArray<rank_t, vid_t> next_rank;
+#ifdef PROFILING
   double get_msg_time{};
   double traversal_kernel_time{};
   double send_msg_time{};
   double compute_time{};
   double comm_time{};
+#endif
   GPUMessageManager* mm;
 };
 
@@ -125,15 +127,21 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
     auto damping_factor = ctx.damping_factor;
     auto& dangling_sum = ctx.dangling_sum;
 
+#ifdef PROFILING
     ctx.get_msg_time -= grape::GetCurrentTime();
+#endif
     messages.template ParallelProcess<device_t, rank_t>(
         d_frag, [=] __device__(vertex_t v, rank_t msg) mutable {
           assert(d_frag.IsInnerVertex(v));
           atomicAdd(&d_rank[v], msg);
         });
+#ifdef PROFILING
     ctx.get_msg_time += grape::GetCurrentTime();
+#endif
 
+#ifdef PROFILING
     auto traversal_kernel_time = grape::GetCurrentTime();
+#endif
 
     if (ctx.curr_iter++ >= ctx.max_iter) {
       return;
@@ -141,7 +149,9 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
       messages.ForceContinue();
     }
 
+#ifdef PROFILING
     double begin = grape::GetCurrentTime();
+#endif
 
     WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
 
@@ -164,7 +174,9 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
 
     stream.Sync();
 
+#ifdef PROFILING
     ctx.compute_time -= grape::GetCurrentTime();
+#endif
     ForEachOutgoingEdge(
         stream, d_frag, ws_in,
         [=] __device__(vertex_t u) -> rank_t {
@@ -181,7 +193,9 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
         },
         ctx.lb);
     stream.Sync();
+#ifdef PROFILING
     ctx.compute_time += grape::GetCurrentTime();
+#endif
 
     for (fid_t fid = 0; fid < frag.fnum(); fid++) {
       ov = frag.OuterVertices(fid);
@@ -196,8 +210,10 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
       });
     }
 
+#ifdef PROFILING
     traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
     ctx.traversal_kernel_time += traversal_kernel_time;
+#endif
 
 #ifdef PROFILING
     VLOG(1) << "Frag " << frag.fid()

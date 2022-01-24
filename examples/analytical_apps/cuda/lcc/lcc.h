@@ -96,9 +96,11 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
   thrust::device_vector<vid_t> col_indices;
   thrust::device_vector<vid_t> col_sorted_indices;
   int stage{};
+#ifdef PROFILING
   double get_msg_time{};
   double traversal_kernel_time{};
   double send_msg_time{};
+#endif
 };
 
 template <typename FRAG_T>
@@ -285,7 +287,9 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
         auto* d_keys_out =
             thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
 
+#ifdef PROFILING
         auto begin = grape::GetCurrentTime();
+#endif
         // Determine temporary device storage requirements
         void* d_temp_storage = nullptr;
         size_t temp_storage_bytes = 0;

@@ -37,10 +37,8 @@ limitations under the License.
 #include "cuda/lcc/lcc.h"
 #include "cuda/lcc/lcc_opt.h"
 #include "cuda/pagerank/pagerank.h"
-#include "cuda/pagerank/pagerank_pull.h"
 #include "cuda/sssp/sssp.h"
 #include "cuda/wcc/wcc.h"
-#include "cuda/wcc/wcc_opt.h"
 
 #include "flags.h"
 #include "grape/cuda/fragment/host_fragment.h"
@@ -150,9 +148,9 @@ void Run() {
   AppConfig app_config;
 
   app_config.lb = ParseLoadBalancing(FLAGS_lb);
-  app_config.wl_alloc_factor_in = FLAGS_wl_alloc_factor_in;
-  app_config.wl_alloc_factor_out_local = FLAGS_wl_alloc_factor_out_local;
-  app_config.wl_alloc_factor_out_remote = FLAGS_wl_alloc_factor_out_remote;
+  app_config.wl_alloc_factor_in = 0.4;
+  app_config.wl_alloc_factor_out_local = 0.2;
+  app_config.wl_alloc_factor_out_remote = 0.2;
 
   if (application == "bfs") {
     using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
@@ -170,31 +168,17 @@ void Run() {
 #endif
     using AppType = SSSP<GraphType>;
     CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config, FLAGS_sssp_source,
-                                       FLAGS_sssp_prio);
+                                       app_config, FLAGS_sssp_source, 0);
   } else if (application == "wcc") {
     using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                                 grape::LoadStrategy::kOnlyOut>;
     using AppType = WCC<GraphType>;
     CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
                                        app_config);
-  } else if (application == "wcc_opt") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = WCCOpt<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config);
   } else if (application == "pagerank") {
     using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                                 grape::LoadStrategy::kOnlyOut>;
     using AppType = Pagerank<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config, FLAGS_pr_d, FLAGS_pr_mr);
-  } else if (application == "pagerank_pull") {
-    using GraphType =
-        grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                  grape::LoadStrategy::kBothOutIn>;
-    using AppType = PagerankPull<GraphType>;
     CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
                                        app_config, FLAGS_pr_d, FLAGS_pr_mr);
   } else if (application == "lcc") {
