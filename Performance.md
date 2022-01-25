@@ -69,4 +69,4 @@ The performance results are shown as below.
 
 ## Reproducing the results
 
-To reproduce the benchmark resutls, please refer to the instructions [here](https://github.com/GraphScope/benchmark/tree/main/analytical_engine).
+To reproduce the benchmark results, please refer to the instructions [here](https://github.com/GraphScope/benchmark/tree/main/analytical_engine).
