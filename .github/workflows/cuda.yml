@@ -20,4 +20,4 @@ jobs:
           make
       - name: APP Test
         run: |
-        ./misc/cuda_app_tests.sh
+          ./misc/cuda_app_tests.sh
