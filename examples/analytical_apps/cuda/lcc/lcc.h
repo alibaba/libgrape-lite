@@ -86,9 +86,9 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
   }
 
   LoadBalancing lb{};
-  VertexArray<int, vid_t> valid_out_degree;
+  VertexArray<vid_t, vid_t> valid_out_degree;
   VertexArray<vid_t, vid_t> global_degree;
-  VertexArray<int, vid_t> filling_offset;
+  VertexArray<vid_t, vid_t> filling_offset;
   VertexArray<int, vid_t> tricnt;
   thrust::device_vector<vid_t> row_offset;
   thrust::device_vector<vid_t> col_indices;
