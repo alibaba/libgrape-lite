@@ -69,4 +69,4 @@ The performance results are shown as below.
 
 ## Reproducing the results
 
-We will release a public image containing the script, together with all the systems and datasets on AlibabaCloud and AWS soon.
+To reproduce the benchmark results, please refer to the instructions [here](https://github.com/GraphScope/benchmark/tree/main/analytical_engine).
