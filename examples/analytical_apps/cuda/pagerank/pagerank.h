@@ -111,6 +111,16 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
              message_manager_t& messages) {
     ctx.curr_iter = 0;
     ctx.dangling_sum = 0;
+    auto& stream = messages.stream();
+    auto d_rank = ctx.rank.DeviceObject();
+    auto iv = frag.InnerVertices();
+
+    rank_t p = 1.0 / frag.GetTotalVerticesNum();
+
+    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+    ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
+        d_rank[v] = p;
+    });
     messages.ForceContinue();
   }
 

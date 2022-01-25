@@ -608,6 +608,7 @@ DEV_INLINE void LBCM(const FRAG_T& dev_frag, const WORK_SOURCE_T& work_source,
 
         op(vertices[v_idx], *nbr);
       }
+      __syncthreads();
     }
     __syncthreads();
   }

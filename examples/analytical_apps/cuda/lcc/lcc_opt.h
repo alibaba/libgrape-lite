@@ -211,7 +211,9 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
 
       auto n_filtered_edges = ctx.row_offset[size];
 
+#ifdef PROFILING
       LOG(INFO) << "Filtered edges: " << n_filtered_edges;
+#endif
 
       ctx.col_indices.resize(n_filtered_edges);
       ctx.col_sorted_indices.resize(n_filtered_edges);
@@ -311,7 +313,6 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
         auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
         auto* d_col_indices =
             thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
-        auto* d_dst_lid = thrust::raw_pointer_cast(ctx.col_indices.data());
 
         // Calculate intersection
         ForEachWithIndexWarp(
@@ -320,7 +321,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
 
               for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
                    eid++) {
-                vertex_t v(d_dst_lid[eid]);
+                vertex_t v(d_col_indices[eid]);
 
                 auto edge_begin_u = d_row_offset[u.GetValue()],
                      edge_end_u = d_filling_offset[u.GetValue()];
@@ -349,7 +350,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
                     if (dev::BinarySearchWarp(dst_gids, dst_gid_from_small)) {
                       // convert from dst_gid_from_small to lid without
                       // calling Gid2Vertex
-                      vertex_t comm_vertex(d_dst_lid[min_edge_begin]);
+                      vertex_t comm_vertex(d_col_indices[min_edge_begin]);
 
                     triangle_count += 1;
                       if(lane == 0) atomicAdd(&d_tricnt[comm_vertex], 1);

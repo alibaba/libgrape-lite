@@ -62,8 +62,6 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
       n_vertices += 1;
     }
 
-    // VLOG(1) << "Message buffer size is 2*" << n_edges << "*" << sizeof(nbr_t)
-    // + sizeof(vid_t) << "=" << 2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t));
     messages.InitBuffer(2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)),
                         2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)));
   }
@@ -80,7 +78,7 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
       if (global_degree[v] >= 2) {
         score = 2.0 * (tricnt[v]) /
                 (static_cast<int64_t>(global_degree[v]) *
-                 (static_cast<int64_t>(global_degree[v]) - 1));
+                (static_cast<int64_t>(global_degree[v]) - 1));
       }
       os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
          << score << std::endl;
@@ -92,7 +90,7 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
   VertexArray<vid_t, vid_t> global_degree;
   VertexArray<int, vid_t> filling_offset;
   VertexArray<int, vid_t> tricnt;
-  thrust::device_vector<int> row_offset;
+  thrust::device_vector<vid_t> row_offset;
   thrust::device_vector<vid_t> col_indices;
   thrust::device_vector<vid_t> col_sorted_indices;
   int stage{};
@@ -169,13 +167,11 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             vid_t v_degree = d_global_degree[v];
             vid_t u_gid = dev_frag.GetInnerVertexGid(u);
             vid_t v_gid = dev_frag.Vertex2Gid(v);
-            vid_t cnt = 0;
 
-            if (u_degree > v_degree ||
+            if ((u_degree > v_degree) ||
                 (u_degree == v_degree && u_gid > v_gid)) {
-              cnt++;
+              atomicAdd(&d_valid_out_degree[u], 1);
             }
-            atomicAdd(&d_valid_out_degree[u], cnt);
           },
           ctx.lb);
 
@@ -193,7 +189,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
       void* d_temp_storage = nullptr;
       size_t temp_storage_bytes = 0;
       // d_row_offset[0] should be 0
-      int* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
+      vid_t* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
       auto size = vertices.size();
 
       CHECK_CUDA(cub::DeviceScan::InclusiveSum(
@@ -208,12 +204,14 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
       auto d_filling_offset = ctx.filling_offset.DeviceObject();
 
       CHECK_CUDA(cudaMemcpyAsync(d_filling_offset.data(), d_row_offset,
-                                 sizeof(int) * size, cudaMemcpyDeviceToDevice,
+                                 sizeof(vid_t) * size, cudaMemcpyDeviceToDevice,
                                  stream.cuda_stream()));
 
       auto n_filtered_edges = ctx.row_offset[size];
 
+#ifdef PROFILING
       LOG(INFO) << "Filtered edges: " << n_filtered_edges;
+#endif
 
       ctx.col_indices.resize(n_filtered_edges);
       ctx.col_sorted_indices.resize(n_filtered_edges);
@@ -233,7 +231,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             vid_t u_gid = dev_frag.GetInnerVertexGid(u);
             vid_t v_gid = dev_frag.Vertex2Gid(v);
 
-            if (u_degree > v_degree ||
+            if ((u_degree > v_degree) ||
                 (u_degree == v_degree && u_gid > v_gid)) {
               auto pos = atomicAdd(&d_filling_offset[u], 1);
               d_col_indices[pos] = v.GetValue();
@@ -271,8 +269,6 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
               d_col_indices[pos] = v.GetValue();
             }
           });
-
-      // ctx.filling_offset.resize(0);
 
       // Sort destinations with segmented sort
       {
@@ -315,7 +311,6 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
         auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
         auto* d_col_indices =
             thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
-        auto* d_dst_lid = thrust::raw_pointer_cast(ctx.col_indices.data());
 
         // Calculate intersection
         ForEachWithIndex(
@@ -324,12 +319,12 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
 
               for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
                    eid++) {
-                vertex_t v(d_dst_lid[eid]);
+                vertex_t v(d_col_indices[eid]);
 
-                auto edge_begin_u = d_row_offset[u.GetValue()],
-                     edge_end_u = d_filling_offset[u.GetValue()];
-                auto edge_begin_v = d_row_offset[v.GetValue()],
-                     edge_end_v = d_filling_offset[v.GetValue()];
+                auto edge_begin_u = d_row_offset[u.GetValue()];
+                auto edge_end_u = d_filling_offset[u.GetValue()];
+                auto edge_begin_v = d_row_offset[v.GetValue()];
+                auto edge_end_v = d_filling_offset[v.GetValue()];
                 auto degree_u = edge_end_u - edge_begin_u;
                 auto degree_v = edge_end_v - edge_begin_v;
 
@@ -354,7 +349,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                       if (dev::BinarySearch(dst_gids, dst_gid_from_small)) {
                         // convert from dst_gid_from_small to lid without
                         // calling Gid2Vertex
-                        vertex_t comm_vertex(d_dst_lid[min_edge_begin]);
+                        vertex_t comm_vertex(d_col_indices[min_edge_begin]);
 
                         triangle_count += 1;
                         atomicAdd(&d_tricnt[comm_vertex], 1);
@@ -375,7 +370,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                       } else {
                         // convert from dst_gid_from_small to lid without
                         // calling Gid2Vertex
-                        vertex_t comm_vertex(d_dst_lid[edge_begin_u]);
+                        vertex_t comm_vertex(d_col_indices[edge_begin_u]);
 
                         triangle_count += 1;
                         atomicAdd(&d_tricnt[comm_vertex], 1);
@@ -386,7 +381,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                     }
                   }
                 }
-              }
+            }
 
               atomicAdd(&d_tricnt[u], triangle_count);
             });
