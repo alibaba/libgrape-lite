@@ -16,5 +16,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ../
+          cmake ..
           make
+      - name: APP Test
+        ./misc/cuda_app_tests.sh
