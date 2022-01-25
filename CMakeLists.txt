@@ -21,7 +21,7 @@ if (USE_HUGEPAGES AND LINUX)
 endif ()
 
 if (PROFILING)
-    message("-- Enable profiling")
+    message(STATUS "Enable profiling")
     add_definitions(-DPROFILING)
 endif ()
 
@@ -39,7 +39,7 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
             "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif ()
 
-message("[libgrape-lite] will build in type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "[libgrape-lite] will build in type: ${CMAKE_BUILD_TYPE}")
 
 # ------------------------------------------------------------------------------
 # cmake configs
@@ -86,7 +86,7 @@ else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
     else ()
         option(WITH_CUDA "Whether to enable cuda support" ON)
-        message("-- Build with CUDA support")
+        message(STATUS "Build with CUDA support")
     
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
     
@@ -94,34 +94,22 @@ else()
         set(CUDA_LIBS ${CUDA_TOOLKIT_TARGET_DIR}/lib64/stubs/libcuda.so
                 ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libnvToolsExt.so
                 ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libcudart.so)
-    
-        if ((CUDA_VERSION VERSION_GREATER "9.0") OR (CUDA_VERSION VERSION_EQUAL "9.0"))
-            option(GEN_SM_70 "Whether to generate code for Compute Capability 7.0 devices" ON)
-            if (GEN_SM_70)
-                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_70,code=sm_70")
-            endif ()
-        endif ()
-    
-        if ((CUDA_VERSION VERSION_GREATER "10.0") OR (CUDA_VERSION VERSION_EQUAL "10.0"))
-            option(GEN_SM_75 "Whether to generate code for Compute Capability 7.5 devices" ON)
-            if (GEN_SM_75)
-                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")
-            endif ()
-        endif ()
-    
-        if ((CUDA_VERSION VERSION_GREATER "11.0") OR (CUDA_VERSION VERSION_EQUAL "11.0"))
-            option(GEN_SM_80 "Whether to generate code for Compute Capability 8.0 devices" ON)
-            if (GEN_SM_80)
-                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")
-            endif ()
-        endif ()
-    
-        if ((CUDA_VERSION VERSION_GREATER "11.2") OR (CUDA_VERSION VERSION_EQUAL "11.2"))
-            option(GEN_SM_86 "Whether to generate code for Compute Capability 8.6 devices" ON)
-            if (GEN_SM_86)
-                set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_86,code=sm_86")
-            endif ()
-        endif ()
+
+        if(${CMAKE_VERSION} VERSION_LESS_EQUAL "3.13.4")
+          cuda_select_nvcc_arch_flags(ARCH_FLAGS "Auto")
+          message(STATUS "CUDA_ARCH = ${ARCH_FLAGS}")
+          string(REPLACE "-gencode;" "--generate-code=" ARCH_FLAGS "${ARCH_FLAGS}")
+          string(APPEND CMAKE_CUDA_FLAGS "${ARCH_FLAGS}")
+        else()
+          include(FindCUDA/select_compute_arch)
+          CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
+          string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
+          string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
+          string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
+          SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
+          message(STATUS "CUDA_ARCH = ${CUDA_ARCH_LIST}")
+          set_property(GLOBAL PROPERTY CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+        endif()
     
         set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Wno-deprecated-gpu-targets")
     
@@ -133,7 +121,7 @@ else()
     
         set(CUDA_PROPAGATE_HOST_FLAGS OFF)
         set(CUDA_SEPARABLE_COMPILATION OFF)
-        message("-- Host Compiler: ${CUDA_HOST_COMPILER}")
+        message(STATUS "Host Compiler: ${CUDA_HOST_COMPILER}")
     
         include_directories(SYSTEM ${NCCL_INCLUDE_DIRS})
     endif() 
