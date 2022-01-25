@@ -57,7 +57,6 @@ DEV_INLINE float atomicMinFloat(float* addr, float value) {
   return old;
 }
 
-
 template <typename T>
 DEV_INLINE bool BinarySearch(const ArrayView<T>& array, const T& target) {
   size_t l = 0;
@@ -80,11 +79,11 @@ DEV_INLINE bool BinarySearch(const ArrayView<T>& array, const T& target) {
 template <typename T>
 DEV_INLINE bool BinarySearchWarp(const ArrayView<T>& array, const T& target) {
   size_t cosize = 32;
-  size_t lane = threadIdx.x & (cosize-1);
+  size_t lane = threadIdx.x & (cosize - 1);
   size_t worknum = array.size();
   size_t x = worknum / cosize;
   size_t y = worknum % cosize;
-  //size_t per_work = worknum / cosize + (lane < worknum % cosize);
+  // size_t per_work = worknum / cosize + (lane < worknum % cosize);
   size_t l = lane * x + (lane < y ? lane : y);
   size_t r = l + x + (lane < y ? 1 : 0);
   bool found = false;
@@ -103,7 +102,7 @@ DEV_INLINE bool BinarySearchWarp(const ArrayView<T>& array, const T& target) {
     }
   }
   __syncwarp();
-  return __any_sync(__activemask(), found); 
+  return __any_sync(__activemask(), found);
 }
 
 template <int NT, typename T>

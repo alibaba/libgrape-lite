@@ -78,7 +78,7 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
       if (global_degree[v] >= 2) {
         score = 2.0 * (tricnt[v]) /
                 (static_cast<int64_t>(global_degree[v]) *
-                (static_cast<int64_t>(global_degree[v]) - 1));
+                 (static_cast<int64_t>(global_degree[v]) - 1));
       }
       os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
          << score << std::endl;
@@ -381,7 +381,7 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                     }
                   }
                 }
-            }
+              }
 
               atomicAdd(&d_tricnt[u], triangle_count);
             });

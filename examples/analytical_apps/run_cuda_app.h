@@ -187,7 +187,7 @@ void Run() {
     using AppType = LCC<GraphType>;
     CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
                                        app_config);
-  } else if (application == "lcc_opt"){
+  } else if (application == "lcc_opt") {
     using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                                 grape::LoadStrategy::kOnlyOut>;
     using AppType = LCC_OPT<GraphType>;

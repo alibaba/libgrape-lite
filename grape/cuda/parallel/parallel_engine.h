@@ -103,12 +103,12 @@ inline void ForEachWithIndexWarp(const Stream& stream,
         auto warp_size = 32;
         auto warp_id = tid / warp_size;
         auto lane = tid % warp_size;
-        auto n_warp  = nthreads / warp_size;
+        auto n_warp = nthreads / warp_size;
 
         for (size_t i = 0 + warp_id; i < work_source.size(); i += n_warp) {
           auto work = work_source.GetWork(i);
 
-          f(lane, i, work, args...); // A warp will do this
+          f(lane, i, work, args...);  // A warp will do this
         }
       },
       func, args...);
@@ -1070,7 +1070,7 @@ class ParallelEngine {
                              EDGE_OP op) {
     int grid_size, block_size;
     auto size = ws.size();
-    if(size == 0) {
+    if (size == 0) {
       return;
     }
 
@@ -1116,7 +1116,7 @@ class ParallelEngine {
                               EDGE_OP op) {
     int grid_size, block_size;
     auto size = ws.size();
-    if(size == 0) {
+    if (size == 0) {
       return;
     }
     auto calc_shmem_size = [] DEV_HOST(int block_size) -> int {
@@ -1129,7 +1129,8 @@ class ParallelEngine {
       auto n_warp = (block_size + warp_size - 1) / warp_size;
 
       auto smem_size = block_size * (sizeof(VertexMetadata<vid_t, metadata_t>) +
-                       sizeof(const nbr_t*)) + n_warp * warp_size * sizeof(vid_t);
+                                     sizeof(const nbr_t*)) +
+                       n_warp * warp_size * sizeof(vid_t);
       return smem_size;
     };
 
@@ -1218,9 +1219,9 @@ class ParallelEngine {
                               EDGE_OP op) {
     int grid_size, block_size;
     auto size = ws.size();
-    if (size==0) {
+    if (size == 0) {
       return;
-    } 
+    }
     auto lb_wrapper = [=] __device__() {
       LBNONE<FRAG_T, WORK_SOURCE_T, ASSIGN_OP, EDGE_OP, ed>(dev_frag, ws,
                                                             assign_op, op);

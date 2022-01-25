@@ -72,7 +72,7 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
     rank.D2H();
 
     for (auto v : iv) {
-      os << frag.GetId(v) << " " << std::scientific << std::setprecision(15) 
+      os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
          << rank[v] << std::endl;
     }
   }
@@ -118,9 +118,8 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
     rank_t p = 1.0 / frag.GetTotalVerticesNum();
 
     WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
-    ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-        d_rank[v] = p;
-    });
+    ForEach(stream, ws_in,
+            [=] __device__(vertex_t v) mutable { d_rank[v] = p; });
     messages.ForceContinue();
   }
 

@@ -108,10 +108,10 @@ class SSSPContext : public grape::VoidContext<FRAG_T> {
     dist.D2H();
 
     for (auto v : iv) {
-      if(dist[v] == std::numeric_limits<dist_t>::max()){
+      if (dist[v] == std::numeric_limits<dist_t>::max()) {
         os << frag.GetId(v) << " infinity" << std::endl;
-      }else{
-        os << frag.GetId(v) << " " << std::scientific << std::setprecision(15) 
+      } else {
+        os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
            << dist[v] << std::endl;
       }
     }
@@ -205,7 +205,6 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
 
     size_t in_size = in_q.Count(stream);
 
-
 #ifdef PROFILING
     ctx.get_msg_time += grape::GetCurrentTime();
     VLOG(1) << "Frag " << frag.fid() << " In: " << in_size;
@@ -284,7 +283,6 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
       if (local_size > 0) {
         messages.ForceContinue();
       }
-
 
 #ifdef PROFILING
       traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;

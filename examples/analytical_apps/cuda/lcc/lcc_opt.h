@@ -29,7 +29,8 @@ class LCC_OPTContext : public grape::VoidContext<FRAG_T> {
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
 
-  explicit LCC_OPTContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
+  explicit LCC_OPTContext(const FRAG_T& frag)
+      : grape::VoidContext<FRAG_T>(frag) {}
 
 #ifdef PROFILING
   ~LCC_OPTContext() {
@@ -103,7 +104,7 @@ class LCC_OPTContext : public grape::VoidContext<FRAG_T> {
 
 template <typename FRAG_T>
 class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
-            public ParallelEngine {
+                public ParallelEngine {
  public:
   INSTALL_GPU_WORKER(LCC_OPT<FRAG_T>, LCC_OPTContext<FRAG_T>, FRAG_T)
   using dev_fragment_t = typename fragment_t::device_t;
@@ -316,7 +317,8 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
 
         // Calculate intersection
         ForEachWithIndexWarp(
-            stream, ws_in, [=] __device__(size_t lane, size_t idx, vertex_t u) mutable {
+            stream, ws_in,
+            [=] __device__(size_t lane, size_t idx, vertex_t u) mutable {
               int triangle_count = 0;
 
               for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
@@ -333,17 +335,21 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
                 if (degree_u > 0 && degree_v > 0) {
                   auto min_degree = min(degree_u, degree_v);
                   auto max_degree = max(degree_u, degree_v);
-                  //auto total_degree = degree_u + degree_v;
-                  
-                  auto min_edge_begin = degree_u < degree_v ? edge_begin_u : edge_begin_v;
-                  auto min_edge_end   = min_edge_begin + min_degree;
-                  auto max_edge_begin = degree_u < degree_v ? edge_begin_v : edge_begin_u;
-                  ArrayView<vid_t> dst_gids(&d_col_indices[max_edge_begin], max_degree);
+                  // auto total_degree = degree_u + degree_v;
+
+                  auto min_edge_begin =
+                      degree_u < degree_v ? edge_begin_u : edge_begin_v;
+                  auto min_edge_end = min_edge_begin + min_degree;
+                  auto max_edge_begin =
+                      degree_u < degree_v ? edge_begin_v : edge_begin_u;
+                  ArrayView<vid_t> dst_gids(&d_col_indices[max_edge_begin],
+                                            max_degree);
                   auto mins = d_col_indices[min_edge_begin];
                   auto mine = d_col_indices[min_edge_begin + min_degree - 1];
                   auto maxs = d_col_indices[max_edge_begin];
                   auto maxe = d_col_indices[max_edge_begin + max_degree - 1];
-                  if(mins > maxe || maxs > mine) continue;
+                  if (mins > maxe || maxs > mine)
+                    continue;
                   for (; min_edge_begin < min_edge_end; min_edge_begin++) {
                     auto dst_gid_from_small = d_col_indices[min_edge_begin];
 
@@ -352,18 +358,20 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
                       // calling Gid2Vertex
                       vertex_t comm_vertex(d_col_indices[min_edge_begin]);
 
-                    triangle_count += 1;
-                      if(lane == 0) atomicAdd(&d_tricnt[comm_vertex], 1);
-                      if(lane == 0) atomicAdd(&d_tricnt[v], 1);
+                      triangle_count += 1;
+                      if (lane == 0)
+                        atomicAdd(&d_tricnt[comm_vertex], 1);
+                      if (lane == 0)
+                        atomicAdd(&d_tricnt[v], 1);
                     }
                   }
                 }
               }
 
-              if(lane == 0) atomicAdd(&d_tricnt[u], triangle_count);
+              if (lane == 0)
+                atomicAdd(&d_tricnt[u], triangle_count);
             });
       }
-      
 
       {
         WorkSourceRange<vertex_t> ws_in(ov.begin(), ov.size());
