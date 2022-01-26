@@ -27,7 +27,8 @@ Here are the dependencies for optional features:
 - [jemalloc](http://jemalloc.net/) (>= 5.0.0) for better memory allocation;
 - [Doxygen](https://www.doxygen.nl/index.html) (>= 1.8) for generating documentation;
 - Linux [HUGE_PAGES](http://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt) support, for better performance.
-- [NCCL]
+- [CUDA](https://developer.nvidia.com/zh-cn/cuda-toolkit) (>= 10.0) for GPU-based graph processing.
+- [NCCL](https://developer.nvidia.com/nccl) (>= 2.7) for multi-GPU communication.
 
 Extra dependencies are required by examples:
 - [gflags](https://github.com/gflags/gflags) (>= 2.2.0);
@@ -74,6 +75,9 @@ mpirun -n 4 ./run_app --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --
 # or run connected component with 4 workers on a cluster.
 # HOSTFILE provides a list of hosts where MPI processes are launched. 
 mpirun -n 4 -hostfile HOSTFILE ./run_app --application=wcc --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --out_prefix ./output_wcc
+
+# or run breadth-first search with 8 workers in a multi-GPU server.
+mpirun -n 8 ./run_cuda_app --application=bfs --lb=cm --bfs_source 6 --vfile ../dataset/p2p-31.v --efile ../dataset/p2p-31.e --out_prefix ./output_wcc
 
 # see more flags info.
 ./run_app --help
