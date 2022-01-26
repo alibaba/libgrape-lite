@@ -75,7 +75,7 @@ nproc=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 if [ ${nproc} -gt 8 ]; then
   nproc=8
 fi
-proc_list="1 $(seq 2 2 ${nproc})"
+proc_list="1 $(seq 2 6 ${nproc})"
 lb_list="none wm cm cta strict"
 
 for np in ${proc_list}; do
