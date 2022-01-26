@@ -27,6 +27,7 @@ Here are the dependencies for optional features:
 - [jemalloc](http://jemalloc.net/) (>= 5.0.0) for better memory allocation;
 - [Doxygen](https://www.doxygen.nl/index.html) (>= 1.8) for generating documentation;
 - Linux [HUGE_PAGES](http://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt) support, for better performance.
+- [NCCL]
 
 Extra dependencies are required by examples:
 - [gflags](https://github.com/gflags/gflags) (>= 2.2.0);
