@@ -80,40 +80,47 @@ lb_list="none wm cm cta strict"
 
 for np in ${proc_list}; do
   for lb in ${lb_list}; do
-    RunWeightedApp ${np} sssp -lb=${lb} --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    SER=$([ "$lb" == "none" ] && echo "--serialize=true" || echo "-deserialize=true")
+    RunWeightedApp ${np} sssp -lb=${lb} --sssp_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_sssp_ud
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
 
-    RunWeightedApp ${np} sssp -lb=${lb} --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    RunWeightedApp ${np} sssp -lb=${lb} --sssp_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_sssp_d --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
 
-    RunAppWithELoader ${np} sssp -lb=${lb} --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    RunAppWithELoader ${np} sssp -lb=${lb} --sssp_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_sssp_ud_E
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
 
-    RunAppWithELoader ${np} sssp -lb=${lb} --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    RunAppWithELoader ${np} sssp -lb=${lb} --sssp_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_sssp_d_E --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
 
-    RunApp ${np} bfs -lb=${lb} --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    RunApp ${np} bfs -lb=${lb} --bfs_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_bfs_ud
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
 
-    RunApp ${np} bfs -lb=${lb} --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    RunApp ${np} bfs -lb=${lb} --bfs_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_bfs_d --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
 
-    RunAppWithELoader ${np} bfs -lb=${lb} --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    RunAppWithELoader ${np} bfs -lb=${lb} --bfs_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_bfs_ud_E
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
 
-    RunAppWithELoader ${np} bfs -lb=${lb} --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    RunAppWithELoader ${np} bfs -lb=${lb} --bfs_source=6 ${SER} --serialization_prefix=./serial/${GRAPH}_bfs_d_E --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
 
-    RunApp ${np} pagerank -lb=${lb} --pr_mr=10 --pr_d=0.85
+    RunApp ${np} pagerank -lb=${lb} --pr_mr=10 --pr_d=0.85 ${SER} --serialization_prefix=./serial/${GRAPH}_pr
     EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
 
-    RunApp ${np} cdlp -lb=${lb} --cdlp_mr=10
+    RunApp ${np} cdlp -lb=${lb} --cdlp_mr=10 ${SER} --serialization_prefix=./serial/${GRAPH}_cdlp
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
 
-    RunApp ${np} lcc -lb=${lb} --serialize=true --serialization_prefix=./serial/${GRAPH}
+    RunApp ${np} lcc -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_lcc
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
 
-    RunApp ${np} wcc -lb=${lb}
+    RunApp ${np} lcc_opt -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_lcc_opt
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
+
+    RunApp ${np} wcc -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc
+    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
+    RunApp ${np} wcc_opt -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
   done
 done
