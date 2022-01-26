@@ -39,6 +39,7 @@ limitations under the License.
 #include "cuda/pagerank/pagerank.h"
 #include "cuda/sssp/sssp.h"
 #include "cuda/wcc/wcc.h"
+#include "cuda/wcc/wcc_opt.h"
 
 #include "flags.h"
 #include "grape/cuda/fragment/host_fragment.h"
@@ -173,6 +174,12 @@ void Run() {
     using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                                 grape::LoadStrategy::kOnlyOut>;
     using AppType = WCC<GraphType>;
+    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
+                                       app_config);
+  } else if (application == "wcc_opt") {
+    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                                grape::LoadStrategy::kOnlyOut>;
+    using AppType = WCCOpt<GraphType>;
     CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
                                        app_config);
   } else if (application == "pagerank") {

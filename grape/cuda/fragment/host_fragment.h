@@ -1384,7 +1384,7 @@ class HostFragment {
       }
 
       coo_frag_ = std::make_shared<coo_t>();
-      // coo_frag_->Init(edges);
+      coo_frag_->Init(edges);
     }
     return coo_frag_;
   }
