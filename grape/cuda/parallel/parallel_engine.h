@@ -1090,6 +1090,11 @@ class ParallelEngine {
                                const WORK_SOURCE_T& ws, ASSIGN_OP assign_op,
                                EDGE_OP op) {
     int grid_size, block_size;
+    auto size = ws.size();
+    if (size == 0) {
+      return;
+    }
+
     auto calc_shmem_size = [] DEV_HOST(int block_size) -> int {
       using vid_t = typename FRAG_T::vid_t;
       using vertex_t = typename FRAG_T::vertex_t;
@@ -1099,6 +1104,7 @@ class ParallelEngine {
       return block_size * (sizeof(VertexMetadata<vid_t, metadata_t>) +
                            sizeof(const nbr_t*) + sizeof(vid_t));
     };
+
     auto lb_wrapper = [=] __device__() {
       LBCMOld<FRAG_T, WORK_SOURCE_T, ASSIGN_OP, EDGE_OP, ed>(dev_frag, ws,
                                                              assign_op, op);
