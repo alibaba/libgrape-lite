@@ -130,6 +130,7 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
 
 #ifdef PROFILING
     ctx.get_msg_time -= grape::GetCurrentTime();
+    auto process_msg_time = grape::GetCurrentTime();
 #endif
     messages.template ParallelProcess<dev_fragment_t, grape::EmptyType>(
         d_frag, [=] __device__(vertex_t v) mutable {
@@ -146,6 +147,7 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
 
 #ifdef PROFILING
     VLOG(1) << "Frag " << frag.fid() << " In: " << in_size;
+    process_msg_time = grape::GetCurrentTime() - process_msg_time;
     ctx.get_msg_time += grape::GetCurrentTime();
     auto traversal_kernel_time = grape::GetCurrentTime();
 #endif
@@ -171,6 +173,7 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
 #ifdef PROFILING
     traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
     VLOG(2) << "Frag " << frag.fid() << " Local out: " << local_out_size
+            << " ProcessMsg time: " << process_msg_time * 1000
             << " Kernel time: " << traversal_kernel_time * 1000;
     ctx.traversal_kernel_time += traversal_kernel_time;
 #endif

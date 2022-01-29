@@ -188,34 +188,8 @@ class GPUMessageManager {
                                 comm_spec.worker_id()));
 
     // Warm-up
-    {
-      size_t length = 4 * 1024 * 1024;
-      std::vector<thrust::device_vector<char>> buf_in(fnum_), buf_out(fnum_);
-
-      CHECK_NCCL(ncclGroupStart());
-
-      for (fid_t i = 1; i < fnum_; ++i) {
-        fid_t src_fid = (fid_ + i) % fnum_;
-        int peer = comm_spec_.FragToWorker(src_fid);
-
-        buf_in[src_fid].resize(length);
-        CHECK_NCCL(ncclRecv(thrust::raw_pointer_cast(buf_in[src_fid].data()),
-                            length, ncclChar, peer, *nccl_comm_,
-                            comm_stream_.cuda_stream()));
-      }
-
-      for (fid_t i = 1; i < fnum_; ++i) {
-        fid_t dst_fid = (fid_ + fnum_ - i) % fnum_;
-        int peer = comm_spec_.FragToWorker(dst_fid);
-
-        buf_out[dst_fid].resize(length);
-        CHECK_NCCL(ncclSend(thrust::raw_pointer_cast(buf_out[dst_fid].data()),
-                            length, ncclChar, peer, *nccl_comm_,
-                            comm_stream_.cuda_stream()));
-      }
-
-      CHECK_NCCL(ncclGroupEnd());
-    }
+    dev::WarmupNccl(comm_spec, comm_stream_, nccl_comm_);
+    DeviceWarmup(fnum_);
     comm_stream_.Sync();
   }
 
@@ -355,6 +329,22 @@ class GPUMessageManager {
 
   dev::MessageManager DeviceObject() {
     return dev::MessageManager(ArrayView<dev::InArchive>(d_to_send_));
+  }
+
+  /**
+   * @brief For some GPU servers, the first kernel always takes a long time.
+   * This is a Dummy function to warm up the device.
+   *
+   * This function can be called by applications.
+   */
+  void DeviceWarmup(size_t np) {
+    LaunchKernel(compute_stream_,
+        [=] __device__(ArrayView<dev::OutArchive> recvs) {
+          if(recvs.size() != np){
+            printf("Panic\n");
+          }
+        }, ArrayView<dev::OutArchive>(d_to_recv_));
+    compute_stream_.Sync();
   }
 
   template <typename GRAPH_T, typename MESSAGE_T = grape::EmptyType,
