@@ -29,6 +29,7 @@
 #define GRAPE_UTILS_THREAD_POOL_H_
 
 #include <glog/logging.h>
+
 #include <condition_variable>
 #include <functional>
 #include <future>

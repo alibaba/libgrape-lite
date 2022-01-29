@@ -16,15 +16,15 @@ limitations under the License.
 #ifndef EXAMPLES_GNN_SAMPLER_FRAGMENT_INDICES_H_
 #define EXAMPLES_GNN_SAMPLER_FRAGMENT_INDICES_H_
 
-#include <memory>
-#include <set>
-#include <utility>
-#include <vector>
-
 #include <grape/fragment/edgecut_fragment_base.h>
 #include <grape/util.h>
 #include <grape/utils/gcontainer.h>
 #include <grape/utils/vertex_array.h>
+
+#include <memory>
+#include <set>
+#include <utility>
+#include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
 

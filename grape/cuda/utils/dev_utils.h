@@ -174,8 +174,8 @@ void ncclSendRecv(const grape::CommSpec& comm_spec, const Stream& stream,
   if (to_rank != -1) {
     size_t send_size = send_buf.size();
     MPI_Send(&send_size, 1, MPI_UINT64_T, to_rank, 1, comm_spec.comm());
-    CHECK_NCCL(ncclSend(send_buf.data(), sizeof(T) * send_buf.size(), ncclChar, to_rank,
-             *nccl_comm, stream.cuda_stream()));
+    CHECK_NCCL(ncclSend(send_buf.data(), sizeof(T) * send_buf.size(), ncclChar,
+                        to_rank, *nccl_comm, stream.cuda_stream()));
   } else {
     for (int src_worker_id = 0; src_worker_id < comm_spec.worker_num();
          src_worker_id++) {
@@ -185,12 +185,11 @@ void ncclSendRecv(const grape::CommSpec& comm_spec, const Stream& stream,
         MPI_Recv(&recv_size, 1, MPI_UINT64_T, src_worker_id, 1,
                  comm_spec.comm(), &stat);
         CHECK_NCCL(ncclRecv(recv_buf.data(), sizeof(T) * recv_size, ncclChar,
-                 src_worker_id, *nccl_comm, stream.cuda_stream()));
+                            src_worker_id, *nccl_comm, stream.cuda_stream()));
       }
     }
   }
 }
-
 
 }  // namespace dev
 }  // namespace cuda

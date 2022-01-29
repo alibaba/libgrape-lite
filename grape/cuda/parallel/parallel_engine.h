@@ -17,10 +17,12 @@ limitations under the License.
 #define GRAPE_CUDA_PARALLEL_PARALLEL_ENGINE_H_
 
 #include <cuda_profiler_api.h>
+
 #include <unordered_set>
 #pragma push
 #pragma diag_suppress = initialization_not_reachable
 #include <thrust/binary_search.h>
+
 #include <cub/cub.cuh>
 #include <moderngpu/kernel_sortedsearch.hxx>
 #pragma pop

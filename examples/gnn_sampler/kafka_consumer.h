@@ -16,14 +16,14 @@ limitations under the License.
 #ifndef EXAMPLES_GNN_SAMPLER_KAFKA_CONSUMER_H_
 #define EXAMPLES_GNN_SAMPLER_KAFKA_CONSUMER_H_
 
+#include <librdkafka/rdkafka.h>
+#include <librdkafka/rdkafkacpp.h>
+
 #include <map>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include <librdkafka/rdkafka.h>
-#include <librdkafka/rdkafkacpp.h>
 
 #include "util.h"
 

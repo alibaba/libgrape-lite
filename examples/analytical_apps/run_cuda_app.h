@@ -40,7 +40,6 @@ limitations under the License.
 #include "cuda/sssp/sssp.h"
 #include "cuda/wcc/wcc.h"
 #include "cuda/wcc/wcc_opt.h"
-
 #include "flags.h"
 #include "grape/cuda/fragment/host_fragment.h"
 #include "grape/cuda/worker/gpu_batch_shuffle_worker.h"

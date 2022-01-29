@@ -338,12 +338,14 @@ class GPUMessageManager {
    * This function can be called by applications.
    */
   void DeviceWarmup(size_t np) {
-    LaunchKernel(compute_stream_,
+    LaunchKernel(
+        compute_stream_,
         [=] __device__(ArrayView<dev::OutArchive> recvs) {
-          if(recvs.size() != np){
+          if (recvs.size() != np) {
             printf("Panic\n");
           }
-        }, ArrayView<dev::OutArchive>(d_to_recv_));
+        },
+        ArrayView<dev::OutArchive>(d_to_recv_));
     compute_stream_.Sync();
   }
 

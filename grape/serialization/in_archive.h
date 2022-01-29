@@ -19,7 +19,6 @@ limitations under the License.
 #include <string.h>
 
 #include <cstddef>
-
 #include <map>
 #include <set>
 #include <string>
@@ -30,7 +29,6 @@ limitations under the License.
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
-
 #include "grape/utils/gcontainer.h"
 
 namespace grape {

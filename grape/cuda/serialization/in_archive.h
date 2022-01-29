@@ -20,6 +20,7 @@ limitations under the License.
 #pragma diag_suppress = initialization_not_reachable
 #include <thrust/device_vector.h>
 #include <thrust/pair.h>
+
 #include <cub/cub.cuh>
 #pragma pop
 

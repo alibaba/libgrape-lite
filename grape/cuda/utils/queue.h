@@ -18,6 +18,7 @@ limitations under the License.
 #include <cooperative_groups.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+
 #include <cassert>
 #include <initializer_list>
 #include <memory>
@@ -26,6 +27,7 @@ limitations under the License.
 #pragma push
 #pragma diag_suppress = initialization_not_reachable
 #include <thrust/device_vector.h>
+
 #include <cub/util_ptx.cuh>
 #pragma pop
 

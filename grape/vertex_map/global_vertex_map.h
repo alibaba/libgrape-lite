@@ -25,7 +25,6 @@ limitations under the License.
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
-
 #include "grape/config.h"
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"
