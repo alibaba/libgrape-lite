@@ -77,28 +77,24 @@ Since the device memory of GPUs is limited, we conducted the comparison on sever
 The results are reported below. The numbers in the table represent the evaluation time in milliseconds. 
 The best results are marked in **bold**.
 
-| Algorithm | Dataset          | Gunrock | Groute | libgrape-lite-GPU |
-|-----------|------------------|---------|--------|-------------------|
-| SSSP      | soc-LiveJournal1 | 98      | 197    | **45**            |
-|           | soc-orkut        | 176     | 207    | **62**            |
-|           | soc-sinaweibo    | 671     | 1651   | **195**           |
-|           | soc-twitter-2010 | 220     | 378    | **95**            |
-|           | com-freindster   | 2296    | 6755   | **2108**          |
-| WCC       | soc-LiveJournal1 | 50      | 14     | **6.8**           |
-|           | soc-orkut        | 25      | 9      | **7.5**           |
-|           | soc-sinaweibo    | 274     | 273    | **52**            |
-|           | soc-twitter-2010 | 169     | 60     | **27**            |
-|           | com-freindster   | 914     | **166**| 206               |
-| BFS       | soc-LiveJournal1 | 21      | 45     | **6**             |
-|           | soc-orkut        | 40      | 34     | **7**             |
-|           | soc-sinaweibo    | 188     | 162    | **32**            |
-|           | soc-twitter-2010 | 101     | 135    | **19**            |
-|           | com-freindster   | N/A     | 619    | **141**           |
-| PageRank  | soc-LiveJournal1 | 143     | 3425   | **90**            |
-|           | soc-orkut        | 134     | 9858   | **118**           |
-|           | soc-sinaweibo    | 2482    | 5780   | **1166**          |
-|           | soc-twitter-2010 | 1011    | 4840   | **631**           |
-|           | com-freindster   | 12086   | 21225  | **11850**         |
+| Algorithm   | Dataset          | Gunrock   | Groute   | libgrape-lite-GPU |
+|-------------|------------------|-----------|----------|-------------------|
+| SSSS        | soc-LiveJournal1 |   89.9345 | 215.560  |        **32.3029**|
+|             | soc-twitter-2010 |  129.454  | 389.155  |        **88.0549**|
+|             | soc-sinaweibo    |  210.168  | 1649.647 |         **172.03**|
+|             | soc-orkut        |  105.121  | 193.658  |        **54.3201**|
+| WCC         | soc-LiveJournal1 |   50.7677 | 12.137   |        **10.2139**|
+|             | soc-twitter-2010 |  319.261  | 69.235   |         **66.334**|
+|             | soc-sinaweibo    |  567.09   | 283.073  |        **68.6619**|
+|             | soc-orkut        |   45.777  | **7.150**|            8.87299|
+| BFS         | soc-LiveJournal1 |   28.162  | 51.000   |        **5.60403**|
+|             | soc-twitter-2010 |   45.9676 | 141.347  |        **27.7772**|
+|             | soc-sinaweibo    |   55.0118 | 168.306  |        **34.8618**|
+|             | soc-orkut        |   41.9134 | 37.467   |        **6.60801**|
+| PageRank    | soc-LiveJournal1 |   39.8666 | 3501.870 |        **24.6451**|
+|             | soc-twitter-2010 |  198.829  | 5036.229 |        **127.024**|
+|             | soc-sinaweibo    |  483.178  | 5593.807 |        **228.367**|
+|             | soc-orkut        |   57.6946 | failed   |        **49.2339**|
 
 ## Reproducing the results
 
