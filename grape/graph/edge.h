@@ -18,6 +18,7 @@ limitations under the License.
 
 #include <utility>
 
+#include "grape/config.h"
 #include "grape/types.h"
 
 namespace grape {

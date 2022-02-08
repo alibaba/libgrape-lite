@@ -18,6 +18,7 @@ limitations under the License.
 
 #include <utility>
 
+#include "grape/config.h"
 #include "grape/graph/edge.h"
 #include "grape/utils/vertex_array.h"
 
