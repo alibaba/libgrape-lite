@@ -94,7 +94,7 @@ The best results are marked in **bold**.
 | PageRank    | soc-LiveJournal1 |   39.8666 | 3501.870 |        **24.6451**|
 |             | soc-twitter-2010 |  198.829  | 5036.229 |        **127.024**|
 |             | soc-sinaweibo    |  483.178  | 5593.807 |        **228.367**|
-|             | soc-orkut        |   57.6946 | failed   |        **49.2339**|
+|             | soc-orkut        |   57.6946 | N/A      |        **49.2339**|
 
 ## Reproducing the results
 
