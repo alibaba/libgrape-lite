@@ -16,10 +16,10 @@ limitations under the License.
 #ifndef GRAPE_CUDA_FRAGMENT_DEVICE_FRAGMENT_H_
 #define GRAPE_CUDA_FRAGMENT_DEVICE_FRAGMENT_H_
 #include "cuda_hashmap/hash_map.h"
-#include "grape/cuda/fragment/id_parser.h"
 #include "grape/cuda/utils/array_view.h"
 #include "grape/cuda/utils/cuda_utils.h"
 #include "grape/cuda/vertex_map/device_vertex_map.h"
+#include "grape/fragment/id_parser.h"
 #include "grape/graph/adj_list.h"
 #include "grape/types.h"
 #include "grape/utils/vertex_array.h"
@@ -27,7 +27,7 @@ limitations under the License.
 namespace grape {
 namespace cuda {
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          grape::LoadStrategy _load_strategy>
+          grape::LoadStrategy _load_strategy, typename VERTEX_MAP_T>
 class HostFragment;
 
 namespace dev {
@@ -68,8 +68,9 @@ class DeviceFragment {
   DEV_INLINE bool GetVertex(const OID_T& oid, vertex_t& v) const {
     VID_T gid;
     if (vm_.GetGid(oid, gid)) {
-      return id_parser_.GetFid(gid) == fid_ ? InnerVertexGid2Vertex(gid, v)
-                                            : OuterVertexGid2Vertex(gid, v);
+      return id_parser_.get_fragment_id(gid) == fid_
+                 ? InnerVertexGid2Vertex(gid, v)
+                 : OuterVertexGid2Vertex(gid, v);
     } else {
       return false;
     }
@@ -84,7 +85,7 @@ class DeviceFragment {
       return fid_;
     } else {
       auto gid = ovgid_[u.GetValue() - ivnum_];
-      return id_parser_.GetFid(gid);
+      return id_parser_.get_fragment_id(gid);
     }
   }
 
@@ -107,8 +108,9 @@ class DeviceFragment {
   }
 
   DEV_INLINE bool Gid2Vertex(const VID_T& gid, vertex_t& v) const {
-    return id_parser_.GetFid(gid) == fid_ ? InnerVertexGid2Vertex(gid, v)
-                                          : OuterVertexGid2Vertex(gid, v);
+    return id_parser_.get_fragment_id(gid) == fid_
+               ? InnerVertexGid2Vertex(gid, v)
+               : OuterVertexGid2Vertex(gid, v);
   }
 
   DEV_INLINE VID_T Vertex2Gid(const vertex_t& v) const {
@@ -131,7 +133,7 @@ class DeviceFragment {
     VID_T gid;
 
     if (vm_.GetGid(fid_, oid, gid)) {
-      v.SetValue(id_parser_.GetLid(gid));
+      v.SetValue(id_parser_.get_local_id(gid));
       return true;
     }
     return false;
@@ -170,7 +172,7 @@ class DeviceFragment {
 
   DEV_HOST_INLINE bool InnerVertexGid2Vertex(const VID_T& gid,
                                              vertex_t& v) const {
-    v.SetValue(id_parser_.GetLid(gid));
+    v.SetValue(id_parser_.get_local_id(gid));
     return true;
   }
 
@@ -189,7 +191,7 @@ class DeviceFragment {
   }
 
   DEV_HOST_INLINE VID_T GetInnerVertexGid(const vertex_t& v) const {
-    return id_parser_.Lid2Gid(fid_, v.GetValue());
+    return id_parser_.generate_global_id(fid_, v.GetValue());
   }
 
   /**
@@ -431,7 +433,8 @@ class DeviceFragment {
   ArrayView<ArrayView<vertex_t>> mirrors_of_frag_;
 
   template <typename _OID_T, typename _VID_T, typename _VDATA_T,
-            typename _EDATA_T, grape::LoadStrategy __load_strategy>
+            typename _EDATA_T, grape::LoadStrategy __load_strategy,
+            typename _VERTEX_MAP_T>
   friend class grape::cuda::HostFragment;
 };
 

@@ -70,42 +70,9 @@ void Finalize() {
 }
 
 template <typename FRAG_T, typename APP_T, typename... Args>
-void CreateAndQuery(const grape::CommSpec& comm_spec, const std::string& efile,
-                    const std::string& vfile, const std::string& out_prefix,
-                    Args... args) {
-  // using fragment_t = FRAG_T;
-  // using oid_t = typename FRAG_T::oid_t;
-  timer_next("load graph");
-  LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
-
-  graph_spec.set_directed(FLAGS_directed);
-  graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
-  graph_spec.serialization_prefix = FLAGS_serialization_prefix;
-
-  if (FLAGS_deserialize) {
-    graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
-  } else if (FLAGS_serialize) {
-    graph_spec.set_serialize(true, FLAGS_serialization_prefix);
-  }
-  std::shared_ptr<FRAG_T> fragment;
-  int dev_id = comm_spec.local_id();
-  int dev_count;
-
-  CHECK_CUDA(cudaGetDeviceCount(&dev_count));
-  CHECK_LE(comm_spec.local_num(), dev_count)
-      << "Only found " << dev_count << " GPUs, but " << comm_spec.local_num()
-      << " processes are launched";
-  CHECK_CUDA(cudaSetDevice(dev_id));
-
-  if (FLAGS_segmented_partition) {
-    fragment = LoadGraph<FRAG_T, SegmentedPartitioner<typename FRAG_T::oid_t>>(
-        efile, vfile, comm_spec, graph_spec);
-  } else {
-    fragment = LoadGraph<FRAG_T, HashPartitioner<typename FRAG_T::oid_t>>(
-        efile, vfile, comm_spec, graph_spec);
-  }
-
-  auto app = std::make_shared<APP_T>();
+void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
+             const CommSpec& comm_spec, int dev_id,
+             const std::string& out_prefix, Args... args) {
   timer_next("load application");
   auto worker = APP_T::CreateWorker(app, fragment);  // FIXME
   worker->Init(comm_spec, std::forward<Args>(args)...);
@@ -132,6 +99,65 @@ void CreateAndQuery(const grape::CommSpec& comm_spec, const std::string& efile,
   timer_end();
 }
 
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
+          LoadStrategy load_strategy, template <class> class APP_T,
+          typename... Args>
+void CreateAndQuery(const grape::CommSpec& comm_spec, const std::string& efile,
+                    const std::string& vfile, const std::string& out_prefix,
+                    Args... args) {
+  // using fragment_t = FRAG_T;
+  // using oid_t = typename FRAG_T::oid_t;
+  timer_next("load graph");
+  LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
+
+  graph_spec.set_directed(FLAGS_directed);
+  graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  if (FLAGS_deserialize) {
+    graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
+  } else if (FLAGS_serialize) {
+    graph_spec.set_serialize(true, FLAGS_serialization_prefix);
+  }
+  if (FLAGS_segmented_partition) {
+    using VERTEX_MAP_T =
+        GlobalVertexMap<OID_T, VID_T, SegmentedPartitioner<OID_T>>;
+    using FRAG_T = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                             load_strategy, VERTEX_MAP_T>;
+    std::shared_ptr<FRAG_T> fragment;
+    int dev_id = comm_spec.local_id();
+    int dev_count;
+
+    CHECK_CUDA(cudaGetDeviceCount(&dev_count));
+    CHECK_LE(comm_spec.local_num(), dev_count)
+        << "Only found " << dev_count << " GPUs, but " << comm_spec.local_num()
+        << " processes are launched";
+    CHECK_CUDA(cudaSetDevice(dev_id));
+    fragment = LoadGraph<FRAG_T>(efile, vfile, comm_spec, graph_spec);
+
+    auto app = std::make_shared<APP_T<FRAG_T>>();
+    DoQuery<FRAG_T, APP_T<FRAG_T>, Args...>(fragment, app, comm_spec, dev_id,
+                                            out_prefix, args...);
+  } else {
+    graph_spec.set_rebalance(false, 0);
+    using VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T, HashPartitioner<OID_T>>;
+    using FRAG_T = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                             load_strategy, VERTEX_MAP_T>;
+    std::shared_ptr<FRAG_T> fragment;
+    int dev_id = comm_spec.local_id();
+    int dev_count;
+
+    CHECK_CUDA(cudaGetDeviceCount(&dev_count));
+    CHECK_LE(comm_spec.local_num(), dev_count)
+        << "Only found " << dev_count << " GPUs, but " << comm_spec.local_num()
+        << " processes are launched";
+    CHECK_CUDA(cudaSetDevice(dev_id));
+    fragment = LoadGraph<FRAG_T>(efile, vfile, comm_spec, graph_spec);
+
+    auto app = std::make_shared<APP_T<FRAG_T>>();
+    DoQuery<FRAG_T, APP_T<FRAG_T>, Args...>(fragment, app, comm_spec, dev_id,
+                                            out_prefix, args...);
+  }
+}
+
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
 void Run() {
   CommSpec comm_spec;
@@ -153,58 +179,43 @@ void Run() {
   app_config.wl_alloc_factor_out_remote = 0.2;
 
   if (application == "bfs") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = BFS<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config, FLAGS_bfs_source);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                   grape::LoadStrategy::kOnlyOut, BFS>(
+        comm_spec, efile, vfile, out_prefix, app_config, FLAGS_bfs_source);
   } else if (application == "sssp") {
 #ifdef INT_WEIGHT
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, uint32_t,
-                                                grape::LoadStrategy::kOnlyOut>;
+    using WeightT = uint32_t;
 #else
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, float,
-                                                grape::LoadStrategy::kOnlyOut>;
+    using WeightT = float;
 #endif
-    using AppType = SSSP<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config, FLAGS_sssp_source, 0);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, WeightT,
+                   grape::LoadStrategy::kOnlyOut, SSSP>(
+        comm_spec, efile, vfile, out_prefix, app_config, FLAGS_sssp_source, 0);
   } else if (application == "wcc") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = WCC<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                   grape::LoadStrategy::kOnlyOut, WCC>(comm_spec, efile, vfile,
+                                                       out_prefix, app_config);
   } else if (application == "wcc_opt") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = WCCOpt<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                   grape::LoadStrategy::kOnlyOut, WCCOpt>(
+        comm_spec, efile, vfile, out_prefix, app_config);
   } else if (application == "pagerank") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = Pagerank<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config, FLAGS_pr_d, FLAGS_pr_mr);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                   grape::LoadStrategy::kOnlyOut, Pagerank>(
+        comm_spec, efile, vfile, out_prefix, app_config, FLAGS_pr_d,
+        FLAGS_pr_mr);
   } else if (application == "lcc") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = LCC<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                   grape::LoadStrategy::kOnlyOut, LCC>(comm_spec, efile, vfile,
+                                                       out_prefix, app_config);
   } else if (application == "lcc_opt") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = LCC_OPT<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                   grape::LoadStrategy::kOnlyOut, LCC_OPT>(
+        comm_spec, efile, vfile, out_prefix, app_config);
   } else if (application == "cdlp") {
-    using GraphType = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                grape::LoadStrategy::kOnlyOut>;
-    using AppType = CDLP<GraphType>;
-    CreateAndQuery<GraphType, AppType>(comm_spec, efile, vfile, out_prefix,
-                                       app_config, FLAGS_cdlp_mr);
+    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                   grape::LoadStrategy::kOnlyOut, CDLP>(
+        comm_spec, efile, vfile, out_prefix, app_config, FLAGS_cdlp_mr);
   } else {
     LOG(FATAL) << "Invalid app name: " << application;
   }

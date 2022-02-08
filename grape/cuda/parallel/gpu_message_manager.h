@@ -85,7 +85,7 @@ class MessageManager {
                                        const typename GRAPH_T::vertex_t& v,
                                        const MESSAGE_T& msg) {
     DestList dsts = frag.IEDests(v);
-    fid_t* ptr = dsts.begin;
+    const fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
 
     while (ptr != dsts.end) {
@@ -99,7 +99,7 @@ class MessageManager {
                                        const typename GRAPH_T::vertex_t& v,
                                        const MESSAGE_T& msg) {
     DestList dsts = frag.OEDests(v);
-    fid_t* ptr = dsts.begin;
+    const fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
 
     while (ptr != dsts.end) {
@@ -112,7 +112,7 @@ class MessageManager {
   DEV_INLINE void SendMsgThroughOEdges(const GRAPH_T& frag,
                                        const typename GRAPH_T::vertex_t& v) {
     DestList dsts = frag.OEDests(v);
-    fid_t* ptr = dsts.begin;
+    const fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
 
     while (ptr != dsts.end) {
@@ -126,7 +126,7 @@ class MessageManager {
                                       const typename GRAPH_T::vertex_t& v,
                                       const MESSAGE_T& msg) {
     DestList dsts = frag.IOEDests(v);
-    fid_t* ptr = dsts.begin;
+    const fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
 
     while (ptr != dsts.end) {

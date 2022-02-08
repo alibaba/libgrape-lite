@@ -61,6 +61,8 @@ template <typename OID_T, typename VID_T, typename PARTITIONER_T>
 class VertexMapBase {
  public:
   using partitioner_t = PARTITIONER_T;
+  using oid_t = OID_T;
+  using vid_t = VID_T;
   explicit VertexMapBase(const CommSpec& comm_spec)
       : comm_spec_(comm_spec), partitioner_() {
     comm_spec_.Dup();

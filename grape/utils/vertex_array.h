@@ -36,10 +36,10 @@ namespace grape {
 template <typename T>
 class Vertex {
  public:
-  DEV_HOST Vertex() = default;
+  Vertex() = default;
   DEV_HOST explicit Vertex(const T& value) noexcept : value_(value) {}
 
-  DEV_HOST ~Vertex() = default;
+  ~Vertex() = default;
 
   DEV_HOST_INLINE Vertex& operator=(const T& value) noexcept {
     value_ = value;
@@ -65,6 +65,11 @@ class Vertex {
   DEV_HOST_INLINE Vertex operator--(int) noexcept {
     Vertex res(value_);
     value_--;
+    return res;
+  }
+
+  DEV_HOST_INLINE Vertex operator+(size_t offset) const noexcept {
+    Vertex res(value_ + offset);
     return res;
   }
 
@@ -133,36 +138,40 @@ class VertexRange {
     Vertex<T> cur_;
 
    public:
-    iterator() noexcept : cur_() {}
-    explicit iterator(const T& v) noexcept : cur_(v) {}
+    DEV_HOST iterator() noexcept : cur_() {}
+    DEV_HOST explicit iterator(const T& v) noexcept : cur_(v) {}
 
-    inline reference_type operator*() noexcept { return cur_; }
+    DEV_HOST_INLINE reference_type operator*() noexcept { return cur_; }
 
-    inline iterator& operator++() noexcept {
+    DEV_HOST_INLINE iterator& operator++() noexcept {
       ++cur_;
       return *this;
     }
 
-    inline iterator operator++(int) noexcept {
+    DEV_HOST_INLINE iterator operator++(int) noexcept {
       return iterator(cur_.GetValue() + 1);
     }
 
-    inline iterator& operator--() noexcept {
+    DEV_HOST_INLINE iterator& operator--() noexcept {
       --cur_;
       return *this;
     }
 
-    inline iterator operator--(int) noexcept {
+    DEV_HOST_INLINE iterator operator--(int) noexcept {
       return iterator(cur_.GetValue()--);
     }
 
-    iterator operator+(size_t offset) noexcept {
+    DEV_HOST_INLINE iterator operator+(size_t offset) noexcept {
       return iterator(cur_.GetValue() + offset);
     }
 
-    bool operator==(const iterator& rhs) noexcept { return cur_ == rhs.cur_; }
+    DEV_HOST bool operator==(const iterator& rhs) noexcept {
+      return cur_ == rhs.cur_;
+    }
 
-    bool operator!=(const iterator& rhs) noexcept { return cur_ != rhs.cur_; }
+    DEV_HOST bool operator!=(const iterator& rhs) noexcept {
+      return cur_ != rhs.cur_;
+    }
   };
 
   DEV_HOST_INLINE iterator begin() const { return iterator(begin_); }
@@ -186,9 +195,9 @@ class VertexRange {
     end_ = end;
   }
 
-  const T& begin_value() const { return begin_; }
+  DEV_HOST const T& begin_value() const { return begin_; }
 
-  const T& end_value() const { return end_; }
+  DEV_HOST const T& end_value() const { return end_; }
 
   inline bool Contain(const Vertex<T>& v) const {
     return begin_ <= v.GetValue() && v.GetValue() < end_;
@@ -215,15 +224,15 @@ class DualVertexRange {
  public:
   using vertex_t = Vertex<VID_T>;
 
-  DEV_HOST DualVertexRange() {}
+  DualVertexRange() {}
 
-  DEV_HOST DualVertexRange(const VID_T& head_begin, const VID_T& head_end,
-                           const VID_T& tail_begin, const VID_T& tail_end) {
+  DualVertexRange(const VID_T& head_begin, const VID_T& head_end,
+                  const VID_T& tail_begin, const VID_T& tail_end) {
     SetRange(head_begin, head_end, tail_begin, tail_end);
   }
 
-  DEV_HOST void SetRange(const VID_T& head_begin, const VID_T& head_end,
-                         const VID_T& tail_begin, const VID_T& tail_end) {
+  void SetRange(const VID_T& head_begin, const VID_T& head_end,
+                const VID_T& tail_begin, const VID_T& tail_end) {
     head_begin_ = head_begin;
     tail_begin_ = tail_begin;
     head_end_ = std::max(head_begin_, head_end);
@@ -296,37 +305,37 @@ class DualVertexRange {
     bool operator!=(const iterator& rhs) noexcept { return cur_ != rhs.cur_; }
   };
 
-  DEV_HOST_INLINE iterator begin() const {
+  iterator begin() const {
     return iterator(head_begin_, head_end_, tail_begin_);
   }
 
-  DEV_HOST_INLINE iterator end() const { return iterator(tail_end_); }
+  iterator end() const { return iterator(tail_end_); }
 
-  DEV_HOST_INLINE VertexRange<VID_T> head() const {
+  VertexRange<VID_T> head() const {
     return VertexRange<VID_T>(head_begin_, head_end_);
   }
-  DEV_HOST_INLINE VertexRange<VID_T> tail() const {
+  VertexRange<VID_T> tail() const {
     return VertexRange<VID_T>(tail_begin_, tail_end_);
   }
 
-  DEV_HOST_INLINE bool Contain(const Vertex<VID_T>& v) const {
+  bool Contain(const Vertex<VID_T>& v) const {
     return (head_begin_ <= v.GetValue() && v.GetValue() < head_end_) ||
            (tail_begin_ <= v.GetValue() && v.GetValue() < tail_end_);
   }
 
-  DEV_HOST_INLINE VID_T size() const {
+  VID_T size() const {
     return (head_end_ - head_begin_) + (tail_end_ - tail_begin_);
   }
 
-  DEV_HOST_INLINE friend InArchive& operator<<(
-      InArchive& in_archive, const DualVertexRange<VID_T>& range) {
+  friend InArchive& operator<<(InArchive& in_archive,
+                               const DualVertexRange<VID_T>& range) {
     in_archive << range.head_begin_ << range.head_end_ << range.tail_begin_
                << range.tail_end_;
     return in_archive;
   }
 
-  DEV_HOST_INLINE friend OutArchive& operator>>(OutArchive& out_archive,
-                                                DualVertexRange<VID_T>& range) {
+  friend OutArchive& operator>>(OutArchive& out_archive,
+                                DualVertexRange<VID_T>& range) {
     out_archive >> range.head_begin_ >> range.head_end_ >> range.tail_begin_ >>
         range.tail_end_;
     return out_archive;

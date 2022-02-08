@@ -23,9 +23,9 @@ namespace grape {
 template <typename VID_T>
 class IdParser {
  public:
-  IdParser() {}
+  IdParser() = default;
 
-  void init(fid_t fnum) {
+  DEV_HOST_INLINE void init(fid_t fnum) {
     fid_t maxfid = fnum - 1;
     if (maxfid == 0) {
       fid_offset_ = (sizeof(VID_T) * 8) - 1;
@@ -40,17 +40,17 @@ class IdParser {
     id_mask_ = ((VID_T) 1 << fid_offset_) - (VID_T) 1;
   }
 
-  inline VID_T max_local_id() const { return id_mask_; }
+  DEV_HOST_INLINE VID_T max_local_id() const { return id_mask_; }
 
-  inline VID_T get_local_id(VID_T global_id) const {
+  DEV_HOST_INLINE VID_T get_local_id(VID_T global_id) const {
     return (global_id & id_mask_);
   }
 
-  inline fid_t get_fragment_id(VID_T global_id) const {
+  DEV_HOST_INLINE fid_t get_fragment_id(VID_T global_id) const {
     return global_id >> fid_offset_;
   }
 
-  inline VID_T generate_global_id(fid_t fid, VID_T local_id) const {
+  DEV_HOST_INLINE VID_T generate_global_id(fid_t fid, VID_T local_id) const {
     return local_id | (static_cast<VID_T>(fid) << fid_offset_);
   }
 

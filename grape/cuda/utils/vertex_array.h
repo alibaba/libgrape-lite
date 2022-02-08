@@ -37,9 +37,7 @@ class VertexArray {
   VertexArray() = default;
 
   DEV_HOST VertexArray(VertexRange<VID_T> range, T* data)
-      : range_(range),
-        data_(data),
-        fake_start_(data - range.begin().GetValue()) {}
+      : range_(range), data_(data), fake_start_(data - range.begin_value()) {}
 
   DEV_INLINE T& operator[](const Vertex<VID_T>& loc) {
     return fake_start_[loc.GetValue()];
@@ -70,13 +68,13 @@ class VertexArray : public grape::Array<T, grape::Allocator<T>> {
 
   explicit VertexArray(const VertexRange<VID_T>& range)
       : Base(range.size()), range_(range) {
-    fake_start_ = Base::data() - range_.begin().GetValue();
+    fake_start_ = Base::data() - range_.begin_value();
     d_data_.resize(range.size());
   }
 
   VertexArray(const VertexRange<VID_T>& range, const T& value)
       : Base(range.size(), value), range_(range) {
-    fake_start_ = Base::data() - range_.begin().GetValue();
+    fake_start_ = Base::data() - range_.begin_value();
     d_data_.resize(range.size());
   }
 
@@ -86,7 +84,7 @@ class VertexArray : public grape::Array<T, grape::Allocator<T>> {
     Base::clear();
     Base::resize(range.size());
     range_ = range;
-    fake_start_ = Base::data() - range_.begin().GetValue();
+    fake_start_ = Base::data() - range_.begin_value();
     d_data_.clear();
     d_data_.resize(range.size());
   }
@@ -95,15 +93,14 @@ class VertexArray : public grape::Array<T, grape::Allocator<T>> {
     Base::clear();
     Base::resize(range.size(), value);
     range_ = range;
-    fake_start_ = Base::data() - range_.begin().GetValue();
+    fake_start_ = Base::data() - range_.begin_value();
     d_data_.clear();
     d_data_.resize(range.size(), value);
   }
 
   void SetValue(VertexRange<VID_T>& range, const T& value) {
-    std::fill_n(
-        &Base::data()[range.begin().GetValue() - range_.begin().GetValue()],
-        range.size(), value);
+    std::fill_n(&Base::data()[range.begin().GetValue() - range_.begin_value()],
+                range.size(), value);
   }
 
   void SetValue(const T& value) {

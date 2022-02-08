@@ -221,7 +221,7 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
       auto d_out_q_local_far = out_q_local_far.DeviceObject();
 
       {
-        WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+        WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
         tmp_q.Clear(stream);
         ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
@@ -294,7 +294,7 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
 
     for (fid_t fid = 0; fid < frag.fnum(); fid++) {
       auto ov = frag.OuterVertices(fid);
-      auto ws_in = WorkSourceRange<vertex_t>(ov.begin(), ov.size());
+      auto ws_in = WorkSourceRange<vertex_t>(*ov.begin(), ov.size());
 
       ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
         if (d_out_q_remote.Exist(v)) {

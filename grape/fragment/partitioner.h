@@ -40,6 +40,10 @@ class HashPartitioner {
     return static_cast<fid_t>(static_cast<uint64_t>(oid) % fnum_);
   }
 
+  void SetPartitionId(const OID_T& oid, fid_t fid) {
+    LOG(FATAL) << "not support";
+  }
+
   HashPartitioner& operator=(const HashPartitioner& other) {
     if (this == &other) {
       return *this;
@@ -92,6 +96,8 @@ class SegmentedPartitioner {
   }
 
   inline fid_t GetPartitionId(const OID_T& oid) const { return o2f_.at(oid); }
+
+  void SetPartitionId(const OID_T& oid, fid_t fid) { o2f_[oid] = fid; }
 
   SegmentedPartitioner& operator=(const SegmentedPartitioner& other) {
     if (this == &other) {
