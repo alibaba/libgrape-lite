@@ -22,17 +22,15 @@ limitations under the License.
 #endif
 #endif
 
-#include <sys/time.h>
-
+#include <glog/logging.h>
 #include <stdio.h>
+#include <sys/time.h>
 
 #include <algorithm>
 #include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
-
-#include <glog/logging.h>
 
 #include "grape/config.h"
 

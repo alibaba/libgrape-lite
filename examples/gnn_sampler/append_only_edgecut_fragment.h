@@ -16,15 +16,6 @@ limitations under the License.
 #ifndef EXAMPLES_GNN_SAMPLER_APPEND_ONLY_EDGECUT_FRAGMENT_H_
 #define EXAMPLES_GNN_SAMPLER_APPEND_ONLY_EDGECUT_FRAGMENT_H_
 
-#include <algorithm>
-#include <map>
-#include <memory>
-#include <set>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
-
 #include <grape/config.h>
 #include <grape/fragment/basic_fragment_loader.h>
 #include <grape/fragment/edgecut_fragment_base.h>
@@ -43,6 +34,15 @@ limitations under the License.
 #include <grape/utils/vertex_array.h>
 #include <grape/vertex_map/global_vertex_map.h>
 #include <grape/worker/comm_spec.h>
+
+#include <algorithm>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "fragment_indices.h"

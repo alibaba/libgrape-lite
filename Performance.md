@@ -66,6 +66,35 @@ The performance results are shown as below.
 |           | graph500-26    | 4.75        | 12.25 | **2.34**      |
 |           | com-friendster | 8.19        | 15.82 | **5.84**      |
 
+## Performance on GPUs
+We compare the libgrape-lite GPU version with [gunrock](https://github.com/gunrock/gunrock)(commit 0c9a96, tag:v0.5.1) and [groute](https://github.com/groute/groute)(commit 5ce160).
+Each system is built with GCC(v7.3.0), OpenMPI(v4.1.1), and CUDA(v10.0). 
+The experiments were conducted on GPU instances of [gn6v-c8g1.16xlarge](https://www.alibabacloud.com/help/zh/doc-detail/25378.htm#gn6v) on [AlibabaCloud ECS](https://www.alibabacloud.com/product/ecs), 
+equipped with 8x 16GB NVIDIA-V100 GPU, and 256 GB host memory.
+Instances are imaged with [Aliyun Linux (a CentOS-variant)](https://www.alibabacloud.com/help/doc-detail/111881.htm).
+Since the device memory of GPUs is limited, we conducted the comparison on several smaller graphs from the paper of Gunrock and Groute.
+
+The results are reported below. The numbers in the table represent the evaluation time in milliseconds. 
+The best results are marked in **bold**.
+
+| Algorithm   | Dataset          | Gunrock   | Groute   | libgrape-lite-GPU |
+|-------------|------------------|-----------|----------|-------------------|
+| SSSS        | soc-LiveJournal1 |   89.9345 | 215.560  |        **32.3029**|
+|             | soc-twitter-2010 |  129.454  | 389.155  |        **88.0549**|
+|             | soc-sinaweibo    |  210.168  | 1649.647 |         **172.03**|
+|             | soc-orkut        |  105.121  | 193.658  |        **54.3201**|
+| WCC         | soc-LiveJournal1 |   50.7677 | 12.137   |        **10.2139**|
+|             | soc-twitter-2010 |  319.261  | 69.235   |         **66.334**|
+|             | soc-sinaweibo    |  567.09   | 283.073  |        **68.6619**|
+|             | soc-orkut        |   45.777  | **7.150**|            8.87299|
+| BFS         | soc-LiveJournal1 |   28.162  | 51.000   |        **5.60403**|
+|             | soc-twitter-2010 |   45.9676 | 141.347  |        **27.7772**|
+|             | soc-sinaweibo    |   55.0118 | 168.306  |        **34.8618**|
+|             | soc-orkut        |   41.9134 | 37.467   |        **6.60801**|
+| PageRank    | soc-LiveJournal1 |   39.8666 | 3501.870 |        **24.6451**|
+|             | soc-twitter-2010 |  198.829  | 5036.229 |        **127.024**|
+|             | soc-sinaweibo    |  483.178  | 5593.807 |        **228.367**|
+|             | soc-orkut        |   57.6946 | N/A      |        **49.2339**|
 
 ## Reproducing the results
 

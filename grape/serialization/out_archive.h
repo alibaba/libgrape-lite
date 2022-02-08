@@ -17,7 +17,6 @@ limitations under the License.
 #define GRAPE_SERIALIZATION_OUT_ARCHIVE_H_
 
 #include <cstddef>
-
 #include <map>
 #include <set>
 #include <string>
@@ -28,7 +27,6 @@ limitations under the License.
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
-
 #include "grape/serialization/in_archive.h"
 #include "grape/utils/gcontainer.h"
 

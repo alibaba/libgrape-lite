@@ -16,9 +16,9 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_BFS_BFS_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_BFS_BFS_CONTEXT_H_
 
-#include <limits>
-
 #include <grape/grape.h>
+
+#include <limits>
 
 namespace grape {
 /**

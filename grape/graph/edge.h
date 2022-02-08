@@ -34,43 +34,46 @@ class OutArchive;
 template <typename VID_T, typename EDATA_T>
 class Edge {
  public:
-  Edge() : src_(), dst_(), edata_() {}
-  ~Edge() {}
+  DEV_HOST Edge() : src_(), dst_(), edata_() {}
+  DEV_HOST ~Edge() {}
 
-  Edge(const VID_T& src, const VID_T& dst) : src_(src), dst_(dst), edata_() {}
-  Edge(const VID_T& src, const VID_T& dst, const EDATA_T& edata)
+  DEV_HOST Edge(const VID_T& src, const VID_T& dst)
+      : src_(src), dst_(dst), edata_() {}
+  DEV_HOST Edge(const VID_T& src, const VID_T& dst, const EDATA_T& edata)
       : src_(src), dst_(dst), edata_(edata) {}
-  Edge(const Edge& e) : src_(e.src_), dst_(e.dst_), edata_(e.edata_) {}
+  DEV_HOST Edge(const Edge& e) : src_(e.src_), dst_(e.dst_), edata_(e.edata_) {}
 
-  inline const VID_T& src() const { return src_; }
-  inline const VID_T& dst() const { return dst_; }
-  inline const EDATA_T& edata() const { return edata_; }
+  DEV_HOST_INLINE const VID_T& src() const { return src_; }
+  DEV_HOST_INLINE const VID_T& dst() const { return dst_; }
+  DEV_HOST_INLINE const EDATA_T& edata() const { return edata_; }
 
-  void SetEndpoint(const VID_T& src, const VID_T& dst) {
+  DEV_HOST void SetEndpoint(const VID_T& src, const VID_T& dst) {
     src_ = src;
     dst_ = dst;
   }
 
-  void set_src(const VID_T& src) { src_ = src; }
+  DEV_HOST void set_src(const VID_T& src) { src_ = src; }
 
-  void set_dst(const VID_T& dst) { dst_ = dst; }
+  DEV_HOST void set_dst(const VID_T& dst) { dst_ = dst; }
 
-  void set_edata(const EDATA_T& edata) { edata_ = edata; }
+  DEV_HOST void set_edata(const EDATA_T& edata) { edata_ = edata; }
 
-  void set_edata(EDATA_T&& edata) { edata_ = std::move(edata); }
+  DEV_HOST void set_edata(EDATA_T&& edata) { edata_ = std::move(edata); }
 
-  Edge& operator=(const Edge& other) {
+  DEV_HOST Edge& operator=(const Edge& other) {
     src_ = other.src();
     dst_ = other.dst();
     edata_ = other.edata();
     return *this;
   }
 
-  bool operator==(const Edge& other) const {
+  DEV_HOST bool operator==(const Edge& other) const {
     return src_ == other.src() && dst_ == other.dst();
   }
 
-  bool operator!=(const Edge& other) const { return !(*this == other); }
+  DEV_HOST bool operator!=(const Edge& other) const {
+    return !(*this == other);
+  }
 
  private:
   VID_T src_;
@@ -108,35 +111,41 @@ class Edge {
 template <typename VID_T>
 class Edge<VID_T, EmptyType> {
  public:
-  Edge() : src_(), dst_() {}
-  Edge(const VID_T& src, const VID_T& dst) : src_(src), dst_(dst) {}
-  Edge(const VID_T& src, const VID_T& dst, const EmptyType& edata)
+  DEV_HOST Edge() : src_(), dst_() {}
+  DEV_HOST Edge(const VID_T& src, const VID_T& dst) : src_(src), dst_(dst) {}
+  DEV_HOST Edge(const VID_T& src, const VID_T& dst, const EmptyType& edata)
       : src_(src), dst_(dst) {}
-  Edge(const Edge& e) : src_(e.src_), dst_(e.dst_) {}
-  ~Edge() {}
+  DEV_HOST Edge(const Edge& e) : src_(e.src_), dst_(e.dst_) {}
+  DEV_HOST ~Edge() {}
 
-  inline const VID_T& src() const { return src_; }
-  inline const VID_T& dst() const { return dst_; }
-  inline const EmptyType& edata() const { return edata_; }
+  DEV_HOST_INLINE const VID_T& src() const { return src_; }
+  DEV_HOST_INLINE const VID_T& dst() const { return dst_; }
+  DEV_HOST_INLINE const EmptyType& edata() const { return edata_; }
 
-  void SetEndpoint(const VID_T& src, const VID_T& dst) {
+  DEV_HOST void SetEndpoint(const VID_T& src, const VID_T& dst) {
     src_ = src;
     dst_ = dst;
   }
 
-  void set_edata(const EmptyType& edata) {}
+  DEV_HOST void set_src(const VID_T& src) { src_ = src; }
 
-  Edge& operator=(const Edge& other) {
+  DEV_HOST void set_dst(const VID_T& dst) { dst_ = dst; }
+
+  DEV_HOST void set_edata(const EmptyType& edata) {}
+
+  DEV_HOST Edge& operator=(const Edge& other) {
     src_ = other.src();
     dst_ = other.dst();
     return *this;
   }
 
-  bool operator==(const Edge& other) const {
+  DEV_HOST bool operator==(const Edge& other) const {
     return src_ == other.src() && dst_ == other.dst();
   }
 
-  bool operator!=(const Edge& other) const { return !(*this == other); }
+  DEV_HOST bool operator!=(const Edge& other) const {
+    return !(*this == other);
+  }
 
  private:
   VID_T src_;

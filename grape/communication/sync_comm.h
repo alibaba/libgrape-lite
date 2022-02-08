@@ -16,14 +16,13 @@ limitations under the License.
 #ifndef GRAPE_COMMUNICATION_SYNC_COMM_H_
 #define GRAPE_COMMUNICATION_SYNC_COMM_H_
 
+#include <glog/logging.h>
 #include <mpi.h>
 
 #include <limits>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include <glog/logging.h>
 
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"

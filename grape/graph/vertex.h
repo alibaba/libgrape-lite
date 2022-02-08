@@ -40,15 +40,16 @@ class BasicFragmentLoader;
 template <typename VID_T, typename VDATA_T>
 class Vertex {
  public:
-  Vertex() = default;
+  DEV_HOST Vertex() {}
 
-  explicit Vertex(const VID_T& vid) : vid_(vid), vdata_() {}
-  Vertex(const VID_T& vid, const VDATA_T& vdata) : vid_(vid), vdata_(vdata) {}
-  Vertex(const Vertex& vert) : vid_(vert.vid_), vdata_(vert.vdata_) {}
+  DEV_HOST explicit Vertex(const VID_T& vid) : vid_(vid), vdata_() {}
+  DEV_HOST Vertex(const VID_T& vid, const VDATA_T& vdata)
+      : vid_(vid), vdata_(vdata) {}
+  DEV_HOST Vertex(const Vertex& vert) : vid_(vert.vid_), vdata_(vert.vdata_) {}
 
-  ~Vertex() {}
+  DEV_HOST ~Vertex() {}
 
-  Vertex& operator=(const Vertex& rhs) {
+  DEV_HOST Vertex& operator=(const Vertex& rhs) {
     if (this == &rhs) {
       return *this;
     }
@@ -57,12 +58,12 @@ class Vertex {
     return *this;
   }
 
-  inline const VID_T& vid() const { return vid_; }
-  inline const VDATA_T& vdata() const { return vdata_; }
+  DEV_HOST_INLINE const VID_T& vid() const { return vid_; }
+  DEV_HOST_INLINE const VDATA_T& vdata() const { return vdata_; }
 
-  inline void set_vid(const VID_T& vid) { vid_ = vid; }
-  inline void set_vdata(const VDATA_T& vdata) { vdata_ = vdata; }
-  inline void set_vdata(VDATA_T&& vdata) { vdata_ = std::move(vdata); }
+  DEV_HOST_INLINE void set_vid(const VID_T& vid) { vid_ = vid; }
+  DEV_HOST_INLINE void set_vdata(const VDATA_T& vdata) { vdata_ = vdata; }
+  DEV_HOST_INLINE void set_vdata(VDATA_T&& vdata) { vdata_ = std::move(vdata); }
 
  private:
   template <typename _FRAG_T, typename _PARTITIONER_T, typename _IOADAPTOR_T,
@@ -93,15 +94,15 @@ class Vertex {
 template <typename VID_T>
 class Vertex<VID_T, EmptyType> {
  public:
-  Vertex() : vid_() {}
+  DEV_HOST Vertex() : vid_() {}
 
-  explicit Vertex(const VID_T& vid) : vid_(vid) {}
-  Vertex(const VID_T& vid, const EmptyType&) : vid_(vid) {}
-  Vertex(const Vertex& vert) : vid_(vert.vid_) {}
+  DEV_HOST explicit Vertex(const VID_T& vid) : vid_(vid) {}
+  DEV_HOST Vertex(const VID_T& vid, const EmptyType&) : vid_(vid) {}
+  DEV_HOST Vertex(const Vertex& vert) : vid_(vert.vid_) {}
 
-  ~Vertex() {}
+  DEV_HOST ~Vertex() {}
 
-  Vertex& operator=(const Vertex& rhs) {
+  DEV_HOST Vertex& operator=(const Vertex& rhs) {
     if (this == &rhs) {
       return *this;
     }
@@ -109,11 +110,11 @@ class Vertex<VID_T, EmptyType> {
     return *this;
   }
 
-  inline const VID_T& vid() const { return vid_; }
-  inline const EmptyType& vdata() const { return vdata_; }
+  DEV_HOST_INLINE const VID_T& vid() const { return vid_; }
+  DEV_HOST_INLINE const EmptyType& vdata() const { return vdata_; }
 
-  inline void set_vid(const VID_T& vid) { vid_ = vid; }
-  inline void set_vdata(const EmptyType& vdata) {}
+  DEV_HOST_INLINE void set_vid(const VID_T& vid) { vid_ = vid; }
+  DEV_HOST_INLINE void set_vdata(const EmptyType& vdata) {}
 
  private:
   union {
