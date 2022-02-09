@@ -58,10 +58,10 @@ class WCCOptContext : public grape::VoidContext<FRAG_T> {
     if (frag.fid() == 0) {
       messages.InitBuffer(
           0, (frag.GetTotalVerticesNum() - frag.InnerVertices().size()) *
-                 sizeof(offset_t) * 2 * 1.5);
+                 sizeof(offset_t) * 2 * 2);
     } else {
-      messages.InitBuffer(
-          frag.InnerVertices().size() * sizeof(offset_t) * 2 * 1.5, 0);
+      messages.InitBuffer(frag.Vertices().size() * sizeof(offset_t) * 2 * 1.5,
+                          0);
     }
   }
 
@@ -118,6 +118,7 @@ class WCCOpt : public GPUAppBase<FRAG_T, WCCOptContext<FRAG_T>>,
     auto d_coo = ctx.coo_frag->DeviceObject();
     auto vertices = frag.Vertices();
     auto iv = frag.InnerVertices();
+    auto av = frag.Vertices();
     auto dev_mm = messages.DeviceObject();
     auto* d_parents = thrust::raw_pointer_cast(ctx.parents.data());
     auto& stream = messages.stream();
@@ -200,7 +201,7 @@ class WCCOpt : public GPUAppBase<FRAG_T, WCCOptContext<FRAG_T>>,
     }
 
     if (frag.fid() > 0) {
-      WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+      WorkSourceRange<vertex_t> ws_in(av.begin(), av.size());
 
       ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
         auto offset = vertex2offset(v);

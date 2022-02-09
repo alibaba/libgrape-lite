@@ -120,7 +120,16 @@ for np in ${proc_list}; do
     RunApp ${np} wcc -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 
-    RunApp ${np} wcc_opt -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt
+    RunApp ${np} wcc_opt -segmented_partition=true -rebalance=true -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_tt
+    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
+    RunApp ${np} wcc_opt -segmented_partition=true -rebalance=false -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_tf
+    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
+    RunApp ${np} wcc_opt -segmented_partition=false -rebalance=true -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_ft
+    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
+    RunApp ${np} wcc_opt -segmented_partition=false -rebalance=false -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_ff
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
   done
 done
