@@ -52,7 +52,7 @@ struct Nbr {
   }
 
   DEV_HOST_INLINE Vertex<VID_T> get_neighbor() const { return neighbor; }
-  DEV_HOST_INLINE EDATA_T get_data() const { return data; }
+  DEV_HOST_INLINE const EDATA_T& get_data() const { return data; }
 
   Vertex<VID_T> neighbor;
   EDATA_T data;
@@ -85,7 +85,7 @@ struct Nbr<VID_T, EmptyType> {
   }
 
   DEV_HOST_INLINE Vertex<VID_T> get_neighbor() const { return neighbor; }
-  DEV_HOST_INLINE EmptyType get_data() const { return data; }
+  DEV_HOST_INLINE const EmptyType& get_data() const { return data; }
 
   union {
     Vertex<VID_T> neighbor;
