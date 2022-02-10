@@ -36,14 +36,14 @@ class OutArchive;
  */
 template <typename VID_T, typename VDATA_T>
 struct Vertex {
-  Vertex() = default;
+  DEV_HOST Vertex() {}
 
   DEV_HOST explicit Vertex(const VID_T& vid) : vid(vid), vdata() {}
   DEV_HOST Vertex(const VID_T& vid, const VDATA_T& vdata)
       : vid(vid), vdata(vdata) {}
   DEV_HOST Vertex(const Vertex& vert) : vid(vert.vid), vdata(vert.vdata) {}
 
-  ~Vertex() = default;
+  DEV_HOST ~Vertex() {}
 
   DEV_HOST Vertex& operator=(const Vertex& rhs) {
     if (this == &rhs) {
@@ -64,13 +64,13 @@ struct Vertex {
  */
 template <typename VID_T>
 struct Vertex<VID_T, EmptyType> {
-  Vertex() = default;
+  DEV_HOST Vertex() {}
 
   DEV_HOST explicit Vertex(const VID_T& vid) : vid(vid) {}
   DEV_HOST Vertex(const VID_T& vid, const EmptyType&) : vid(vid) {}
   DEV_HOST Vertex(const Vertex& vert) : vid(vert.vid) {}
 
-  ~Vertex() = default;
+  DEV_HOST ~Vertex() {}
 
   DEV_HOST Vertex& operator=(const Vertex& rhs) {
     if (this == &rhs) {

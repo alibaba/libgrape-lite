@@ -34,8 +34,8 @@ class OutArchive;
  */
 template <typename VID_T, typename EDATA_T>
 struct Edge {
-  Edge() : src(), dst(), edata() {}
-  ~Edge() {}
+  DEV_HOST Edge() : src(), dst(), edata() {}
+  DEV_HOST ~Edge() {}
 
   DEV_HOST Edge(const VID_T& src, const VID_T& dst)
       : src(src), dst(dst), edata() {}
