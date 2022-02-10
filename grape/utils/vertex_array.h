@@ -174,7 +174,7 @@ class VertexRange {
     }
 
     DEV_HOST bool operator<(const iterator& rhs) const noexcept {
-      return cur_ < rhs.cur_;
+      return cur_.GetValue() < rhs.cur_.GetValue();
     }
   };
 
