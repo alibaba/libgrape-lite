@@ -161,16 +161,20 @@ class VertexRange {
       return iterator(cur_.GetValue()--);
     }
 
-    DEV_HOST_INLINE iterator operator+(size_t offset) noexcept {
+    DEV_HOST_INLINE iterator operator+(size_t offset) const noexcept {
       return iterator(cur_.GetValue() + offset);
     }
 
-    DEV_HOST bool operator==(const iterator& rhs) noexcept {
+    DEV_HOST bool operator==(const iterator& rhs) const noexcept {
       return cur_ == rhs.cur_;
     }
 
-    DEV_HOST bool operator!=(const iterator& rhs) noexcept {
+    DEV_HOST bool operator!=(const iterator& rhs) const noexcept {
       return cur_ != rhs.cur_;
+    }
+
+    DEV_HOST bool operator<(const iterator& rhs) const noexcept {
+      return cur_ < rhs.cur_;
     }
   };
 

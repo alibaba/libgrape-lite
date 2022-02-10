@@ -141,6 +141,7 @@ class ImmutableEdgecutFragment
 
   static constexpr LoadStrategy load_strategy = _load_strategy;
 
+  using vertex_range_t = VertexRange<VID_T>;
   using inner_vertices_t = typename traits_t::inner_vertices_t;
   using outer_vertices_t = typename traits_t::outer_vertices_t;
   using vertices_t = typename traits_t::vertices_t;
