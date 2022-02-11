@@ -66,7 +66,7 @@ class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::oid_t> {
   }
 
   typename FRAG_T::template vertex_array_t<label_t>& labels;
-  typename FRAG_T::template vertex_array_t<bool> changed;
+  typename FRAG_T::template inner_vertex_array_t<bool> changed;
 
 #ifdef PROFILING
   double preprocess_time = 0;

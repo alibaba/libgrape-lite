@@ -74,7 +74,7 @@ class SSSPAutoContext : public VertexDataContext<FRAG_T, double> {
   }
 
   oid_t source_id;
-  SyncBuffer<double, vid_t> partial_result;
+  SyncBuffer<typename FRAG_T::vertices_t, double> partial_result;
 };
 }  // namespace grape
 

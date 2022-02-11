@@ -19,14 +19,12 @@ limitations under the License.
 #include <memory>
 
 #include "grape/types.h"
+#include "grape/worker/worker.h"
 
 namespace grape {
 
 template <typename T>
 class AutoParallelMessageManager;
-
-template <typename T>
-class AutoWorker;
 
 /**
  * @brief AutoAppBase is a base class for auto-parallel apps.
@@ -40,6 +38,7 @@ template <typename FRAG_T, typename CONTEXT_T>
 class AutoAppBase {
  public:
   static constexpr bool need_split_edges = false;
+  static constexpr bool need_split_edges_by_fragment = false;
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kSyncOnOuterVertex;
   static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;

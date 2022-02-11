@@ -38,6 +38,7 @@ class PageRankLocal
   using vertex_t = typename FRAG_T::vertex_t;
 
   static constexpr bool need_split_edges = true;
+  static constexpr bool need_split_edges_by_fragment = true;
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
   static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;

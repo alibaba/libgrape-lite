@@ -56,7 +56,7 @@ class WCCContext : public VertexDataContext<FRAG_T, typename FRAG_T::vid_t> {
 
   typename FRAG_T::template vertex_array_t<vid_t>& comp_id;
 
-  DenseVertexSet<vid_t> curr_modified, next_modified;
+  DenseVertexSet<typename FRAG_T::vertices_t> curr_modified, next_modified;
 
 #ifdef PROFILING
   double preprocess_time = 0;

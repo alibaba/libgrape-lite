@@ -125,7 +125,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
     auto d_frag = frag.DeviceObject();
     auto d_global_degree = ctx.global_degree.DeviceObject();
     auto d_mm = messages.DeviceObject();
-    WorkSourceRange<vertex_t> ws_in(inner_vertices.begin(),
+    WorkSourceRange<vertex_t> ws_in(*inner_vertices.begin(),
                                     inner_vertices.size());
 
     ForEach(messages.stream(), ws_in, [=] __device__(vertex_t v) mutable {
@@ -158,7 +158,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
             d_global_degree[v] = degree;
           });
 
-      WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+      WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
       ForEachOutgoingEdge(
           stream, dev_frag, ws_in,
@@ -222,7 +222,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
       auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
       auto* d_msg_col_indices =
           thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
-      WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+      WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
       // filling edges with precomputed gids
       ForEachOutgoingEdge(
@@ -277,7 +277,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
 
       // Sort destinations with segmented sort
       {
-        WorkSourceRange<vertex_t> ws_in(vertices.begin(), vertices.size());
+        WorkSourceRange<vertex_t> ws_in(*vertices.begin(), vertices.size());
         int n_vertices = vertices.size();
         int n_edges = ctx.col_sorted_indices.size();
         int num_items = n_edges;
@@ -308,7 +308,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
       }
 
       {
-        WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+        WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
         auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
         auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
@@ -374,7 +374,7 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
       }
 
       {
-        WorkSourceRange<vertex_t> ws_in(ov.begin(), ov.size());
+        WorkSourceRange<vertex_t> ws_in(*ov.begin(), ov.size());
         ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
           if (d_tricnt[v] != 0) {
             d_mm.template SyncStateOnOuterVertex(dev_frag, v, d_tricnt[v]);

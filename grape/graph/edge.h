@@ -33,75 +33,37 @@ class OutArchive;
  * @tparam EDATA_T
  */
 template <typename VID_T, typename EDATA_T>
-class Edge {
- public:
-  DEV_HOST Edge() : src_(), dst_(), edata_() {}
+struct Edge {
+  DEV_HOST Edge() : src(), dst(), edata() {}
   DEV_HOST ~Edge() {}
 
   DEV_HOST Edge(const VID_T& src, const VID_T& dst)
-      : src_(src), dst_(dst), edata_() {}
+      : src(src), dst(dst), edata() {}
   DEV_HOST Edge(const VID_T& src, const VID_T& dst, const EDATA_T& edata)
-      : src_(src), dst_(dst), edata_(edata) {}
-  DEV_HOST Edge(const Edge& e) : src_(e.src_), dst_(e.dst_), edata_(e.edata_) {}
-
-  DEV_HOST_INLINE const VID_T& src() const { return src_; }
-  DEV_HOST_INLINE const VID_T& dst() const { return dst_; }
-  DEV_HOST_INLINE const EDATA_T& edata() const { return edata_; }
-
-  DEV_HOST void SetEndpoint(const VID_T& src, const VID_T& dst) {
-    src_ = src;
-    dst_ = dst;
-  }
-
-  DEV_HOST void set_src(const VID_T& src) { src_ = src; }
-
-  DEV_HOST void set_dst(const VID_T& dst) { dst_ = dst; }
-
-  DEV_HOST void set_edata(const EDATA_T& edata) { edata_ = edata; }
-
-  DEV_HOST void set_edata(EDATA_T&& edata) { edata_ = std::move(edata); }
+      : src(src), dst(dst), edata(edata) {}
+  DEV_HOST Edge(const Edge& e) : src(e.src), dst(e.dst), edata(e.edata) {}
 
   DEV_HOST Edge& operator=(const Edge& other) {
-    src_ = other.src();
-    dst_ = other.dst();
-    edata_ = other.edata();
+    if (this == &other) {
+      return *this;
+    }
+    src = other.src;
+    dst = other.dst;
+    edata = other.edata;
     return *this;
   }
 
   DEV_HOST bool operator==(const Edge& other) const {
-    return src_ == other.src() && dst_ == other.dst();
+    return src == other.src && dst == other.dst;
   }
 
   DEV_HOST bool operator!=(const Edge& other) const {
     return !(*this == other);
   }
 
- private:
-  VID_T src_;
-  VID_T dst_;
-  EDATA_T edata_;
-
-  template <typename _OID_T, typename _VID_T, typename _VDATA_T,
-            typename _EDATA_T, LoadStrategy _load_strategy>
-  friend class ImmutableEdgecutFragment;
-
-  template <typename _FRAG_T, typename _PARTITIONER_T, typename _IOADAPTOR_T,
-            typename _Enable>
-  friend class BasicFragmentLoader;
-
-  template <typename _FRAG_T, typename _Enable>
-  friend class Rebalancer;
-
-  friend InArchive& operator<<(InArchive& archive,
-                               const Edge<VID_T, EDATA_T>& e) {
-    archive << e.src_ << e.dst_ << e.edata_;
-    return archive;
-  }
-
-  friend OutArchive& operator>>(OutArchive& archive, Edge<VID_T, EDATA_T>& e) {
-    archive >> e.src_ >> e.dst_ >> e.edata_;
-    return archive;
-  }
+  VID_T src;
+  VID_T dst;
+  EDATA_T edata;
 };
 
 /**
@@ -110,74 +72,61 @@ class Edge {
  * @tparam VID_T
  */
 template <typename VID_T>
-class Edge<VID_T, EmptyType> {
- public:
-  DEV_HOST Edge() : src_(), dst_() {}
-  DEV_HOST Edge(const VID_T& src, const VID_T& dst) : src_(src), dst_(dst) {}
+struct Edge<VID_T, EmptyType> {
+  DEV_HOST Edge() : src(), dst() {}
+  DEV_HOST Edge(const VID_T& src, const VID_T& dst) : src(src), dst(dst) {}
   DEV_HOST Edge(const VID_T& src, const VID_T& dst, const EmptyType& edata)
-      : src_(src), dst_(dst) {}
-  DEV_HOST Edge(const Edge& e) : src_(e.src_), dst_(e.dst_) {}
+      : src(src), dst(dst) {}
+  DEV_HOST Edge(const Edge& e) : src(e.src), dst(e.dst) {}
   DEV_HOST ~Edge() {}
 
-  DEV_HOST_INLINE const VID_T& src() const { return src_; }
-  DEV_HOST_INLINE const VID_T& dst() const { return dst_; }
-  DEV_HOST_INLINE const EmptyType& edata() const { return edata_; }
-
-  DEV_HOST void SetEndpoint(const VID_T& src, const VID_T& dst) {
-    src_ = src;
-    dst_ = dst;
-  }
-
-  DEV_HOST void set_src(const VID_T& src) { src_ = src; }
-
-  DEV_HOST void set_dst(const VID_T& dst) { dst_ = dst; }
-
-  DEV_HOST void set_edata(const EmptyType& edata) {}
-
   DEV_HOST Edge& operator=(const Edge& other) {
-    src_ = other.src();
-    dst_ = other.dst();
+    if (this == &other) {
+      return *this;
+    }
+    src = other.src;
+    dst = other.dst;
     return *this;
   }
 
   DEV_HOST bool operator==(const Edge& other) const {
-    return src_ == other.src() && dst_ == other.dst();
+    return src == other.src && dst == other.dst;
   }
 
   DEV_HOST bool operator!=(const Edge& other) const {
     return !(*this == other);
   }
 
- private:
-  VID_T src_;
+  VID_T src;
   union {
-    VID_T dst_;
-    EmptyType edata_;
+    VID_T dst;
+    EmptyType edata;
   };
-
-  template <typename _OID_T, typename _VID_T, typename _VDATA_T,
-            typename _EDATA_T, LoadStrategy _load_strategy>
-  friend class ImmutableEdgecutFragment;
-
-  template <typename _FRAG_T, typename _PARTITIONER_T, typename _IOADAPTOR_T,
-            typename _Enable>
-  friend class BasicFragmentLoader;
-
-  template <typename _FRAG_T, typename _Enable>
-  friend class Rebalancer;
-
-  friend InArchive& operator<<(InArchive& archive,
-                               const Edge<VID_T, EmptyType>& e) {
-    archive << e.src_ << e.dst_;
-    return archive;
-  }
-
-  friend OutArchive& operator>>(OutArchive& archive,
-                                Edge<VID_T, EmptyType>& e) {
-    archive >> e.src_ >> e.dst_;
-    return archive;
-  }
 };
+
+template <typename VID_T, typename EDATA_T>
+InArchive& operator<<(InArchive& archive, const Edge<VID_T, EDATA_T>& e) {
+  archive << e.src << e.dst << e.edata;
+  return archive;
+}
+
+template <typename VID_T, typename EDATA_T>
+OutArchive& operator>>(OutArchive& archive, Edge<VID_T, EDATA_T>& e) {
+  archive >> e.src >> e.dst >> e.edata;
+  return archive;
+}
+
+template <typename VID_T>
+InArchive& operator<<(InArchive& archive, const Edge<VID_T, EmptyType>& e) {
+  archive << e.src << e.dst;
+  return archive;
+}
+
+template <typename VID_T>
+OutArchive& operator>>(OutArchive& archive, Edge<VID_T, EmptyType>& e) {
+  archive >> e.src >> e.dst;
+  return archive;
+}
 
 }  // namespace grape
 

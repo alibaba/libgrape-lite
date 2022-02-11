@@ -25,7 +25,8 @@ if (PROFILING)
   add_definitions(-DPROFILING)
 endif ()
 
-include_directories(thirdparty)
+include_directories(SYSTEM thirdparty)
+
 # ------------------------------------------------------------------------------
 # setting default cmake type to Release
 # ------------------------------------------------------------------------------
@@ -206,6 +207,14 @@ else ()
   target_link_libraries(analytical_apps grape-lite ${MPI_CXX_LIBRARIES}
                         ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
   install_libgrapelite_target(analytical_apps)
+
+  add_executable(benchmark_app examples/analytical_apps/mutate_benchmark_flags.cc
+                 examples/analytical_apps/mutate_benchmark.cc)
+  target_include_directories(benchmark_app PRIVATE
+                             examples/analytical_apps)
+  target_link_libraries(benchmark_app grape-lite ${MPI_CXX_LIBRARIES}
+                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
+  install_libgrapelite_target(benchmark_app)
 
   if (WITH_CUDA)
     cuda_add_executable(gpu_analytical_apps examples/analytical_apps/flags.cc examples/analytical_apps/run_cuda_app.cu)

@@ -75,8 +75,8 @@ int main(int argc, char* argv[]) {
       graph_spec.set_serialize(true, FLAGS_serialization_prefix);
     }
     graph_spec.set_directed(false);
-    auto fragment = grape::LoadGraph<graph_t, grape::HashPartitioner<oid_t>>(
-        FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
+    auto fragment = grape::LoadGraph<graph_t>(FLAGS_efile, FLAGS_vfile,
+                                              comm_spec, graph_spec);
     auto app = std::make_shared<app_t>();
 
     // init indices
@@ -104,11 +104,9 @@ int main(int argc, char* argv[]) {
         edge_msgs.clear();
         if (is_coordinator) {
           consumer->ConsumeMessages(query_vertices, edge_msgs);
-          grape::BcastSend(query_vertices, comm_spec.comm());
-        } else {
-          grape::BcastRecv(query_vertices, comm_spec.comm(),
-                           grape::kCoordinatorRank);
         }
+        grape::sync_comm::Bcast(query_vertices, grape::kCoordinatorRank,
+                                comm_spec.comm());
 
         fragment->ExtendFragment(edge_msgs, comm_spec, graph_spec);
         if (!query_vertices.empty()) {

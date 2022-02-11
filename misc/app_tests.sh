@@ -48,11 +48,11 @@ function RunApp() {
   eval ${cmd}
 }
 
-function RunWeightedApp() {
+function RunMutableApp() {
   NP=$1; shift
   APP=$1; shift
 
-  cmd="mpirun -n ${NP} ./run_app --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output $@"
+  cmd="mpirun -n ${NP} ./run_app --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_base --delta_efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_delta --application ${APP} --out_prefix ./extra_tests_output --nosegmented_partition --norebalance $@"
   echo ${cmd}
   eval ${cmd}
 }
@@ -78,16 +78,22 @@ fi
 proc_list="1 $(seq 2 2 ${nproc})"
 
 for np in ${proc_list}; do
-    RunWeightedApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+    RunApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
 
-    RunWeightedApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    RunMutableApp ${np} sssp --sssp_source=6
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
 
-    RunWeightedApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    RunApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+    RunMutableApp ${np} sssp_auto --sssp_source=6
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+    RunApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
 
-    RunWeightedApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+    RunApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
 
     RunAppWithELoader ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
@@ -105,7 +111,13 @@ for np in ${proc_list}; do
     RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
 
+    RunMutableApp ${np} bfs --bfs_source=6
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
     RunApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+    RunMutableApp ${np} bfs_auto --bfs_source=6
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
 
     RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
@@ -132,8 +144,12 @@ for np in ${proc_list}; do
     RunApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85
     EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
 
+    RunMutableApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85
+    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
     RunApp ${np} pagerank_local --pr_mr=10 --pr_d=0.85
     RunApp ${np} pagerank_local_parallel --pr_mr=10 --pr_d=0.85
+    RunMutableApp ${np} pagerank_local_parallel --pr_mr=10 --pr_d=0.85
 
     RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85
     EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
@@ -141,25 +157,46 @@ for np in ${proc_list}; do
     RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85 --directed
     EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR-directed
 
+    RunMutableApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85
+    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
     RunApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85 --directed
     EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR-directed
 
     RunApp ${np} cdlp --cdlp_mr=10
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
 
+    RunMutableApp ${np} cdlp --cdlp_mr=10
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
+
     RunApp ${np} cdlp_auto --cdlp_mr=10
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
+
+    RunMutableApp ${np} cdlp_auto --cdlp_mr=10
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
 
     RunApp ${np} lcc --serialize=true --serialization_prefix=./serial/${GRAPH}
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
 
+    RunMutableApp ${np} lcc
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
+
     RunApp ${np} lcc_auto --deserialize=true --serialization_prefix=./serial/${GRAPH}
+    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
+
+    RunMutableApp ${np} lcc_auto
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
 
     RunApp ${np} wcc
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 
+    RunMutableApp ${np} wcc
+    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
     RunApp ${np} wcc_auto
+    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
+    RunMutableApp ${np} wcc_auto
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 done
 

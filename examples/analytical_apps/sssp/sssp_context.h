@@ -79,7 +79,7 @@ class SSSPContext : public VertexDataContext<FRAG_T, double> {
   oid_t source_id;
   typename FRAG_T::template vertex_array_t<double>& partial_result;
 
-  DenseVertexSet<vid_t> curr_modified, next_modified;
+  DenseVertexSet<typename FRAG_T::vertices_t> curr_modified, next_modified;
 
 #ifdef PROFILING
   double preprocess_time = 0;

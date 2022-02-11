@@ -138,11 +138,11 @@ class BasicFragmentLoader<
   ~BasicFragmentLoader() { Stop(); }
 
   void SetPartitioner(const PARTITIONER_T& partitioner) {
-    partitioner_ = partitioner;
+    vm_ptr_->SetPartitioner(partitioner);
   }
 
   void SetPartitioner(PARTITIONER_T&& partitioner) {
-    partitioner_ = std::move(partitioner);
+    vm_ptr_->SetPartitioner(std::move(partitioner));
   }
 
   void SetRebalance(bool rebalance, int rebalance_vertex_factor) {
@@ -173,14 +173,16 @@ class BasicFragmentLoader<
   }
 
   void AddVertex(const oid_t& id, const vdata_t& data) {
-    fid_t fid = partitioner_.GetPartitionId(id);
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t fid = partitioner.GetPartitionId(id);
     vdata_t ref_data(data);
     vertices_to_frag_[fid].Emplace(id, ref_data);
   }
 
   void AddEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
-    fid_t src_fid = partitioner_.GetPartitionId(src);
-    fid_t dst_fid = partitioner_.GetPartitionId(dst);
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t src_fid = partitioner.GetPartitionId(src);
+    fid_t dst_fid = partitioner.GetPartitionId(dst);
     edata_t ref_data(data);
     edges_to_frag_[src_fid].Emplace(src, dst, ref_data);
     if (src_fid != dst_fid) {
@@ -240,15 +242,17 @@ class BasicFragmentLoader<
     MPI_Barrier(comm_spec_.comm());
 
     got_vertices_id_.emplace_back(
-        std::move(vertices_to_frag_[comm_spec_.fid()].Buffer0()));
-    got_vertices_data_.emplace_back(std::move(std::vector<vdata_t>(
-        std::move(vertices_to_frag_[comm_spec_.fid()].Buffer1()))));
+        std::move(get_buffer<0>(vertices_to_frag_[comm_spec_.fid()])));
+    got_vertices_data_.emplace_back(
+        std::move(get_buffer<1>(vertices_to_frag_[comm_spec_.fid()])));
+    vertices_to_frag_[comm_spec_.fid()].Clear();
     got_edges_src_.emplace_back(
-        std::move(edges_to_frag_[comm_spec_.fid()].Buffer0()));
+        std::move(get_buffer<0>(edges_to_frag_[comm_spec_.fid()])));
     got_edges_dst_.emplace_back(
-        std::move(edges_to_frag_[comm_spec_.fid()].Buffer1()));
-    got_edges_data_.emplace_back(std::move(std::vector<edata_t>(
-        std::move(edges_to_frag_[comm_spec_.fid()].Buffer2()))));
+        std::move(get_buffer<1>(edges_to_frag_[comm_spec_.fid()])));
+    got_edges_data_.emplace_back(
+        std::move(get_buffer<2>(edges_to_frag_[comm_spec_.fid()])));
+    edges_to_frag_[comm_spec_.fid()].Clear();
 
     sortDistinct();
 
@@ -263,7 +267,6 @@ class BasicFragmentLoader<
     fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
     fragment->Init(comm_spec_.fid(), processed_vertices_, processed_edges_);
 
-    initMirrorInfo(fragment);
     initOuterVertexData(fragment);
   }
 
@@ -278,7 +281,6 @@ class BasicFragmentLoader<
       edge_num += ed.size();
     }
     to.resize(edge_num);
-    fid_t src_fid, dst_fid;
     vid_t src_gid, dst_gid;
     auto to_iter = to.begin();
     size_t buf_num = edge_data.size();
@@ -288,12 +290,11 @@ class BasicFragmentLoader<
       auto dst_iter = edge_dst[buf_id].begin();
       auto data_iter = edge_data[buf_id].begin();
       while (src_iter != src_end) {
-        src_fid = partitioner_.GetPartitionId(*src_iter);
-        vm_ptr_->GetGid(src_fid, oid_t(*src_iter), src_gid);
-        dst_fid = partitioner_.GetPartitionId(*dst_iter);
-        vm_ptr_->GetGid(dst_fid, oid_t(*dst_iter), dst_gid);
-        to_iter->set_edata(std::move(*data_iter));
-        to_iter->SetEndpoint(src_gid, dst_gid);
+        vm_ptr_->GetGid(oid_t(*src_iter), src_gid);
+        vm_ptr_->GetGid(oid_t(*dst_iter), dst_gid);
+        to_iter->src = src_gid;
+        to_iter->dst = dst_gid;
+        to_iter->edata = std::move(*data_iter);
         ++src_iter;
         ++dst_iter;
         ++data_iter;
@@ -316,18 +317,20 @@ class BasicFragmentLoader<
       std::vector<internal::Vertex<vid_t, vdata_t>>& vertices) {
     vertices.clear();
     size_t buf_num = vertex_id.size();
+    auto builder = vm_ptr_->GetLocalBuilder();
     for (size_t buf_id = 0; buf_id < buf_num; ++buf_id) {
       auto& id_list = vertex_id[buf_id];
       auto& data_list = vertex_data[buf_id];
       size_t index = 0;
       vid_t gid;
       for (auto& id : id_list) {
-        if (vm_ptr_->AddVertex(fid, id, gid)) {
+        if (builder.add_vertex(id, gid)) {
           vertices.emplace_back(gid, data_list[index]);
         }
         ++index;
       }
     }
+    builder.finish(*vm_ptr_);
   }
 
   void sortDistinct() {
@@ -336,12 +339,11 @@ class BasicFragmentLoader<
                       processed_vertices_);
     got_vertices_id_.clear();
     got_vertices_data_.clear();
-    vm_ptr_->Construct();
   }
 
   void vertexRecvRoutine() {
-    ShuffleInPair<oid_t, vdata_t> data_in(comm_spec_.fnum() - 1);
-    data_in.Init(comm_spec_.comm(), vertex_tag);
+    ShuffleIn<oid_t, vdata_t> data_in;
+    data_in.Init(comm_spec_.fnum(), comm_spec_.comm(), vertex_tag);
     fid_t dst_fid;
     int src_worker_id;
     while (!data_in.Finished()) {
@@ -351,14 +353,15 @@ class BasicFragmentLoader<
       }
       auto& dst_buf0 = got_vertices_id_;
       auto& dst_buf1 = got_vertices_data_;
-      dst_buf0.emplace_back(std::move(data_in.Buffer0()));
-      dst_buf1.emplace_back(std::move(data_in.Buffer1()));
+      dst_buf0.emplace_back(std::move(get_buffer<0>(data_in)));
+      dst_buf1.emplace_back(std::move(get_buffer<1>(data_in)));
+      data_in.Clear();
     }
   }
 
   void edgeRecvRoutine() {
-    ShuffleInTriple<oid_t, oid_t, edata_t> data_in(comm_spec_.fnum() - 1);
-    data_in.Init(comm_spec_.comm(), edge_tag);
+    ShuffleIn<oid_t, oid_t, edata_t> data_in;
+    data_in.Init(comm_spec_.fnum(), comm_spec_.comm(), edge_tag);
     fid_t dst_fid;
     int src_worker_id;
     while (!data_in.Finished()) {
@@ -367,109 +370,59 @@ class BasicFragmentLoader<
         break;
       }
       CHECK_EQ(dst_fid, comm_spec_.fid());
-      got_edges_src_.emplace_back(std::move(data_in.Buffer0()));
-      got_edges_dst_.emplace_back(std::move(data_in.Buffer1()));
-      got_edges_data_.emplace_back(std::move(data_in.Buffer2()));
+      got_edges_src_.emplace_back(std::move(get_buffer<0>(data_in)));
+      got_edges_dst_.emplace_back(std::move(get_buffer<1>(data_in)));
+      got_edges_data_.emplace_back(std::move(get_buffer<2>(data_in)));
+      data_in.Clear();
     }
   }
 
-  void initMirrorInfo(std::shared_ptr<fragment_t> fragment) {
-    int worker_id = comm_spec_.worker_id();
-    int worker_num = comm_spec_.worker_num();
-
-    std::thread send_thread([&]() {
-      std::vector<vid_t> gid_list;
-      for (int i = 1; i < worker_num; ++i) {
-        int dst_worker_id = (worker_id + i) % worker_num;
-        fid_t dst_fid = comm_spec_.WorkerToFrag(dst_worker_id);
-        auto range = fragment->OuterVertices(dst_fid);
-        vid_t offsets[2];
-        offsets[0] = range.begin().GetValue();
-        offsets[1] = range.end().GetValue();
-        MPI_Send(&offsets[0], sizeof(vid_t) * 2, MPI_CHAR, dst_worker_id, 0,
-                 comm_spec_.comm());
-        gid_list.clear();
-        gid_list.reserve(range.size());
-        for (auto v : range) {
-          gid_list.push_back(fragment->Vertex2Gid(v));
-        }
-        MPI_Send(&gid_list[0], sizeof(vid_t) * gid_list.size(), MPI_CHAR,
-                 dst_worker_id, 0, comm_spec_.comm());
-      }
-    });
-
-    std::thread recv_thread([&]() {
-      std::vector<vid_t> gid_list;
-      for (int i = 1; i < worker_num; ++i) {
-        int src_worker_id = (worker_id + worker_num - i) % worker_num;
-        fid_t src_fid = comm_spec_.WorkerToFrag(src_worker_id);
-        vid_t offsets[2];
-        MPI_Recv(&offsets[0], sizeof(vid_t) * 2, MPI_CHAR, src_worker_id, 0,
-                 comm_spec_.comm(), MPI_STATUS_IGNORE);
-        VertexRange<vid_t> range(offsets[0], offsets[1]);
-        gid_list.clear();
-        gid_list.resize(range.size());
-        MPI_Recv(&gid_list[0], gid_list.size() * sizeof(vid_t), MPI_CHAR,
-                 src_worker_id, 0, comm_spec_.comm(), MPI_STATUS_IGNORE);
-        fragment->SetupMirrorInfo(src_fid, range, gid_list);
-      }
-    });
-
-    recv_thread.join();
-    send_thread.join();
-  }
-
   void initOuterVertexData(std::shared_ptr<fragment_t> fragment) {
-    int worker_id = comm_spec_.worker_id();
     int worker_num = comm_spec_.worker_num();
 
-    std::thread send_thread([&]() {
-      InArchive arc;
-      for (int i = 1; i < worker_num; ++i) {
-        int dst_worker_id = (worker_id + i) % worker_num;
-        fid_t dst_fid = comm_spec_.WorkerToFrag(dst_worker_id);
-        arc.Clear();
-        auto& vertices = fragment->MirrorVertices(dst_fid);
-        for (auto v : vertices) {
-          arc << fragment->GetData(v);
-        }
-        MPI_Send(arc.GetBuffer(), arc.GetSize(), MPI_CHAR, dst_worker_id, 0,
-                 comm_spec_.comm());
+    std::vector<std::vector<vid_t>> request_gid_lists(worker_num);
+    auto& outer_vertices = fragment->OuterVertices();
+    for (auto& v : outer_vertices) {
+      fid_t fid = fragment->GetFragId(v);
+      request_gid_lists[comm_spec_.FragToWorker(fid)].emplace_back(
+          fragment->GetOuterVertexGid(v));
+    }
+    std::vector<std::vector<vid_t>> requested_gid_lists(worker_num);
+    sync_comm::AllToAll(request_gid_lists, requested_gid_lists,
+                        comm_spec_.comm());
+    std::vector<std::vector<vdata_t>> response_vdata_lists(worker_num);
+    for (int i = 0; i < worker_num; ++i) {
+      auto& id_vec = requested_gid_lists[i];
+      auto& data_vec = response_vdata_lists[i];
+      data_vec.reserve(id_vec.size());
+      for (auto id : id_vec) {
+        typename fragment_t::vertex_t v;
+        CHECK(fragment->InnerVertexGid2Vertex(id, v));
+        data_vec.emplace_back(fragment->GetData(v));
       }
-    });
-
-    std::thread recv_thread([&]() {
-      OutArchive arc;
-      for (int i = 1; i < worker_num; ++i) {
-        int src_worker_id = (worker_id + worker_num - i) % worker_num;
-        fid_t src_fid = comm_spec_.WorkerToFrag(src_worker_id);
-        MPI_Status status;
-        MPI_Probe(src_worker_id, 0, comm_spec_.comm(), &status);
-        int count;
-        MPI_Get_count(&status, MPI_CHAR, &count);
-        arc.Clear();
-        arc.Allocate(count);
-        MPI_Recv(arc.GetBuffer(), arc.GetSize(), MPI_CHAR, src_worker_id, 0,
-                 comm_spec_.comm(), MPI_STATUS_IGNORE);
-        auto range = fragment->OuterVertices(src_fid);
-        for (auto v : range) {
-          vdata_t val;
-          arc >> val;
-          fragment->SetData(v, val);
-        }
+    }
+    std::vector<std::vector<vdata_t>> responsed_vdata_lists(worker_num);
+    sync_comm::AllToAll(response_vdata_lists, responsed_vdata_lists,
+                        comm_spec_.comm());
+    for (int i = 0; i < worker_num; ++i) {
+      auto& id_vec = request_gid_lists[i];
+      auto& data_vec = responsed_vdata_lists[i];
+      CHECK_EQ(id_vec.size(), data_vec.size());
+      size_t num = id_vec.size();
+      for (size_t k = 0; k < num; ++k) {
+        typename fragment_t::vertex_t v;
+        CHECK(fragment->OuterVertexGid2Vertex(id_vec[k], v));
+        fragment->SetData(v, data_vec[k]);
       }
-    });
-
-    recv_thread.join();
-    send_thread.join();
+    }
   }
 
  private:
   CommSpec comm_spec_;
   std::shared_ptr<vertex_map_t> vm_ptr_;
 
-  std::vector<ShuffleOutPair<oid_t, vdata_t>> vertices_to_frag_;
-  std::vector<ShuffleOutTriple<oid_t, oid_t, edata_t>> edges_to_frag_;
+  std::vector<ShuffleOut<oid_t, vdata_t>> vertices_to_frag_;
+  std::vector<ShuffleOut<oid_t, oid_t, edata_t>> edges_to_frag_;
 
   std::thread vertex_recv_thread_;
   std::thread edge_recv_thread_;
@@ -487,8 +440,6 @@ class BasicFragmentLoader<
 
   static constexpr int vertex_tag = 5;
   static constexpr int edge_tag = 6;
-
-  PARTITIONER_T partitioner_;
 
   bool rebalance_;
   int rebalance_vertex_factor_;
@@ -542,11 +493,11 @@ class BasicFragmentLoader<
   ~BasicFragmentLoader() { Stop(); }
 
   void SetPartitioner(const PARTITIONER_T& partitioner) {
-    partitioner_ = partitioner;
+    vm_ptr_->SetPartitioner(partitioner);
   }
 
   void SetPartitioner(PARTITIONER_T&& partitioner) {
-    partitioner_ = std::move(partitioner);
+    vm_ptr_->SetPartitioner(std::move(partitioner));
   }
 
   void SetRebalance(bool rebalance, int rebalance_vertex_factor) {
@@ -564,7 +515,7 @@ class BasicFragmentLoader<
     vm_ptr_->Init();
     construct_vm_thread_ =
         std::thread(&BasicFragmentLoader::constructVMThreadRoutine, this,
-                    comm_spec_.fid(), std::ref(got_edges_queues_));
+                    std::ref(got_edges_queues_));
   }
 
   void Stop() {
@@ -584,8 +535,9 @@ class BasicFragmentLoader<
   void AddVertex(const oid_t& id, const EmptyType& data) {}
 
   void AddEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
-    fid_t src_fid = partitioner_.GetPartitionId(src);
-    fid_t dst_fid = partitioner_.GetPartitionId(dst);
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t src_fid = partitioner.GetPartitionId(src);
+    fid_t dst_fid = partitioner.GetPartitionId(dst);
 
     edata_t ref_data(data);
     edges_to_frag_[src_fid].Emplace(src, dst, ref_data);
@@ -639,16 +591,16 @@ class BasicFragmentLoader<
     MPI_Barrier(comm_spec_.comm());
 
     std::tuple<std::vector<oid_t>, std::vector<oid_t>, std::vector<edata_t>>
-        item(std::move(edges_to_frag_[comm_spec_.fid()].Buffer0()),
-             std::move(edges_to_frag_[comm_spec_.fid()].Buffer1()),
-             std::move(edges_to_frag_[comm_spec_.fid()].Buffer2()));
+        item(std::move(get_buffer<0>(edges_to_frag_[comm_spec_.fid()])),
+             std::move(get_buffer<1>(edges_to_frag_[comm_spec_.fid()])),
+             std::move(get_buffer<2>(edges_to_frag_[comm_spec_.fid()])));
+    edges_to_frag_[comm_spec_.fid()].Clear();
+
     got_edges_queues_.Put(std::move(item));
 
     got_edges_queues_.DecProducerNum();
 
     construct_vm_thread_.join();
-
-    vm_ptr_->Construct();
 
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "]: finished construct vertex map and process vertices";
@@ -671,8 +623,6 @@ class BasicFragmentLoader<
     fragment->Init(comm_spec_.fid(), fake_vertices, processed_edges_);
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "]: finished construction";
-
-    initMirrorInfo(fragment);
   }
 
  private:
@@ -709,7 +659,6 @@ class BasicFragmentLoader<
       std::vector<std::thread> process_threads(thread_num);
       for (int tid = 0; tid < thread_num; ++tid) {
         process_threads[tid] = std::thread([&]() {
-          fid_t u_fid, v_fid;
           size_t got;
           while (true) {
             got = current_work_unit.fetch_add(1, std::memory_order_release);
@@ -728,11 +677,9 @@ class BasicFragmentLoader<
             auto src_end = src_buf.end();
 
             while (src_iter != src_end) {
-              u_fid = partitioner_.GetPartitionId(*src_iter);
-              v_fid = partitioner_.GetPartitionId(*dst_iter);
-              vm_ptr_->GetGid(u_fid, *src_iter, ptr->src_);
-              vm_ptr_->GetGid(v_fid, *dst_iter, ptr->dst_);
-              ptr->edata_ = std::move(*data_iter);
+              vm_ptr_->GetGid(*src_iter, ptr->src);
+              vm_ptr_->GetGid(*dst_iter, ptr->dst);
+              ptr->edata = std::move(*data_iter);
               ++src_iter;
               ++dst_iter;
               ++data_iter;
@@ -751,27 +698,26 @@ class BasicFragmentLoader<
   }
 
   void constructVMThreadRoutine(
-      fid_t fid,
       BlockingQueue<std::tuple<std::vector<oid_t>, std::vector<oid_t>,
                                std::vector<edata_t>>>& queue) {
     std::tuple<std::vector<oid_t>, std::vector<oid_t>, std::vector<edata_t>>
         in_tuple;
-
+    auto builder = vm_ptr_->GetLocalBuilder();
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t fid = comm_spec_.fid();
     while (queue.Get(in_tuple)) {
       auto& src_id = std::get<0>(in_tuple);
       auto& dst_id = std::get<1>(in_tuple);
       auto& edge_data = std::get<2>(in_tuple);
 
       for (auto& id : src_id) {
-        fid_t frag_id = partitioner_.GetPartitionId(id);
-        if (frag_id == fid) {
-          vm_ptr_->AddVertex(fid, id);
+        if (partitioner.GetPartitionId(id) == fid) {
+          builder.add_vertex(id);
         }
       }
       for (auto& id : dst_id) {
-        fid_t frag_id = partitioner_.GetPartitionId(id);
-        if (frag_id == fid) {
-          vm_ptr_->AddVertex(fid, id);
+        if (partitioner.GetPartitionId(id) == fid) {
+          builder.add_vertex(id);
         }
       }
 
@@ -780,11 +726,12 @@ class BasicFragmentLoader<
       got_edges_data_.emplace_back(
           std::move(std::vector<edata_t>(std::move(edge_data))));
     }
+    builder.finish(*vm_ptr_);
   }
 
   void edgeRecvRoutine() {
-    ShuffleInTriple<oid_t, oid_t, edata_t> data_in(comm_spec_.fnum() - 1);
-    data_in.Init(comm_spec_.comm(), edge_tag);
+    ShuffleIn<oid_t, oid_t, edata_t> data_in;
+    data_in.Init(comm_spec_.fnum(), comm_spec_.comm(), edge_tag);
     fid_t dst_fid;
     int src_worker_id;
     while (!data_in.Finished()) {
@@ -794,65 +741,21 @@ class BasicFragmentLoader<
       }
       CHECK_EQ(dst_fid, comm_spec_.fid());
       std::tuple<std::vector<oid_t>, std::vector<oid_t>, std::vector<edata_t>>
-          item(std::move(data_in.Buffer0()), std::move(data_in.Buffer1()),
-               std::move(data_in.Buffer2()));
+          item(std::move(get_buffer<0>(data_in)),
+               std::move(get_buffer<1>(data_in)),
+               std::move(get_buffer<2>(data_in)));
+      data_in.Clear();
       got_edges_queues_.Put(std::move(item));
     }
 
     got_edges_queues_.DecProducerNum();
   }
 
-  void initMirrorInfo(std::shared_ptr<fragment_t> fragment) {
-    int worker_id = comm_spec_.worker_id();
-    int worker_num = comm_spec_.worker_num();
-
-    std::thread send_thread([&]() {
-      std::vector<vid_t> gid_list;
-      for (int i = 1; i < worker_num; ++i) {
-        int dst_worker_id = (worker_id + i) % worker_num;
-        fid_t dst_fid = comm_spec_.WorkerToFrag(dst_worker_id);
-        auto range = fragment->OuterVertices(dst_fid);
-        vid_t offsets[2];
-        offsets[0] = range.begin().GetValue();
-        offsets[1] = range.end().GetValue();
-        MPI_Send(&offsets[0], sizeof(vid_t) * 2, MPI_CHAR, dst_worker_id, 0,
-                 comm_spec_.comm());
-        gid_list.clear();
-        gid_list.reserve(range.size());
-        for (auto v : range) {
-          gid_list.push_back(fragment->Vertex2Gid(v));
-        }
-        MPI_Send(&gid_list[0], sizeof(vid_t) * gid_list.size(), MPI_CHAR,
-                 dst_worker_id, 0, comm_spec_.comm());
-      }
-    });
-
-    std::thread recv_thread([&]() {
-      std::vector<vid_t> gid_list;
-      for (int i = 1; i < worker_num; ++i) {
-        int src_worker_id = (worker_id + worker_num - i) % worker_num;
-        fid_t src_fid = comm_spec_.WorkerToFrag(src_worker_id);
-        vid_t offsets[2];
-        MPI_Recv(&offsets[0], sizeof(vid_t) * 2, MPI_CHAR, src_worker_id, 0,
-                 comm_spec_.comm(), MPI_STATUS_IGNORE);
-        VertexRange<vid_t> range(offsets[0], offsets[1]);
-        gid_list.clear();
-        gid_list.resize(range.size());
-        MPI_Recv(&gid_list[0], gid_list.size() * sizeof(vid_t), MPI_CHAR,
-                 src_worker_id, 0, comm_spec_.comm(), MPI_STATUS_IGNORE);
-        fragment->SetupMirrorInfo(src_fid, range, gid_list);
-      }
-    });
-
-    recv_thread.join();
-    send_thread.join();
-  }
-
  private:
   CommSpec comm_spec_;
   std::shared_ptr<vertex_map_t> vm_ptr_;
 
-  std::vector<ShuffleOutTriple<oid_t, oid_t, edata_t>> edges_to_frag_;
+  std::vector<ShuffleOut<oid_t, oid_t, edata_t>> edges_to_frag_;
   std::thread edge_recv_thread_;
   bool recv_thread_running_;
 
@@ -868,8 +771,6 @@ class BasicFragmentLoader<
   std::vector<Edge<vid_t, edata_t>> processed_edges_;
 
   static constexpr int edge_tag = 6;
-
-  PARTITIONER_T partitioner_;
 
   bool rebalance_;
   int rebalance_vertex_factor_;

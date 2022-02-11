@@ -147,35 +147,35 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
       ctx.exec_time -= GetCurrentTime();
 #endif
 
-      std::vector<DenseVertexSet<vid_t>> vertexsets(thread_num());
+      std::vector<DenseVertexSet<typename FRAG_T::vertices_t>> vertexsets(
+          thread_num());
 
-      ForEach(
-          inner_vertices,
-          [&vertexsets, &frag](int tid) {
-            auto& ns = vertexsets[tid];
-            ns.Init(frag.Vertices());
-          },
-          [&vertexsets, &ctx](int tid, vertex_t v) {
-            auto& v0_nbr_set = vertexsets[tid];
-            auto& v0_nbr_vec = ctx.complete_neighbor[v];
-            for (auto u : v0_nbr_vec) {
-              v0_nbr_set.Insert(u);
-            }
-            for (auto u : v0_nbr_vec) {
-              auto& v1_nbr_vec = ctx.complete_neighbor[u];
-              for (auto w : v1_nbr_vec) {
-                if (v0_nbr_set.Exist(w)) {
-                  atomic_add(ctx.tricnt[u], 1);
-                  atomic_add(ctx.tricnt[v], 1);
-                  atomic_add(ctx.tricnt[w], 1);
+      ForEach(inner_vertices,
+              [&vertexsets, &frag](int tid) {
+                auto& ns = vertexsets[tid];
+                ns.Init(frag.Vertices());
+              },
+              [&vertexsets, &ctx](int tid, vertex_t v) {
+                auto& v0_nbr_set = vertexsets[tid];
+                auto& v0_nbr_vec = ctx.complete_neighbor[v];
+                for (auto u : v0_nbr_vec) {
+                  v0_nbr_set.Insert(u);
                 }
-              }
-            }
-            for (auto u : v0_nbr_vec) {
-              v0_nbr_set.Erase(u);
-            }
-          },
-          [](int tid) {});
+                for (auto u : v0_nbr_vec) {
+                  auto& v1_nbr_vec = ctx.complete_neighbor[u];
+                  for (auto w : v1_nbr_vec) {
+                    if (v0_nbr_set.Exist(w)) {
+                      atomic_add(ctx.tricnt[u], 1);
+                      atomic_add(ctx.tricnt[v], 1);
+                      atomic_add(ctx.tricnt[w], 1);
+                    }
+                  }
+                }
+                for (auto u : v0_nbr_vec) {
+                  v0_nbr_set.Erase(u);
+                }
+              },
+              [](int tid) {});
 
 #ifdef PROFILING
       ctx.exec_time += GetCurrentTime();

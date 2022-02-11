@@ -117,7 +117,7 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
 
     rank_t p = 1.0 / frag.GetTotalVerticesNum();
 
-    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+    WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
     ForEach(stream, ws_in,
             [=] __device__(vertex_t v) mutable { d_rank[v] = p; });
     messages.ForceContinue();
@@ -162,11 +162,11 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
     double begin = grape::GetCurrentTime();
 #endif
 
-    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+    WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
     rank_t local_dangling_sum = thrust::transform_reduce(
-        thrust::device, thrust::make_counting_iterator(iv.begin().GetValue()),
-        thrust::make_counting_iterator(iv.end().GetValue()),
+        thrust::device, thrust::make_counting_iterator(iv.begin_value()),
+        thrust::make_counting_iterator(iv.end_value()),
         [=] __device__(vid_t lid) -> rank_t {
           vertex_t v(lid);
 
@@ -208,7 +208,7 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
 
     for (fid_t fid = 0; fid < frag.fnum(); fid++) {
       ov = frag.OuterVertices(fid);
-      ws_in = WorkSourceRange<vertex_t>(ov.begin(), ov.size());
+      ws_in = WorkSourceRange<vertex_t>(*ov.begin(), ov.size());
 
       ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
         if (d_next_rank[v] > 0) {

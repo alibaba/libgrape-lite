@@ -83,9 +83,9 @@ class LCCAutoContext : public VertexDataContext<FRAG_T, double> {
 
   int stage = 0;
 
-  SyncBuffer<int, vid_t> global_degree;
-  SyncBuffer<std::vector<vid_t>, vid_t> complete_neighbor;
-  SyncBuffer<int, vid_t> tricnt;
+  SyncBuffer<typename FRAG_T::vertices_t, int> global_degree;
+  SyncBuffer<typename FRAG_T::vertices_t, std::vector<vid_t>> complete_neighbor;
+  SyncBuffer<typename FRAG_T::vertices_t, int> tricnt;
 };
 }  // namespace grape
 

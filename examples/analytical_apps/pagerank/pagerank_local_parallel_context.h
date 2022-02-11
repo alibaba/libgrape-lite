@@ -68,7 +68,7 @@ class PageRankLocalParallelContext : public VertexDataContext<FRAG_T, double> {
 #endif
   }
 
-  typename FRAG_T::template vertex_array_t<int> degree;
+  typename FRAG_T::template inner_vertex_array_t<int> degree;
   typename FRAG_T::template vertex_array_t<double>& result;
   typename FRAG_T::template vertex_array_t<double> next_result;
 

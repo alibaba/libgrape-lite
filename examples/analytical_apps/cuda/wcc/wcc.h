@@ -93,7 +93,7 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
     auto av = frag.Vertices();
-    WorkSourceRange<vertex_t> ws_in(av.begin(), av.size());
+    WorkSourceRange<vertex_t> ws_in(*av.begin(), av.size());
 
     LaunchKernel(
         messages.stream(),
@@ -152,7 +152,7 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
 #endif
 
     {
-      WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+      WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
       tmp_q.Clear(stream);
       ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
@@ -181,7 +181,7 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
 
     for (fid_t fid = 0; fid < frag.fnum(); fid++) {
       auto ov = frag.OuterVertices(fid);
-      auto ws_in = WorkSourceRange<vertex_t>(ov.begin(), ov.size());
+      auto ws_in = WorkSourceRange<vertex_t>(*ov.begin(), ov.size());
 
       ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
         if (d_out_q_remote.Exist(v)) {

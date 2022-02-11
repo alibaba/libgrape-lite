@@ -42,6 +42,7 @@ class PageRank : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
   using vid_t = typename FRAG_T::vid_t;
 
   static constexpr bool need_split_edges = true;
+  static constexpr bool need_split_edges_by_fragment = true;
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
   static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;

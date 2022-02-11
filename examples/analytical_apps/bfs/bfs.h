@@ -53,7 +53,6 @@ class BFS : public ParallelAppBase<FRAG_T, BFSContext<FRAG_T>>,
     bool native_source = frag.GetInnerVertex(ctx.source_id, source);
 
     auto inner_vertices = frag.InnerVertices();
-    auto outer_vertices = frag.OuterVertices();
 
     // init double buffer which contains updated vertices using bitmap
     ctx.curr_inner_updated.Init(inner_vertices, GetThreadPool());

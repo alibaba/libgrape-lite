@@ -29,9 +29,7 @@ limitations under the License.
 #include "grape/utils/atomic_ops.h"
 #include "grape/utils/vertex_array.h"
 #include "grape/utils/vertex_set.h"
-#include "grape/worker/auto_worker.h"
-#include "grape/worker/batch_shuffle_worker.h"
-#include "grape/worker/parallel_worker.h"
+#include "grape/worker/worker.h"
 
 #ifdef __CUDACC__
 #include "grape/cuda/app/batch_shuffle_app_base.h"

@@ -65,7 +65,7 @@ class BFSAutoContext : public VertexDataContext<FRAG_T, int64_t> {
   }
 
   oid_t source_id;
-  SyncBuffer<int64_t, vid_t> partial_result;
+  SyncBuffer<typename FRAG_T::vertices_t, int64_t> partial_result;
 };
 }  // namespace grape
 

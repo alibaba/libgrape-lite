@@ -17,7 +17,7 @@ limitations under the License.
 #define EXAMPLES_ANALYTICAL_APPS_CUDA_WCC_WCC_OPT_H_
 #ifdef __CUDACC__
 #include "cuda/app_config.h"
-#include "grape/cuda/fragment/id_parser.h"
+#include "grape/fragment/id_parser.h"
 #include "grape/grape.h"
 
 namespace grape {
@@ -53,7 +53,7 @@ class WCCOptContext : public grape::VoidContext<FRAG_T> {
         ArrayView<offset_t>(parents));
 
     this->lb = app_config.lb;
-    id_parser.Init(frag.fnum());
+    id_parser.init(frag.fnum());
 
     if (frag.fid() == 0) {
       messages.InitBuffer(
@@ -78,7 +78,7 @@ class WCCOptContext : public grape::VoidContext<FRAG_T> {
         offset_t begin_offset = tmp[fid];
         offset_t lid = offset - begin_offset;
 
-        return id_parser.Lid2Gid(fid, lid);
+        return id_parser.generate_global_id(fid, lid);
       };
 
       thrust::host_vector<offset_t> h_parents = parents;
@@ -136,13 +136,13 @@ class WCCOpt : public GPUAppBase<FRAG_T, WCCOptContext<FRAG_T>>,
       ctx.v_offset = tmp;
     }
 
-    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+    WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
     auto* d_v_offset = thrust::raw_pointer_cast(ctx.v_offset.data());
 
     auto vertex2offset = [=] __device__(vertex_t v) -> offset_t {
       auto gid = d_frag.Vertex2Gid(v);
-      auto fid = id_parser.GetFid(gid);
-      auto lid = id_parser.GetLid(gid);
+      auto fid = id_parser.get_fragment_id(gid);
+      auto lid = id_parser.get_local_id(gid);
 
       return d_v_offset[fid] + lid;
     };
@@ -160,8 +160,8 @@ class WCCOpt : public GPUAppBase<FRAG_T, WCCOptContext<FRAG_T>>,
 
         for (size_t i = begin_eid + tid; i < end_eid; i += nthreads) {
           auto& e = d_coo[i];
-          auto u = vertex_t(e.src());
-          auto v = vertex_t(e.dst());
+          auto u = vertex_t(e.src);
+          auto v = vertex_t(e.dst);
 
           // is not a self-cycle
           if (u != v) {
@@ -201,7 +201,7 @@ class WCCOpt : public GPUAppBase<FRAG_T, WCCOptContext<FRAG_T>>,
     }
 
     if (frag.fid() > 0) {
-      WorkSourceRange<vertex_t> ws_in(av.begin(), av.size());
+      WorkSourceRange<vertex_t> ws_in(*av.begin(), av.size());
 
       ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
         auto offset = vertex2offset(v);
@@ -226,8 +226,8 @@ class WCCOpt : public GPUAppBase<FRAG_T, WCCOptContext<FRAG_T>>,
 
     auto vertex2offset = [=] __device__(vertex_t v) -> offset_t {
       auto gid = d_frag.Vertex2Gid(v);
-      auto fid = id_parser.GetFid(gid);
-      auto lid = id_parser.GetLid(gid);
+      auto fid = id_parser.get_fragment_id(gid);
+      auto lid = id_parser.get_local_id(gid);
 
       return d_v_offset[fid] + lid;
     };
@@ -261,7 +261,7 @@ class WCCOpt : public GPUAppBase<FRAG_T, WCCOptContext<FRAG_T>>,
           hook_high_to_low(offset, parent);
         });
 
-    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+    WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
     ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
       auto offset = vertex2offset(v);

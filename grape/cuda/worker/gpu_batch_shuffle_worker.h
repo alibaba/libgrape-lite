@@ -21,6 +21,7 @@ limitations under the License.
 #include "grape/cuda/parallel/batch_shuffle_message_manager.h"
 #include "grape/parallel/parallel_engine.h"
 #include "grape/util.h"
+#include "grape/worker/worker.h"
 
 namespace grape {
 namespace cuda {
@@ -44,8 +45,12 @@ class GPUBatchShuffleWorker {
   void Init(const grape::CommSpec& comm_spec, Args&&... args) {
     auto& graph = const_cast<fragment_t&>(context_->fragment());
     // prepare for the query
-    graph.PrepareToRunApp(APP_T::message_strategy, APP_T::need_split_edges,
-                          APP_T::need_build_device_vm);
+    PrepareConf prepare_conf;
+    prepare_conf.message_strategy = APP_T::message_strategy;
+    prepare_conf.need_split_edges = APP_T::need_split_edges;
+    prepare_conf.need_mirror_info = true;
+    prepare_conf.need_build_device_vm = APP_T::need_build_device_vm;
+    graph.PrepareToRunApp(comm_spec, prepare_conf);
 
     comm_spec_ = comm_spec;
 

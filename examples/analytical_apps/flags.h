@@ -22,6 +22,8 @@ DECLARE_bool(directed);
 DECLARE_string(application);
 DECLARE_string(efile);
 DECLARE_string(vfile);
+DECLARE_string(delta_efile);
+DECLARE_string(delta_vfile);
 DECLARE_string(out_prefix);
 DECLARE_string(jobid);
 

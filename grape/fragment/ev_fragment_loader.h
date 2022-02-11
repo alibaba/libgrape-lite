@@ -37,13 +37,10 @@ namespace grape {
  * efile and vfile.
  *
  * @tparam FRAG_T Fragment type.
- * @tparam PARTITIONER_T Partitioner type.
  * @tparam IOADAPTOR_T IOAdaptor type.
  * @tparam LINE_PARSER_T LineParser type.
  */
-template <typename FRAG_T,
-          typename PARTITIONER_T = SegmentedPartitioner<typename FRAG_T::oid_t>,
-          typename IOADAPTOR_T = LocalIOAdaptor,
+template <typename FRAG_T, typename IOADAPTOR_T = LocalIOAdaptor,
           typename LINE_PARSER_T =
               TSVLineParser<typename FRAG_T::oid_t, typename FRAG_T::vdata_t,
                             typename FRAG_T::edata_t>>
@@ -55,7 +52,7 @@ class EVFragmentLoader {
   using edata_t = typename fragment_t::edata_t;
 
   using vertex_map_t = typename fragment_t::vertex_map_t;
-  using partitioner_t = PARTITIONER_T;
+  using partitioner_t = typename vertex_map_t::partitioner_t;
   using io_adaptor_t = IOADAPTOR_T;
   using line_parser_t = LINE_PARSER_T;
 
@@ -66,7 +63,7 @@ class EVFragmentLoader {
                 "LineParser type is invalid");
 
  public:
-  explicit EVFragmentLoader(const CommSpec comm_spec)
+  explicit EVFragmentLoader(const CommSpec& comm_spec)
       : comm_spec_(comm_spec), basic_fragment_loader_(comm_spec) {}
 
   ~EVFragmentLoader() = default;

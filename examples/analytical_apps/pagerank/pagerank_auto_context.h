@@ -64,8 +64,8 @@ class PageRankAutoContext : public VertexDataContext<FRAG_T, double> {
     }
   }
 
-  typename FRAG_T::template vertex_array_t<int> degree;
-  SyncBuffer<double, vid_t> results;
+  typename FRAG_T::template inner_vertex_array_t<int> degree;
+  SyncBuffer<typename FRAG_T::vertices_t, double> results;
   int step = 0;
   int max_round = 0;
   double delta = 0;

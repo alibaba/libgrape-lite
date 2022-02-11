@@ -129,8 +129,8 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
   inline void ForEachHost(const VertexRange<VID_T>& range,
                           const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     std::vector<std::thread> threads(std::thread::hardware_concurrency());
-    std::atomic<VID_T> cur(range.begin().GetValue());
-    VID_T end = range.end().GetValue();
+    std::atomic<VID_T> cur(range.begin_value());
+    VID_T end = range.end_value();
 
     for (uint32_t i = 0; i < threads.size(); ++i) {
       threads[i] = std::thread(
@@ -161,7 +161,7 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
     auto d_mm = messages.DeviceObject();
     auto& stream = messages.stream();
     auto iv = frag.InnerVertices();
-    WorkSourceRange<vertex_t> ws_iv(iv.begin(), iv.size());
+    WorkSourceRange<vertex_t> ws_iv(*iv.begin(), iv.size());
     auto* p_d_col_indices = thrust::raw_pointer_cast(ctx.d_col_indices.data());
     auto d_labels = ctx.labels.DeviceObject();
 
@@ -214,7 +214,7 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
     auto* d_offsets = thrust::raw_pointer_cast(ctx.d_row_offset.data());
     auto* local_labels = thrust::raw_pointer_cast(ctx.d_col_indices.data());
 
-    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+    WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
     int n_vertices = iv.size();
 
     auto d_new_label = ctx.new_label.DeviceObject();
@@ -274,8 +274,8 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
     auto iv = frag.InnerVertices();
     auto ov = frag.OuterVertices();
     auto d_labels = ctx.labels.DeviceObject();
-    WorkSourceRange<vertex_t> ws_iv(iv.begin(), iv.size());
-    WorkSourceRange<vertex_t> ws_ov(ov.begin(), ov.size());
+    WorkSourceRange<vertex_t> ws_iv(*iv.begin(), iv.size());
+    WorkSourceRange<vertex_t> ws_ov(*ov.begin(), ov.size());
     thrust::device_vector<int> out_degree(iv.size());
     auto* d_out_degree = thrust::raw_pointer_cast(out_degree.data());
 
