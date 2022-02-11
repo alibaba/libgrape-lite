@@ -71,7 +71,7 @@ class PageRankAuto : public AutoAppBase<FRAG_T, PageRankAutoContext<FRAG_T>>,
   }
 
   void IncEval(const fragment_t& frag, context_t& ctx) {
-    auto& inner_vertices = frag.InnerVertices();
+    auto inner_vertices = frag.InnerVertices();
 
     double dangling_sum = ctx.dangling_sum;
 
