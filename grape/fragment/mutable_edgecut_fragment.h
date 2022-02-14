@@ -303,6 +303,10 @@ class MutableEdgecutFragment
       oe_.add_vertices(new_ivnum - ivnum, new_ovnum - ovnum);
       oe_.add_edges(edges_to_add);
     }
+    if (!mutation.vertices_to_add.empty()) {
+      ivdata_.resize(this->ivnum_);
+      ovdata_.resize(ovnum_);
+    }
     for (auto& v : mutation.vertices_to_add) {
       vid_t lid;
       if (IsInnerVertexGid(v.vid)) {
