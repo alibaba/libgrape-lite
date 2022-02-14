@@ -29,6 +29,7 @@ limitations under the License.
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "grape/serialization/in_archive.h"
 #include "grape/utils/gcontainer.h"
+#include "string_view/string_view.hpp"
 
 namespace grape {
 
@@ -155,6 +156,14 @@ inline OutArchive& operator>>(OutArchive& out_archive, std::string& str) {
   str.resize(size);
   memcpy(&str[0], out_archive.GetBytes(size), size);
   return out_archive;
+}
+
+inline OutArchive& operator>>(OutArchive& archive, nonstd::string_view& str) {
+  size_t length;
+  archive >> length;
+  str = nonstd::string_view(reinterpret_cast<char*>(archive.GetBytes(length)),
+                            length);
+  return archive;
 }
 
 template <typename T1, typename T2>

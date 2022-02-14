@@ -48,22 +48,171 @@ function RunApp() {
   eval ${cmd}
 }
 
-function RunMutableApp() {
+function BasicTests() {
+  np=$1, shift
+
+  RunApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  RunApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  RunApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
+
+  RunApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
+
+  RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+  RunApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+  RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
+
+  RunApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
+
+  RunApp ${np} pagerank --pr_mr=10 --pr_d=0.85
+  EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
+  RunApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85
+  EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
+  RunApp ${np} pagerank_local --pr_mr=10 --pr_d=0.85
+  RunApp ${np} pagerank_local_parallel --pr_mr=10 --pr_d=0.85
+
+  RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85
+  EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
+  RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85 --directed
+  EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR-directed
+
+  RunApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85 --directed
+  EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR-directed
+
+  RunApp ${np} cdlp --cdlp_mr=10
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
+
+  RunApp ${np} cdlp_auto --cdlp_mr=10
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
+
+  RunApp ${np} lcc --serialize=true --serialization_prefix=./serial/${GRAPH}
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
+
+  RunApp ${np} lcc_auto --deserialize=true --serialization_prefix=./serial/${GRAPH}
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
+
+  RunApp ${np} wcc
+  WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
+  RunApp ${np} wcc_auto
+  WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+}
+
+function MutableFragmentTest() {
   NP=$1; shift
   APP=$1; shift
 
-  cmd="mpirun -n ${NP} ./run_app --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_base --delta_efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_delta --application ${APP} --out_prefix ./extra_tests_output --nosegmented_partition --norebalance $@"
+  cmd="mpirun -n ${NP} ./mutable_fragment_tests --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_base --delta_efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_delta --application ${APP} --out_prefix ./extra_tests_output $@"
   echo ${cmd}
   eval ${cmd}
 }
 
-function RunAppWithELoader() {
-  NP=$1; shift
-  APP=$1; shift
+function MutableFragmentTests() {
+  np=$1, shift
 
-  cmd="mpirun -n ${NP} ./run_app --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output --nosegmented_partition $@"
+  MutableFragmentTest ${np} sssp --sssp_source=6
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  MutableFragmentTest ${np} sssp_auto --sssp_source=6
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  MutableFragmentTest ${np} bfs --bfs_source=6
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+  MutableFragmentTest ${np} bfs_auto --bfs_source=6
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
+
+  MutableFragmentTest ${np} pagerank_auto --pr_mr=10 --pr_d=0.85
+  EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
+  MutableFragmentTest ${np} pagerank_local_parallel --pr_mr=10 --pr_d=0.85
+
+  MutableFragmentTest ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85
+  EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
+
+  MutableFragmentTest ${np} cdlp --cdlp_mr=10
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
+
+  MutableFragmentTest ${np} cdlp_auto --cdlp_mr=10
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
+
+  MutableFragmentTest ${np} lcc
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
+
+  MutableFragmentTest ${np} lcc_auto
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
+
+  MutableFragmentTest ${np} wcc
+  WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+
+  MutableFragmentTest ${np} wcc_auto
+  WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+}
+
+function VertexMapTest() {
+  NP=$1; shift
+
+  cmd="mpirun -n ${NP} ./vertex_map_tests --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --out_prefix ./extra_tests_output --sssp_source=6 $@"
+
   echo ${cmd}
   eval ${cmd}
+}
+
+function VertexMapTestOnMutableFragment() {
+  NP=$1; shift
+
+  cmd="mpirun -n ${NP} ./vertex_map_tests --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_base --delta_efile ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_delta --out_prefix ./extra_tests_output --sssp_source=6 $@"
+
+  echo ${cmd}
+  eval ${cmd}
+}
+
+function VertexMapTests() {
+  np=$1, shift
+
+  VertexMapTest ${np} --string_id
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTest ${np} --nosegmented_partition
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTest ${np} --string_id --nosegmented_partition
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTest ${np} --noglobal_vertex_map
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTest ${np} --string_id --noglobal_vertex_map
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTest ${np} --nosegmented_partition --noglobal_vertex_map
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTest ${np} --string_id --nosegmented_partition --noglobal_vertex_map
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTestOnMutableFragment ${np} --string_id
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTestOnMutableFragment ${np} --nosegmented_partition
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  VertexMapTestOnMutableFragment ${np} --string_id --nosegmented_partition
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
 }
 
 pushd ${GRAPE_HOME}/build
@@ -78,126 +227,9 @@ fi
 proc_list="1 $(seq 2 2 ${nproc})"
 
 for np in ${proc_list}; do
-    RunApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-    RunMutableApp ${np} sssp --sssp_source=6
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-    RunApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-    RunMutableApp ${np} sssp_auto --sssp_source=6
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-    RunApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
-
-    RunApp ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
-
-    RunAppWithELoader ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-    RunAppWithELoader ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-    RunAppWithELoader ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
-
-    RunAppWithELoader ${np} sssp_auto --sssp_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP-directed
-
-    RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
-
-    RunMutableApp ${np} bfs --bfs_source=6
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
-
-    RunApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
-
-    RunMutableApp ${np} bfs_auto --bfs_source=6
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
-
-    RunApp ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
-
-    RunApp ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
-
-    RunAppWithELoader ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
-
-    RunAppWithELoader ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS
-
-    RunAppWithELoader ${np} bfs --bfs_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
-
-    RunAppWithELoader ${np} bfs_auto --bfs_source=6 --deserialize=true --serialization_prefix=./serial/${GRAPH} --directed
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-BFS-directed
-
-    RunApp ${np} pagerank --pr_mr=10 --pr_d=0.85
-    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
-
-    RunApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85
-    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
-
-    RunMutableApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85
-    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
-
-    RunApp ${np} pagerank_local --pr_mr=10 --pr_d=0.85
-    RunApp ${np} pagerank_local_parallel --pr_mr=10 --pr_d=0.85
-    RunMutableApp ${np} pagerank_local_parallel --pr_mr=10 --pr_d=0.85
-
-    RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85
-    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
-
-    RunApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85 --directed
-    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR-directed
-
-    RunMutableApp ${np} pagerank_parallel --pr_mr=10 --pr_d=0.85
-    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR
-
-    RunApp ${np} pagerank_auto --pr_mr=10 --pr_d=0.85 --directed
-    EpsVerify ${GRAPE_HOME}/dataset/${GRAPH}-PR-directed
-
-    RunApp ${np} cdlp --cdlp_mr=10
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
-
-    RunMutableApp ${np} cdlp --cdlp_mr=10
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
-
-    RunApp ${np} cdlp_auto --cdlp_mr=10
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
-
-    RunMutableApp ${np} cdlp_auto --cdlp_mr=10
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
-
-    RunApp ${np} lcc --serialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
-
-    RunMutableApp ${np} lcc
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
-
-    RunApp ${np} lcc_auto --deserialize=true --serialization_prefix=./serial/${GRAPH}
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
-
-    RunMutableApp ${np} lcc_auto
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
-
-    RunApp ${np} wcc
-    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
-
-    RunMutableApp ${np} wcc
-    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
-
-    RunApp ${np} wcc_auto
-    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
-
-    RunMutableApp ${np} wcc_auto
-    WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
+  BasicTests ${np}
+  MutableFragmentTests ${np}
+  VertexMapTests ${np}
 done
 
 popd

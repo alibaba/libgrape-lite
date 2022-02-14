@@ -30,6 +30,7 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "grape/utils/gcontainer.h"
+#include "string_view/string_view.hpp"
 
 namespace grape {
 
@@ -96,6 +97,13 @@ inline InArchive& operator<<(InArchive& in_archive, const std::string& str) {
   in_archive << size;
   in_archive.AddBytes(str.data(), size);
   return in_archive;
+}
+
+inline InArchive& operator<<(InArchive& archive,
+                             const nonstd::string_view& str) {
+  archive << str.length();
+  archive.AddBytes(str.data(), str.length());
+  return archive;
 }
 
 template <typename T1, typename T2>

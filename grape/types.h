@@ -20,6 +20,8 @@ limitations under the License.
 #include <ostream>
 #include <type_traits>
 
+#include "string_view/string_view.hpp"
+
 namespace grape {
 
 /**
@@ -113,6 +115,26 @@ constexpr inline bool check_app_fragment_consistency() {
   return check_load_strategy_compatible<APP_T, GRAPH_T>() &&
          check_message_strategy_valid<APP_T, GRAPH_T>();
 }
+
+template <typename T>
+struct InternalOID {
+  using type = T;
+
+  static type ToInternal(const T& val) { return val; }
+
+  static T FromInternal(const type& val) { return val; }
+};
+
+template <>
+struct InternalOID<std::string> {
+  using type = nonstd::string_view;
+
+  static type ToInternal(const std::string& val) {
+    return nonstd::string_view(val.data(), val.size());
+  }
+
+  static std::string FromInternal(const type& val) { return val.to_string(); }
+};
 
 }  // namespace grape
 

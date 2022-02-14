@@ -23,44 +23,306 @@ limitations under the License.
 #include <vector>
 
 #include "grape/communication/sync_comm.h"
+#include "grape/utils/string_view_vector.h"
+#include "string_view/string_view.hpp"
 
 namespace grape {
 
+template <typename T, T... Ints>
+struct integer_sequence {
+  typedef T value_type;
+  static constexpr std::size_t size() { return sizeof...(Ints); }
+};
+
+template <std::size_t... Ints>
+using index_sequence = integer_sequence<std::size_t, Ints...>;
+
+template <typename T, std::size_t N, T... Is>
+struct make_integer_sequence : make_integer_sequence<T, N - 1, N - 1, Is...> {};
+
+template <typename T, T... Is>
+struct make_integer_sequence<T, 0, Is...> : integer_sequence<T, Is...> {};
+
+template <std::size_t N>
+using make_index_sequence = make_integer_sequence<std::size_t, N>;
+
+template <typename... T>
+using index_sequence_for = make_index_sequence<sizeof...(T)>;
+
 #define DEFAULT_CHUNK_SIZE 4096
 
-/**
- * @brief ShuffleUnit wraps a vector, for data shuffling between workers.
- *
- * @tparam T The data type to be shuffle.
- */
 template <typename T>
-class ShuffleUnit {
- public:
-  ShuffleUnit() {}
-  ~ShuffleUnit() {}
+struct ShuffleBuffer {
+  using type = std::vector<T>;
 
-  using BufferT = std::vector<T>;
-  using ValueT = T;
+  static void SendTo(const type& buffer, int dst_worker_id, int tag,
+                     MPI_Comm comm) {
+    sync_comm::Send(buffer, dst_worker_id, tag, comm);
+  }
 
-  void emplace(const ValueT& v) { buffer_.emplace_back(v); }
-  void clear() { buffer_.clear(); }
+  static void RecvFrom(type& buffer, int src_worker_id, int tag,
+                       MPI_Comm comm) {
+    sync_comm::RecvAt<T>(buffer, buffer.size(), src_worker_id, tag, comm);
+  }
+};
 
-  size_t size() const { return buffer_.size(); }
+template <>
+struct ShuffleBuffer<nonstd::string_view> {
+  using type = StringViewVector;
 
-  BufferT& data() { return buffer_; }
-  const BufferT& data() const { return buffer_; }
+  static void SendTo(const type& buffer, int dst_worker_id, int tag,
+                     MPI_Comm comm) {
+    sync_comm::Send(buffer, dst_worker_id, tag, comm);
+  }
+
+  static void RecvFrom(type& buffer, int src_worker_id, int tag,
+                       MPI_Comm comm) {
+    if (buffer.size() == 0) {
+      sync_comm::Recv(buffer, src_worker_id, tag, comm);
+    } else {
+      type delta;
+      sync_comm::Recv(delta, src_worker_id, tag, comm);
+      size_t num = delta.size();
+      for (size_t i = 0; i < num; ++i) {
+        buffer.push_back(delta[i]);
+      }
+    }
+  }
+};
+
+template <typename First, typename... Rest>
+struct ShuffleBufferTuple : public ShuffleBufferTuple<Rest...> {
+  ShuffleBufferTuple() : ShuffleBufferTuple<Rest...>() {}
+  ShuffleBufferTuple(const ShuffleBufferTuple& rhs)
+      : ShuffleBufferTuple<Rest...>(rhs), first(rhs.first) {}
+  ShuffleBufferTuple(ShuffleBufferTuple&& rhs)
+      : ShuffleBufferTuple<Rest...>(std::move(rhs)),
+        first(std::move(rhs.first)) {}
+  ShuffleBufferTuple(const typename ShuffleBuffer<First>::type& b0,
+                     const typename ShuffleBuffer<Rest>::type&... bx)
+      : first(b0), ShuffleBufferTuple<Rest...>(bx...) {}
+  ShuffleBufferTuple(typename ShuffleBuffer<First>::type&& b0,
+                     typename ShuffleBuffer<Rest>::type&&... bx)
+      : first(std::move(b0)), ShuffleBufferTuple<Rest...>(std::move(bx)...) {}
+
+  static constexpr size_t tuple_size =
+      ShuffleBufferTuple<Rest...>::tuple_size + 1;
+
+  void Emplace(const First& v0, const Rest&... vx) {
+    first.emplace_back(v0);
+    ShuffleBufferTuple<Rest...>::Emplace(vx...);
+  }
+
+  void SetBuffers(const typename ShuffleBuffer<First>::type b0,
+                  const typename ShuffleBuffer<Rest>::type&... bx) {
+    first = b0;
+    ShuffleBufferTuple<Rest...>::SetBuffers(bx...);
+  }
+
+  void SetBuffers(typename ShuffleBuffer<First>::type&& b0,
+                  typename ShuffleBuffer<Rest>::type&&... bx) {
+    first = std::move(b0);
+    ShuffleBufferTuple<Rest...>::SetBuffers(std::move(bx)...);
+  }
+
+  void AppendBuffers(const typename ShuffleBuffer<First>::type& b0,
+                     const typename ShuffleBuffer<Rest>::type&... bx) {
+    for (auto& v : b0) {
+      first.emplace_back(v);
+    }
+    ShuffleBufferTuple<Rest...>::AppendBuffers(bx...);
+  }
+
+  void AppendBuffers(typename ShuffleBuffer<First>::type&& b0,
+                     typename ShuffleBuffer<Rest>::type&&... bx) {
+    for (auto& v : b0) {
+      first.emplace_back(std::move(v));
+    }
+    ShuffleBufferTuple<Rest...>::AppendBuffers(std::move(bx)...);
+  }
+
+  size_t size() const {
+    size_t ret = ShuffleBufferTuple<Rest...>::size();
+    return std::min(ret, first.size());
+  }
+
+  void resize(size_t size) {
+    first.resize(size);
+    ShuffleBufferTuple<Rest...>::resize(size);
+  }
 
   void SendTo(int dst_worker_id, int tag, MPI_Comm comm) {
-    sync_comm::Send<std::vector<T>>(buffer_, dst_worker_id, tag, comm);
+    ShuffleBuffer<First>::SendTo(first, dst_worker_id, tag, comm);
+    ShuffleBufferTuple<Rest...>::SendTo(dst_worker_id, tag, comm);
   }
 
   void RecvFrom(int src_worker_id, int tag, MPI_Comm comm) {
-    sync_comm::RecvAt<T>(buffer_, buffer_.size(), src_worker_id, tag, comm);
+    ShuffleBuffer<First>::RecvFrom(first, src_worker_id, tag, comm);
+    ShuffleBufferTuple<Rest...>::RecvFrom(src_worker_id, tag, comm);
   }
 
- private:
-  BufferT buffer_;
+  void Clear() {
+    first.clear();
+    ShuffleBufferTuple<Rest...>::Clear();
+  }
+
+  typename ShuffleBuffer<First>::type first;
 };
+
+template <typename First>
+struct ShuffleBufferTuple<First> {
+  ShuffleBufferTuple() {}
+  ShuffleBufferTuple(const ShuffleBufferTuple& rhs) : first(rhs.first) {}
+  ShuffleBufferTuple(ShuffleBufferTuple&& rhs) : first(std::move(rhs.first)) {}
+  explicit ShuffleBufferTuple(const typename ShuffleBuffer<First>::type& b0)
+      : first(b0) {}
+  explicit ShuffleBufferTuple(typename ShuffleBuffer<First>::type&& b0)
+      : first(std::move(b0)) {}
+
+  static constexpr size_t tuple_size = 1;
+
+  void Emplace(const First& v0) { first.emplace_back(v0); }
+
+  void SetBuffers(const typename ShuffleBuffer<First>::type& b0) { first = b0; }
+
+  void SetBuffers(typename ShuffleBuffer<First>::type&& b0) {
+    first = std::move(b0);
+  }
+
+  void AppendBuffers(const typename ShuffleBuffer<First>::type& b0) {
+    for (auto& v : b0) {
+      first.emplace_back(v);
+    }
+  }
+
+  void AppendBuffers(typename ShuffleBuffer<First>::type&& b0) {
+    for (auto& v : b0) {
+      first.emplace_back(std::move(v));
+    }
+  }
+
+  size_t size() const { return first.size(); }
+
+  void resize(size_t size) { first.resize(size); }
+
+  void SendTo(int dst_worker_id, int tag, MPI_Comm comm) {
+    ShuffleBuffer<First>::SendTo(first, dst_worker_id, tag, comm);
+  }
+
+  void RecvFrom(int src_worker_id, int tag, MPI_Comm comm) {
+    ShuffleBuffer<First>::RecvFrom(first, src_worker_id, tag, comm);
+  }
+
+  void Clear() { first.clear(); }
+
+  typename ShuffleBuffer<First>::type first;
+};
+
+template <std::size_t index, typename T>
+struct ShuffleBufferTuple_element;
+
+template <std::size_t index, typename First, typename... Tail>
+struct ShuffleBufferTuple_element<index, ShuffleBufferTuple<First, Tail...>>
+    : ShuffleBufferTuple_element<index - 1, ShuffleBufferTuple<Tail...>> {};
+
+template <typename First, typename... Rest>
+struct ShuffleBufferTuple_element<0, ShuffleBufferTuple<First, Rest...>> {
+  using buffer_type = typename ShuffleBuffer<First>::type;
+};
+
+template <typename T>
+struct add_ref {
+  using type = T&;
+};
+
+template <typename T>
+struct add_ref<T&> {
+  using type = T&;
+};
+
+template <typename T>
+struct add_const_ref {
+  using type = const T&;
+};
+
+template <typename T>
+struct add_const_ref<T&> {
+  using type = const T&;
+};
+
+template <typename T>
+struct add_const_ref<const T&> {
+  using type = const T&;
+};
+
+template <std::size_t index, typename First, typename... Rest>
+struct get_buffer_helper {
+  static typename add_ref<typename ShuffleBufferTuple_element<
+      index, ShuffleBufferTuple<First, Rest...>>::buffer_type>::type
+  value(ShuffleBufferTuple<First, Rest...>& bt) {
+    return get_buffer_helper<index - 1, Rest...>::value(bt);
+  }
+
+  static typename add_const_ref<typename ShuffleBufferTuple_element<
+      index, ShuffleBufferTuple<First, Rest...>>::buffer_type>::type
+  const_value(const ShuffleBufferTuple<First, Rest...>& bt) {
+    return get_buffer_helper<index - 1, Rest...>::const_value(bt);
+  }
+};
+
+template <typename First, typename... Rest>
+struct get_buffer_helper<0, First, Rest...> {
+  static typename ShuffleBuffer<First>::type& value(
+      ShuffleBufferTuple<First, Rest...>& bt) {
+    return bt.first;
+  }
+
+  static const typename ShuffleBuffer<First>::type& const_value(
+      const ShuffleBufferTuple<First, Rest...>& bt) {
+    return bt.first;
+  }
+};
+
+template <std::size_t index, typename First, typename... Rest>
+typename add_ref<typename ShuffleBufferTuple_element<
+    index, ShuffleBufferTuple<First, Rest...>>::buffer_type>::type
+get_buffer(ShuffleBufferTuple<First, Rest...>& bt) {
+  return get_buffer_helper<index, First, Rest...>::value(bt);
+}
+
+template <std::size_t index, typename First, typename... Rest>
+typename add_const_ref<typename ShuffleBufferTuple_element<
+    index, ShuffleBufferTuple<First, Rest...>>::buffer_type>::type
+get_const_buffer(const ShuffleBufferTuple<First, Rest...>& bt) {
+  return get_buffer_helper<index, First, Rest...>::const_value(bt);
+}
+
+template <typename Tuple, typename Func, std::size_t... index>
+void foreach_helper(const Tuple& t, const Func& func,
+                    index_sequence<index...>) {
+  size_t size = t.size();
+  for (size_t i = 0; i < size; ++i) {
+    func(get_const_buffer<index>(t)[i]...);
+  }
+}
+
+template <typename Tuple, typename Func, std::size_t... index>
+void foreach_rval_helper(Tuple& t, const Func& func, index_sequence<index...>) {
+  size_t size = t.size();
+  for (size_t i = 0; i < size; ++i) {
+    func(std::move(get_buffer<index>(t)[i])...);
+  }
+}
+
+template <typename Tuple, typename Func>
+void foreach(Tuple& t, const Func& func) {
+  foreach_helper(t, func, make_index_sequence<Tuple::tuple_size>{});
+}
+
+template <typename Tuple, typename Func>
+void foreach_rval(Tuple& t, const Func& func) {
+  foreach_rval_helper(t, func, make_index_sequence<Tuple::tuple_size>{});
+}
 
 struct frag_shuffle_header {
   frag_shuffle_header() = default;
@@ -70,59 +332,11 @@ struct frag_shuffle_header {
   fid_t fid;
 };
 
-template <int index, typename First, typename... Rest>
-struct GetImpl;
-
-template <typename First, typename... Rest>
-struct ShuffleTuple : public ShuffleTuple<Rest...> {
-  ShuffleTuple() : ShuffleTuple<Rest...>() {}
-
-  void Emplace(const First& v0, const Rest&... vx) {
-    first.emplace(v0);
-    ShuffleTuple<Rest...>::Emplace(vx...);
-  }
-
-  void SendTo(int dst_worker_id, int tag, MPI_Comm comm) {
-    first.SendTo(dst_worker_id, tag, comm);
-    ShuffleTuple<Rest...>::SendTo(dst_worker_id, tag, comm);
-  }
-
-  void RecvFrom(int src_worker, int tag, MPI_Comm comm) {
-    first.RecvFrom(src_worker, tag, comm);
-    ShuffleTuple<Rest...>::RecvFrom(src_worker, tag, comm);
-  }
-
-  void Clear() {
-    first.clear();
-    ShuffleTuple<Rest...>::Clear();
-  }
-
-  ShuffleUnit<First> first;
-};
-
-template <typename First>
-struct ShuffleTuple<First> {
-  ShuffleTuple() {}
-
-  void Emplace(const First& v0) { first.emplace(v0); }
-
-  void SendTo(int dst_worker_id, int tag, MPI_Comm comm) {
-    first.SendTo(dst_worker_id, tag, comm);
-  }
-
-  void RecvFrom(int src_worker, int tag, MPI_Comm comm) {
-    first.RecvFrom(src_worker, tag, comm);
-  }
-
-  void Clear() { first.clear(); }
-
-  ShuffleUnit<First> first;
-};
-
-template <typename First, typename... Rest>
+template <typename... TYPES>
 class ShuffleOut {
  public:
   ShuffleOut() {}
+  ~ShuffleOut() {}
 
   void Init(MPI_Comm comm, int tag = 0, size_t cs = 4096) {
     comm_ = comm;
@@ -139,12 +353,46 @@ class ShuffleOut {
 
   void Clear() {
     current_size_ = 0;
-    tuple_.Clear();
+    buffers_.Clear();
   }
 
-  void Emplace(const First& t0, const Rest&... rest) {
-    tuple_.Emplace(t0, rest...);
+  void Emplace(const TYPES&... rest) {
+    buffers_.Emplace(rest...);
     ++current_size_;
+    if (comm_disabled_) {
+      return;
+    }
+    if (current_size_ >= chunk_size_) {
+      issue();
+      Clear();
+    }
+  }
+
+  void AppendBuffers(const typename ShuffleBuffer<TYPES>::type&... bx) {
+    if (current_size_ == 0) {
+      buffers_.SetBuffers(bx...);
+    } else {
+      buffers_.AppendBuffers(bx...);
+    }
+    current_size_ = buffers_.size();
+    buffers_.resize(current_size_);
+    if (comm_disabled_) {
+      return;
+    }
+    if (current_size_ >= chunk_size_) {
+      issue();
+      Clear();
+    }
+  }
+
+  void AppendBuffers(typename ShuffleBuffer<TYPES>::type&&... bx) {
+    if (current_size_ == 0) {
+      buffers_.SetBuffer(std::move(bx)...);
+    } else {
+      buffers_.AppendBuffers(std::move(bx)...);
+    }
+    current_size_ = buffers_.size();
+    buffers_.resize(current_size_);
     if (comm_disabled_) {
       return;
     }
@@ -165,7 +413,8 @@ class ShuffleOut {
     issue();
   }
 
-  ShuffleTuple<First, Rest...> tuple_;
+  ShuffleBufferTuple<TYPES...>& buffers() { return buffers_; }
+  const ShuffleBufferTuple<TYPES...>& buffers() const { return buffers_; }
 
  private:
   void issue() {
@@ -173,10 +422,11 @@ class ShuffleOut {
     sync_comm::Send<frag_shuffle_header>(header, dst_worker_id_, tag_, comm_);
 
     if (current_size_) {
-      tuple_.SendTo(dst_worker_id_, tag_, comm_);
+      buffers_.SendTo(dst_worker_id_, tag_, comm_);
     }
   }
 
+  ShuffleBufferTuple<TYPES...> buffers_;
   size_t chunk_size_;
   size_t current_size_;
   int dst_worker_id_;
@@ -187,10 +437,11 @@ class ShuffleOut {
   MPI_Comm comm_;
 };
 
-template <typename First, typename... Rest>
+template <typename... TYPES>
 class ShuffleIn {
  public:
   ShuffleIn() {}
+  ~ShuffleIn() {}
 
   void Init(fid_t fnum, MPI_Comm comm, int tag = 0) {
     remaining_frag_num_ = fnum - 1;
@@ -215,7 +466,7 @@ class ShuffleIn {
         int src_worker_id = status.MPI_SOURCE;
         current_size_ += header.size;
         fid = header.fid;
-        tuple_.RecvFrom(src_worker_id, tag_, comm_);
+        buffers_.RecvFrom(src_worker_id, tag_, comm_);
         return src_worker_id;
       }
     }
@@ -228,7 +479,7 @@ class ShuffleIn {
       --remaining_frag_num_;
     } else {
       current_size_ += header.size;
-      tuple_.RecvFrom(src_worker_id, tag_, comm_);
+      buffers_.RecvFrom(src_worker_id, tag_, comm_);
     }
     return header.size;
   }
@@ -236,75 +487,22 @@ class ShuffleIn {
   bool Finished() { return remaining_frag_num_ == 0; }
 
   void Clear() {
-    tuple_.Clear();
+    buffers_.Clear();
     current_size_ = 0;
   }
 
   size_t Size() const { return current_size_; }
 
-  ShuffleTuple<First, Rest...> tuple_;
+  ShuffleBufferTuple<TYPES...>& buffers() { return buffers_; }
+  const ShuffleBufferTuple<TYPES...>& buffers() const { return buffers_; }
 
  private:
+  ShuffleBufferTuple<TYPES...> buffers_;
   fid_t remaining_frag_num_;
   int tag_;
   size_t current_size_;
   MPI_Comm comm_;
 };
-
-template <std::size_t index, typename Tp>
-struct shuffle_tuple_element;
-
-template <std::size_t index, typename Head, typename... Tail>
-struct shuffle_tuple_element<index, ShuffleTuple<Head, Tail...>>
-    : shuffle_tuple_element<index - 1, ShuffleTuple<Tail...>> {};
-
-template <typename Head, typename... Tail>
-struct shuffle_tuple_element<0, ShuffleTuple<Head, Tail...>> {
-  typedef typename ShuffleUnit<Head>::BufferT type;
-};
-
-template <typename T>
-struct add_ref {
-  typedef T& type;
-};
-
-template <typename T>
-struct add_ref<T&> {
-  typedef T& type;
-};
-
-template <std::size_t index, typename Head, typename... Tail>
-struct get_buffer_helper {
-  static typename add_ref<typename shuffle_tuple_element<
-      index, ShuffleTuple<Head, Tail...>>::type>::type
-  value(ShuffleTuple<Head, Tail...>& t) {
-    return get_buffer_helper<index - 1, Tail...>::value(t);
-  }
-};
-
-template <typename Head, typename... Tail>
-struct get_buffer_helper<0, Head, Tail...> {
-  static typename ShuffleUnit<Head>::BufferT& value(
-      ShuffleTuple<Head, Tail...>& t) {
-    return t.first.data();
-  }
-};
-
-template <std::size_t index, typename Head, typename... Tail>
-typename add_ref<typename shuffle_tuple_element<
-    index, ShuffleTuple<Head, Tail...>>::type>::type
-get_buffer(ShuffleIn<Head, Tail...>& t) {
-  return get_buffer_helper<index, Head, Tail...>::value(t.tuple_);
-}
-
-template <std::size_t index, typename Head, typename... Tail>
-typename add_ref<typename shuffle_tuple_element<
-    index, ShuffleTuple<Head, Tail...>>::type>::type
-get_buffer(ShuffleOut<Head, Tail...>& t) {
-  return get_buffer_helper<index, Head, Tail...>::value(t.tuple_);
-}
-
-#undef DEFAULT_CHUNK_SIZE
 
 }  // namespace grape
 

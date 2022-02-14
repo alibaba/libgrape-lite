@@ -426,20 +426,7 @@ class Rebalancer<
           break;
         }
         CHECK_EQ(dst_fid, comm_spec_.fid());
-        size_t to_append = get_buffer<0>(data_in).size();
-        size_t old_size = edges.size();
-        edges.resize(old_size + to_append);
-        auto* buf_ptr = &edges[old_size];
-        auto src_iter = get_buffer<0>(data_in).begin();
-        auto dst_iter = get_buffer<1>(data_in).begin();
-        auto data_iter = get_buffer<2>(data_in).begin();
-        auto src_end = get_buffer<0>(data_in).end();
-        while (src_iter != src_end) {
-          buf_ptr->src = *src_iter++;
-          buf_ptr->dst = *dst_iter++;
-          buf_ptr->edata = *data_iter++;
-          ++buf_ptr;
-        }
+        got_edges_.emplace_back(data_in.buffers());
         data_in.Clear();
       }
     });
@@ -481,24 +468,23 @@ class Rebalancer<
     }
 
     deltaEdgesRecvThread.join();
+    got_edges_.emplace_back(
+        std::move(delta_edges_to_frag[comm_spec_.fid()].buffers()));
+    delta_edges_to_frag.clear();
 
-    {
-      fid_t fid = comm_spec_.fid();
-      size_t to_append = get_buffer<0>(delta_edges_to_frag[fid]).size();
-      size_t old_size = edges.size();
-      edges.resize(old_size + to_append);
-      auto* buf_ptr = &edges[old_size];
-      auto src_iter = get_buffer<0>(delta_edges_to_frag[fid]).begin();
-      auto dst_iter = get_buffer<1>(delta_edges_to_frag[fid]).begin();
-      auto data_iter = get_buffer<2>(delta_edges_to_frag[fid]).begin();
-      auto src_end = get_buffer<0>(delta_edges_to_frag[fid]).end();
-      while (src_iter != src_end) {
-        buf_ptr->src = *src_iter++;
-        buf_ptr->dst = *dst_iter++;
-        buf_ptr->edata = *data_iter++;
-        ++buf_ptr;
-      }
-      delta_edges_to_frag[fid].Clear();
+    size_t edges_size = 0;
+    for (auto& buffers : got_edges_) {
+      edges_size += buffers.size();
+    }
+    edges.resize(edges_size);
+    size_t index = 0;
+    for (auto& buffers : got_edges_) {
+      foreach_rval(buffers, [&](vid_t&& src, vid_t&& dst, edata_t&& data) {
+        edges[index].src = src;
+        edges[index].dst = dst;
+        edges[index].edata = std::move(data);
+        ++index;
+      });
     }
   }
 
@@ -510,6 +496,8 @@ class Rebalancer<
   std::vector<std::vector<vid_t>> degree_lists_;
   std::vector<vid_t> vnum_list_;
   std::vector<std::vector<vid_t>> gid_maps_;
+
+  std::vector<ShuffleBufferTuple<vid_t, vid_t, edata_t>> got_edges_;
 
   static constexpr int degree_tag = 7;
   static constexpr int delta_edge_tag = 8;

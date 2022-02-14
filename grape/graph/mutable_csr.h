@@ -64,6 +64,12 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
       ++degree_[i];
     }
   }
+  void resize(VID_T vnum) {
+    vnum_ = vnum;
+    degree_.resize(vnum_, 0);
+  }
+
+  VID_T vertex_num() const { return vnum_; }
 
   void build_offsets() {
     size_t total_capacity = 0;
@@ -290,16 +296,18 @@ class MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
-  void put_edge(vid_t src, const nbr_t& value) {
+  nbr_t* put_edge(vid_t src, const nbr_t& value) {
     nbr_t* cur = adj_lists_[src].end++;
     assert(adj_lists_[src].degree() <= capacity_[src]);
     *cur = value;
+    return cur;
   }
 
-  void put_edge(vid_t src, nbr_t&& value) {
+  nbr_t* put_edge(vid_t src, nbr_t&& value) {
     nbr_t* cur = adj_lists_[src].end++;
     assert(adj_lists_[src].degree() <= capacity_[src]);
     *cur = std::move(value);
+    return cur;
   }
 
   void dedup_neighbors(vid_t i) {
@@ -429,6 +437,11 @@ class MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   }
 
   void remove_vertex(vid_t i) { adj_lists_[i].end = adj_lists_[i].begin; }
+
+  void shrink(vid_t i, size_t delta) {
+    delta = std::min(delta, static_cast<size_t>(adj_lists_[i].degree()));
+    adj_lists_[i].end -= delta;
+  }
 
   void update_one(vid_t src, vid_t dst, const EDATA_T& value) {
     mutable_csr_impl::binary_update_one(adj_lists_[src].begin,
