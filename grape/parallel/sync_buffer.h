@@ -121,7 +121,7 @@ class SyncBuffer : public ISyncBuffer {
 
  private:
   VertexArray<VERTEX_SET_T, T> internal_data_;
-  VertexArray<VERTEX_SET_T, T> data_;
+  VertexArray<VERTEX_SET_T, T>& data_;
   VertexArray<VERTEX_SET_T, bool> updated_;
   VERTEX_SET_T range_;
 
