@@ -282,6 +282,13 @@ class ParallelEngine {
   }
 
   template <typename ITER_FUNC_T, typename VID_T>
+  inline void ForEach(const DenseVertexSet<VertexVector<VID_T>>& dense_set,
+                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+    auto dummy_func = [](int tid) {};
+    ForEach(dense_set, dummy_func, iter_func, dummy_func, chunk_size);
+  }
+
+  template <typename ITER_FUNC_T, typename VID_T>
   inline void ForEach(const DenseVertexSet<DualVertexRange<VID_T>>& dense_set,
                       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     auto dummy_func = [](int tid) {};
@@ -384,6 +391,20 @@ class ParallelEngine {
   }
 
   template <typename ITER_FUNC_T, typename VID_T>
+  inline void ForEach(const DenseVertexSet<VertexVector<VID_T>>& dense_set,
+                      const VertexRange<VID_T>& range,
+                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+    auto& bitset = dense_set.GetBitset();
+    VertexRange<VID_T> complete_range = dense_set.Range();
+    VID_T begin = std::max(range.begin_value(), complete_range.begin_value());
+    VID_T end = std::min(range.end_value(), complete_range.end_value());
+    if (begin < end) {
+      parallel_iterate(begin, end, bitset, complete_range.begin_value(),
+                       iter_func, chunk_size);
+    }
+  }
+
+  template <typename ITER_FUNC_T, typename VID_T>
   inline void ForEach(const DenseVertexSet<DualVertexRange<VID_T>>& dense_set,
                       const VertexRange<VID_T>& range,
                       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
@@ -449,6 +470,7 @@ class ParallelEngine {
 
     thread_pool_.WaitEnd(results);
   }
+
   /**
    * @brief Iterate on vertexes of a DenseVertexSet concurrently, initialize
    * function and finalize function can be provided to each thread.
@@ -468,6 +490,54 @@ class ParallelEngine {
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
             typename FINALIZE_FUNC_T, typename VID_T>
   inline void ForEach(const DenseVertexSet<VertexRange<VID_T>>& dense_set,
+                      const INIT_FUNC_T& init_func,
+                      const ITER_FUNC_T& iter_func,
+                      const FINALIZE_FUNC_T& finalize_func,
+                      int chunk_size = 10 * 1024) {
+    VertexRange<VID_T> range = dense_set.Range();
+    std::atomic<VID_T> cur(range.begin_value());
+    VID_T beg = range.begin_value();
+    VID_T end = range.end_value();
+
+    const Bitset& bs = dense_set.GetBitset();
+    chunk_size = ((chunk_size + 63) / 64) * 64;
+
+    std::vector<std::future<void>> results(thread_num_);
+    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
+      results[tid] =
+          thread_pool_.enqueue([&init_func, &finalize_func, &iter_func, &cur,
+                                chunk_size, &bs, beg, end, tid] {
+            init_func(tid);
+
+            while (true) {
+              VID_T cur_beg = std::min(cur.fetch_add(chunk_size), end);
+              VID_T cur_end = std::min(cur_beg + chunk_size, end);
+              if (cur_beg == cur_end) {
+                break;
+              }
+              for (VID_T vid = cur_beg; vid < cur_end; vid += 64) {
+                Vertex<VID_T> v(vid);
+                uint64_t word = bs.get_word(vid - beg);
+                while (word != 0) {
+                  if (word & 1) {
+                    iter_func(tid, v);
+                  }
+                  ++v;
+                  word = word >> 1;
+                }
+              }
+            }
+
+            finalize_func(tid);
+          });
+    }
+
+    thread_pool_.WaitEnd(results);
+  }
+
+  template <typename INIT_FUNC_T, typename ITER_FUNC_T,
+            typename FINALIZE_FUNC_T, typename VID_T>
+  inline void ForEach(const DenseVertexSet<VertexVector<VID_T>>& dense_set,
                       const INIT_FUNC_T& init_func,
                       const ITER_FUNC_T& iter_func,
                       const FINALIZE_FUNC_T& finalize_func,
