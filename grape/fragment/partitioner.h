@@ -74,6 +74,55 @@ class HashPartitioner {
   fid_t fnum_;
 };
 
+template <>
+class HashPartitioner<std::string> {
+ public:
+  using oid_t = std::string;
+
+  HashPartitioner() : fnum_(1) {}
+  explicit HashPartitioner(size_t frag_num) : fnum_(frag_num) {}
+
+  inline fid_t GetPartitionId(const oid_t& oid) const {
+    return static_cast<fid_t>(
+        static_cast<uint64_t>(std::hash<std::string>()(oid)) % fnum_);
+  }
+
+  void SetPartitionId(const oid_t& oid, fid_t fid) {
+    LOG(FATAL) << "not support";
+  }
+
+  HashPartitioner& operator=(const HashPartitioner& other) {
+    if (this == &other) {
+      return *this;
+    }
+    fnum_ = other.fnum_;
+    return *this;
+  }
+
+  HashPartitioner(const HashPartitioner& other) { fnum_ = other.fnum_; }
+
+  HashPartitioner& operator=(HashPartitioner&& other) {
+    if (this == &other) {
+      return *this;
+    }
+    fnum_ = other.fnum_;
+    return *this;
+  }
+
+  template <typename IOADAPTOR_T>
+  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
+    CHECK(writer->Write(&fnum_, sizeof(fid_t)));
+  }
+
+  template <typename IOADAPTOR_T>
+  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+    CHECK(reader->Read(&fnum_, sizeof(fid_t)));
+  }
+
+ private:
+  fid_t fnum_;
+};
+
 /**
  * @brief SegmentedPartitioner is a partitioner with a strategy of chunking
  * original vertex_ids.
@@ -84,6 +133,7 @@ template <typename OID_T>
 class SegmentedPartitioner {
  public:
   SegmentedPartitioner() : fnum_(1) {}
+  explicit SegmentedPartitioner(size_t frag_num) : fnum_(frag_num) {}
   SegmentedPartitioner(size_t frag_num, std::vector<OID_T>& oid_list) {
     fnum_ = frag_num;
     size_t vnum = oid_list.size();

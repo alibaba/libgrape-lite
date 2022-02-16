@@ -325,6 +325,119 @@ class DenseVertexSet<DualVertexRange<VID_T>> {
   Bitset tail_bs_;
 };
 
+template <typename VID_T>
+class DenseVertexSet<VertexVector<VID_T>> {
+ public:
+  DenseVertexSet() = default;
+
+  explicit DenseVertexSet(const VertexRange<VID_T>& range)
+      : beg_(range.begin_value()), end_(range.end_value()), bs_(end_ - beg_) {}
+
+  explicit DenseVertexSet(const VertexVector<VID_T>& vertices) {
+    if (vertices.size() == 0) {
+      beg_ = 0;
+      end_ = 0;
+    } else {
+      beg_ = vertices[0].GetValue();
+      end_ = vertices[vertices.size() - 1].GetValue();
+      bs_.init(end_ - beg_ + 1);
+      bs_.clear();
+    }
+  }
+
+  ~DenseVertexSet() = default;
+
+  void Init(const VertexRange<VID_T>& range, ThreadPool& thread_pool) {
+    beg_ = range.begin_value();
+    end_ = range.end_value();
+    bs_.init(end_ - beg_);
+    bs_.parallel_clear(thread_pool);
+  }
+
+  void Init(const VertexVector<VID_T>& vertices, ThreadPool& thread_pool) {
+    if (vertices.size() == 0)
+      return;
+    beg_ = vertices[0].GetValue();
+    end_ = vertices[vertices.size() - 1].GetValue();
+    bs_.init(end_ - beg_ + 1);
+    bs_.parallel_clear(thread_pool);
+  }
+
+  void Init(const VertexRange<VID_T>& range) {
+    beg_ = range.begin_value();
+    end_ = range.end_value();
+    bs_.init(end_ - beg_);
+    bs_.clear();
+  }
+
+  void Init(const VertexVector<VID_T>& vertices) {
+    if (vertices.size() == 0)
+      return;
+    beg_ = vertices[0].GetValue();
+    end_ = vertices[vertices.size() - 1].GetValue();
+    bs_.init(end_ - beg_ + 1);
+    bs_.clear();
+  }
+
+  void Insert(Vertex<VID_T> u) { bs_.set_bit(u.GetValue() - beg_); }
+
+  bool InsertWithRet(Vertex<VID_T> u) {
+    return bs_.set_bit_with_ret(u.GetValue() - beg_);
+  }
+
+  void Erase(Vertex<VID_T> u) { bs_.reset_bit(u.GetValue() - beg_); }
+
+  bool EraseWithRet(Vertex<VID_T> u) {
+    return bs_.reset_bit_with_ret(u.GetValue() - beg_);
+  }
+
+  bool Exist(Vertex<VID_T> u) const { return bs_.get_bit(u.GetValue() - beg_); }
+
+  VertexRange<VID_T> Range() const { return VertexRange<VID_T>(beg_, end_); }
+
+  size_t Count() const { return bs_.count(); }
+
+  size_t ParallelCount(ThreadPool& thread_pool) const {
+    return bs_.parallel_count(thread_pool);
+  }
+
+  size_t PartialCount(VID_T beg, VID_T end) const {
+    return bs_.partial_count(beg - beg_, end - beg_);
+  }
+
+  size_t ParallelPartialCount(ThreadPool& thread_pool, VID_T beg,
+                              VID_T end) const {
+    return bs_.parallel_partial_count(thread_pool, beg - beg_, end - beg_);
+  }
+
+  void Clear() { bs_.clear(); }
+
+  void ParallelClear(ThreadPool& thread_pool) {
+    bs_.parallel_clear(thread_pool);
+  }
+
+  void Swap(DenseVertexSet& rhs) {
+    std::swap(beg_, rhs.beg_);
+    std::swap(end_, rhs.end_);
+    bs_.swap(rhs.bs_);
+  }
+
+  Bitset& GetBitset() { return bs_; }
+
+  const Bitset& GetBitset() const { return bs_; }
+
+  bool Empty() const { return bs_.empty(); }
+
+  bool PartialEmpty(VID_T beg, VID_T end) const {
+    return bs_.partial_empty(beg - beg_, end - beg_);
+  }
+
+ private:
+  VID_T beg_;
+  VID_T end_;
+  Bitset bs_;
+};
+
 }  // namespace grape
 
 #endif  // GRAPE_UTILS_VERTEX_SET_H_
