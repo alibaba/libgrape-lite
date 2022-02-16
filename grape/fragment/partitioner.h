@@ -133,7 +133,7 @@ template <typename OID_T>
 class SegmentedPartitioner {
  public:
   SegmentedPartitioner() : fnum_(1) {}
-  SegmentedPartitioner(size_t frag_num) : fnum_(frag_num) {}
+  explicit SegmentedPartitioner(size_t frag_num) : fnum_(frag_num) {}
   SegmentedPartitioner(size_t frag_num, std::vector<OID_T>& oid_list) {
     fnum_ = frag_num;
     size_t vnum = oid_list.size();
