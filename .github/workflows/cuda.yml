@@ -8,6 +8,7 @@ jobs:
     strategy:
       matrix:
         os: [self-hosted]
+    if: ${{ false }}
     steps:
       - uses: actions/checkout@v2
         with:
