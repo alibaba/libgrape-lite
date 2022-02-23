@@ -209,6 +209,20 @@ class ParallelMessageManager : public MessageManagerBase {
   }
 
   /**
+   * @brief Send message to a fragment.
+   *
+   * @tparam MESSAGE_T Message type.
+   * @param dst_fid Destination fragment id.
+   * @param msg
+   * @param channelId
+   */
+  template <typename MESSAGE_T>
+  inline void SendToFragment(fid_t dst_fid, const MESSAGE_T& msg,
+                             int channel_id = 0) {
+    channels_[channel_id].SendToFragment<MESSAGE_T>(dst_fid, msg);
+  }
+
+  /**
    * @brief SyncStateOnOuterVertex on a channel.
    *
    * @tparam GRAPH_T Graph type.
