@@ -83,8 +83,7 @@ class FragmentBase {
   virtual void Init(fid_t fid,
                     bool directed,
                     std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
-                    std::vector<Edge<VID_T, EDATA_T>>& edges,
-                    LoadStrategy load_strategy = LoadStrategy::kOnlyOut) = 0;
+                    std::vector<Edge<VID_T, EDATA_T>>& edges) = 0;
 
   /**
    * @brief For some kind of applications, specific data structures will be
