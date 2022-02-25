@@ -50,6 +50,11 @@ struct Nbr {
     data = rhs.data;
     return *this;
   }
+  DEV_HOST_INLINE Nbr& operator=(Nbr&& rhs) {
+    neighbor = std::move(rhs.neighbor);
+    data = std::move(rhs.data);
+    return *this;
+  }
 
   DEV_HOST_INLINE Vertex<VID_T> get_neighbor() const { return neighbor; }
   DEV_HOST_INLINE const EDATA_T& get_data() const { return data; }

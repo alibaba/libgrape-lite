@@ -64,8 +64,9 @@ class FragmentBase {
   const std::shared_ptr<vertex_map_t> GetVertexMap() const { return vm_ptr_; }
 
  protected:
-  void init(fid_t fid) {
+  void init(fid_t fid, bool directed) {
     fid_ = fid;
+    directed_ = directed;
     fnum_ = vm_ptr_->GetFragmentNum();
     id_parser_.init(fnum_);
     ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
@@ -80,8 +81,10 @@ class FragmentBase {
    * @param edges A set of edges.
    */
   virtual void Init(fid_t fid,
+                    bool directed,
                     std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
-                    std::vector<Edge<VID_T, EDATA_T>>& edges) = 0;
+                    std::vector<Edge<VID_T, EDATA_T>>& edges,
+                    LoadStrategy load_strategy = LoadStrategy::kOnlyOut) = 0;
 
   /**
    * @brief For some kind of applications, specific data structures will be
@@ -91,6 +94,13 @@ class FragmentBase {
    * @param need_split_edge
    */
   virtual void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) = 0;
+
+  /**
+   * @brief Returns true if the fragment is directed, false otherwise.
+   *
+   * @return true if the fragment is directed, false otherwise.
+   */
+  bool directed() const { return directed_; }
 
   /**
    * @brief Returns the ID of this fragment.
@@ -299,7 +309,7 @@ class FragmentBase {
   template <typename IOADAPTOR_T>
   void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
     InArchive arc;
-    arc << fid_ << fnum_ << ivnum_ << vertices_;
+    arc << fid_ << fnum_ << directed_ << ivnum_ << vertices_;
     CHECK(writer->WriteArchive(arc));
   }
 
@@ -307,11 +317,12 @@ class FragmentBase {
   void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));
-    arc >> fid_ >> fnum_ >> ivnum_ >> vertices_;
+    arc >> fid_ >> fnum_ >> directed_ >> ivnum_ >> vertices_;
     id_parser_.init(fnum_);
   }
 
   fid_t fid_, fnum_;
+  bool directed_;
   VID_T ivnum_;
 
   vertices_t vertices_;

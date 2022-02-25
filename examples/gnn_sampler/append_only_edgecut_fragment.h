@@ -335,9 +335,9 @@ class AppendOnlyEdgecutFragment
   using base_t::init;
   using base_t::InnerVertexGid2Lid;
   using base_t::IsInnerVertexGid;
-  void Init(fid_t fid, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid);
+    init(fid, directed);
 
     ovnum_ = 0;
     oenum_ = 0;
@@ -916,6 +916,7 @@ class AppendOnlyEdgecutFragment
   using base_t::fid_;
   using base_t::fnum_;
   using base_t::id_parser_;
+  using base_t::directed_;
   using base_t::ivnum_;
   using base_t::vm_ptr_;
 

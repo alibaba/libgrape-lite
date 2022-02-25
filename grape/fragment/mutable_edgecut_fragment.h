@@ -74,12 +74,12 @@ class MutableEdgecutFragment
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
 
+  static constexpr LoadStrategy load_strategy = _load_strategy;
+
   using vertex_map_t = typename traits_t::vertex_map_t;
 
   using IsEdgeCut = std::true_type;
   using IsVertexCut = std::false_type;
-
-  static constexpr LoadStrategy load_strategy = _load_strategy;
 
   using inner_vertices_t = typename traits_t::inner_vertices_t;
   using outer_vertices_t = typename traits_t::outer_vertices_t;
@@ -104,9 +104,9 @@ class MutableEdgecutFragment
   using base_t::buildCSR;
   using base_t::init;
   using base_t::IsInnerVertexGid;
-  void Init(fid_t fid, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid);
+    init(fid, directed);
 
     ovnum_ = 0;
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
@@ -182,7 +182,8 @@ class MutableEdgecutFragment
   using base_t::vm_ptr_;
   void Mutate(Mutation<vid_t, vdata_t, edata_t>& mutation) {
     vertex_t v;
-    if (static_cast<double>(mutation.vertices_to_remove.size()) /
+    if (!mutation.vertices_to_remove.empty() &&
+        static_cast<double>(mutation.vertices_to_remove.size()) /
             static_cast<double>(this->GetVerticesNum()) <
         0.1) {
       std::set<vertex_t> sparse_set;
@@ -193,11 +194,13 @@ class MutableEdgecutFragment
           sparse_set.insert(v);
         }
       }
-      auto func = [&sparse_set](vid_t i, const nbr_t& e) {
-        return sparse_set.find(e.neighbor) != sparse_set.end();
-      };
-      ie_.remove_if(func);
-      oe_.remove_if(func);
+      if (!sparse_set.empty()) {
+        auto func = [&sparse_set](vid_t i, const nbr_t& e) {
+          return sparse_set.find(e.neighbor) != sparse_set.end();
+        };
+        ie_.remove_if(func);
+        oe_.remove_if(func);
+      }
     } else if (!mutation.vertices_to_remove.empty()) {
       vertex_array_t<bool> dense_bitset;
       for (auto gid : mutation.vertices_to_remove) {
@@ -303,6 +306,8 @@ class MutableEdgecutFragment
       oe_.add_vertices(new_ivnum - ivnum, new_ovnum - ovnum);
       oe_.add_edges(edges_to_add);
     }
+    ivdata_.resize(this->ivnum_);
+    ovdata_.resize(this->ovnum_);
     for (auto& v : mutation.vertices_to_add) {
       vid_t lid;
       if (IsInnerVertexGid(v.vid)) {
@@ -613,6 +618,7 @@ class MutableEdgecutFragment
   using base_t::fid_;
   using base_t::fnum_;
   using base_t::id_parser_;
+  using base_t::directed_;
 
   ska::flat_hash_map<VID_T, VID_T> ovg2i_;
   std::vector<VID_T> ovgid_;

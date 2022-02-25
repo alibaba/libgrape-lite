@@ -141,7 +141,7 @@ class EFragmentLoader {
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "] finished add vertices and edges";
 
-    basic_fragment_loader_.ConstructFragment(fragment);
+    basic_fragment_loader_.ConstructFragment(fragment, spec.directed);
 
     if (spec.serialize) {
       bool serialized = basic_fragment_loader_.SerializeFragment(

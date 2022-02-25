@@ -464,6 +464,23 @@ class MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         mutable_csr_impl::remove_tombs(adj_lists_[i].begin, adj_lists_[i].end);
   }
 
+  void clear_edges() {
+    vid_t vnum = vertex_num();
+    capacity_.clear();
+    adj_lists_.clear();
+    buffers_.clear();
+    capacity_.resize(vnum, 0);
+    adj_lists_.resize(vnum);
+    mutable_csr_impl::Blob<vid_t, nbr_t> blob;
+    buffers_.emplace_back(std::move(blob));
+    nbr_t* ptr = buffers_[0].data();
+    for (vid_t i = 0; i < vnum; ++i) {
+      adj_lists_[i].begin = ptr;
+      adj_lists_[i].end = ptr;
+    }
+    return;
+  }
+
   template <typename IOADAPTOR_T>
   void Serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
     vid_t vnum = vertex_num();

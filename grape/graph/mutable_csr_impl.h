@@ -283,6 +283,27 @@ inline void binary_update_one(Nbr<VID_T, EDATA_T>* begin,
   }
 }
 
+template <typename VID_T, typename EDATA_T>
+inline Nbr<VID_T, EDATA_T>* binary_get_one(Nbr<VID_T, EDATA_T>* begin,
+                                           Nbr<VID_T, EDATA_T>* end, VID_T target) {
+  while (begin != end) {
+    int l2 = (end - begin) >> 1;
+    Nbr<VID_T, EDATA_T>* mid = begin + l2;
+    if (mid->neighbor.GetValue() < target) {
+      begin = mid + 1;
+    } else if (mid->neighbor.GetValue() == target) {
+      return mid;
+    } else {
+      end = begin + l2;
+    }
+  }
+  if (begin->neighbor.GetValue() == target) {
+    return begin;
+  } else {
+    return nullptr;
+  }
+}
+
 }  // namespace mutable_csr_impl
 
 }  // namespace grape
