@@ -43,41 +43,6 @@ class ParallelEngine {
   inline ThreadPool& GetThreadPool() { return thread_pool_; }
 
   /**
-   * @brief Iterate a range specified by iterator pair concurrently.
-   *
-   * @tparam ITER_FUNC_T Type of vertex program.
-   * @tparam ITERATOR_T Type of range iterator.
-   * @param begin The begin iterator of range.
-   * @param end The end iterator of range.
-   * @param iter_func Vertex program to be applied on each vertex.
-   * @param chunk_size Vertices granularity to be scheduled by threads.
-   */
-  template <typename ITER_FUNC_T, typename ITERATOR_T>
-  inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
-                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
-    std::atomic<size_t> offset(0);
-    std::vector<std::future<void>> results(thread_num_);
-    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
-      results[tid] = thread_pool_.enqueue(
-          [&offset, chunk_size, &iter_func, begin, end, tid] {
-            while (true) {
-              const ITERATOR_T cur_beg =
-                  std::min(begin + offset.fetch_add(chunk_size), end);
-              const ITERATOR_T cur_end = std::min(cur_beg + chunk_size, end);
-              if (cur_beg == cur_end) {
-                break;
-              }
-              for (auto iter = cur_beg; iter != cur_end; ++iter) {
-                iter_func(tid, *iter);
-              }
-            }
-          });
-    }
-
-    thread_pool_.WaitEnd(results);
-  }
-
-  /**
    * @brief Iterate on vertexes of a VertexRange concurrently.
    *
    * @tparam ITER_FUNC_T Type of vertex program.
@@ -114,6 +79,13 @@ class ParallelEngine {
                       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     auto dummy_func = [](int tid) {};
     ForEach(vertices, dummy_func, iter_func, dummy_func, chunk_size);
+  }
+
+  template <typename ITERATOR_T, typename ITER_FUNC_T>
+  inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
+                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+    auto dummy_func = [](int tid) {};
+    ForEach(begin, end, dummy_func, iter_func, dummy_func, chunk_size);
   }
 
   /**
@@ -265,6 +237,53 @@ class ParallelEngine {
 
     thread_pool_.WaitEnd(results);
   }
+  /**
+   * @brief Iterate a range specified by iterator pair concurrently.
+   *
+   * @tparam ITER_FUNC_T Type of vertex program.
+   * @tparam ITERATOR_T Type of range iterator.
+   * @param begin The begin iterator of range.
+   * @param end The end iterator of range.
+   * @param init_func Initializing function to be invoked by each thread before
+   * iterating on vertexes.
+   * @param iter_func Vertex program to be applied on each vertex.
+   * @param finalize_func Finalizing function to be invoked by each thread after
+   * iterating on vertexes.
+   * @param chunk_size Vertices granularity to be scheduled by threads.
+   */
+  template <typename ITERATOR_T, typename INIT_FUNC_T,
+            typename ITER_FUNC_T, typename FINALIZE_FUNC_T>
+  inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
+                      const INIT_FUNC_T& init_func,
+                      const ITER_FUNC_T& iter_func,
+                      const FINALIZE_FUNC_T& finalize_func,
+                      int chunk_size = 1024) {
+    std::atomic<size_t> offset(0);
+    std::vector<std::future<void>> results(thread_num_);
+    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
+      results[tid] = thread_pool_.enqueue(
+          [&offset, chunk_size, &init_func, &iter_func, &finalize_func, begin,
+           end, tid] {
+            init_func(tid);
+
+            while (true) {
+              const ITERATOR_T cur_beg =
+                  std::min(begin + offset.fetch_add(chunk_size), end);
+              const ITERATOR_T cur_end = std::min(cur_beg + chunk_size, end);
+              if (cur_beg == cur_end) {
+                break;
+              }
+              for (auto iter = cur_beg; iter != cur_end; ++iter) {
+                iter_func(tid, *iter);
+              }
+            }
+
+            finalize_func(tid);
+          });
+    }
+
+    thread_pool_.WaitEnd(results);
+  }
 
   /**
    * @brief Iterate on vertexes of a DenseVertexSet concurrently.
@@ -297,15 +316,17 @@ class ParallelEngine {
   }
 
   template <typename ITER_FUNC_T, typename VID_T>
-  inline void ForEach(const DenseVertexSet<DynamicVertexRange<VID_T>>& dense_set,
-                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+  inline void ForEach(
+      const DenseVertexSet<DynamicVertexRange<VID_T>>& dense_set,
+      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     auto dummy_func = [](int tid) {};
     ForEach(dense_set, dummy_func, iter_func, dummy_func, chunk_size);
   }
 
   template <typename ITER_FUNC_T, typename VID_T>
-  inline void ForEach(const DenseVertexSet<DynamicDualVertexRange<VID_T>>& dense_set,
-                      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
+  inline void ForEach(
+      const DenseVertexSet<DynamicDualVertexRange<VID_T>>& dense_set,
+      const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     auto dummy_func = [](int tid) {};
     ForEach(dense_set, dummy_func, iter_func, dummy_func, chunk_size);
   }
@@ -671,11 +692,10 @@ class ParallelEngine {
 
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
             typename FINALIZE_FUNC_T, typename VID_T>
-  inline void ForEach(const DenseVertexSet<DynamicVertexRange<VID_T>>& dense_set,
-                      const INIT_FUNC_T& init_func,
-                      const ITER_FUNC_T& iter_func,
-                      const FINALIZE_FUNC_T& finalize_func,
-                      int chunk_size = 10 * 1024) {
+  inline void ForEach(
+      const DenseVertexSet<DynamicVertexRange<VID_T>>& dense_set,
+      const INIT_FUNC_T& init_func, const ITER_FUNC_T& iter_func,
+      const FINALIZE_FUNC_T& finalize_func, int chunk_size = 10 * 1024) {
     VertexRange<VID_T> range = dense_set.Range();
     std::atomic<VID_T> cur(range.begin_value());
     VID_T beg = range.begin_value();
@@ -719,11 +739,10 @@ class ParallelEngine {
 
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
             typename FINALIZE_FUNC_T, typename VID_T>
-  inline void ForEach(const DenseVertexSet<DynamicDualVertexRange<VID_T>>& dense_set,
-                      const INIT_FUNC_T& init_func,
-                      const ITER_FUNC_T& iter_func,
-                      const FINALIZE_FUNC_T& finalize_func,
-                      int chunk_size = 10 * 1024) {
+  inline void ForEach(
+      const DenseVertexSet<DynamicDualVertexRange<VID_T>>& dense_set,
+      const INIT_FUNC_T& init_func, const ITER_FUNC_T& iter_func,
+      const FINALIZE_FUNC_T& finalize_func, int chunk_size = 10 * 1024) {
     VertexRange<VID_T> head = dense_set.head();
     VertexRange<VID_T> tail = dense_set.tail();
     VID_T head_beg = head.begin_value();

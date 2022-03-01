@@ -512,6 +512,12 @@ class VertexArray<DualVertexRange<VID_T>, T> {
   VID_T mid_;
 };
 
+/**
+ * @brief A continuous vertices range representation, which contain a
+ * vertices filter.
+ *
+ * @tparam T Vertex ID type.
+ */
 template <typename T>
 class DynamicVertexRange {
  public:
@@ -615,7 +621,9 @@ class DynamicVertexRange {
     if (!reversed_) {
       while (real_begin < end_ && !(*filter_)[real_begin]) { ++real_begin; }
     } else {
-      while (real_begin < end_ && !(*filter_)[end_ - real_begin - 1]) { ++real_begin; }
+      while (real_begin < end_ && !(*filter_)[end_ - real_begin - 1]) {
+        ++real_begin;
+      }
     }
     return iterator(real_begin, end_, filter_, reversed_);
   }
@@ -674,6 +682,12 @@ class DynamicVertexRange {
   bool reversed_;
 };
 
+/**
+ * @brief A dual vertices range representation, which contain
+ * vertices filters.
+ *
+ * @tparam T Vertex ID type.
+ */
 template <typename VID_T>
 class DynamicDualVertexRange {
  public:
@@ -815,10 +829,15 @@ class DynamicDualVertexRange {
 
   inline iterator begin() const {
     VID_T real_begin = head_begin_;
-    while (real_begin < head_end_ && !(*head_filter_)[real_begin]) { ++real_begin; }
+    while (real_begin < head_end_ && !(*head_filter_)[real_begin]) {
+      ++real_begin;
+    }
     if (real_begin == head_end_) {
       real_begin = tail_begin_;
-      while (real_begin < tail_end_ && !(*tail_filter_)[tail_end_ - real_begin - 1]) { ++real_begin; }
+      while (real_begin < tail_end_ &&
+             !(*tail_filter_)[tail_end_ - real_begin - 1]) {
+        ++real_begin;
+      }
     }
     return iterator(real_begin, head_end_, tail_begin_, tail_end_,
                     head_filter_, tail_filter_);
@@ -931,7 +950,7 @@ class VertexArray<DynamicVertexRange<VID_T>, T>
     this->Swap(ga);
   }
 
-  const DynamicVertexRange<VID_T>& GetVertexRange() const { return range_; }
+  const VertexRange<VID_T>& GetVertexRange() const { return range_; }
 
  private:
   void Resize() {}
@@ -1006,6 +1025,10 @@ class VertexArray<DynamicDualVertexRange<VID_T>, T> {
   void SetValue(const T& value) {
     head_.SetValue(value);
     tail_.SetValue(value);
+  }
+
+  const VertexRange<VID_T>& GetVertexRange() const {
+    return head_.GetVertexRange();
   }
 
  private:
