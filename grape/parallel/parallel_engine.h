@@ -317,7 +317,7 @@ class ParallelEngine {
 
   template <typename ITER_FUNC_T, typename VID_T>
   inline void ForEach(
-      const DenseVertexSet<DynamicVertexRange<VID_T>>& dense_set,
+      const DenseVertexSet<FilterVertexRange<VID_T>>& dense_set,
       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     auto dummy_func = [](int tid) {};
     ForEach(dense_set, dummy_func, iter_func, dummy_func, chunk_size);
@@ -325,7 +325,7 @@ class ParallelEngine {
 
   template <typename ITER_FUNC_T, typename VID_T>
   inline void ForEach(
-      const DenseVertexSet<DynamicDualVertexRange<VID_T>>& dense_set,
+      const DenseVertexSet<FilterDualVertexRange<VID_T>>& dense_set,
       const ITER_FUNC_T& iter_func, int chunk_size = 1024) {
     auto dummy_func = [](int tid) {};
     ForEach(dense_set, dummy_func, iter_func, dummy_func, chunk_size);
@@ -693,7 +693,7 @@ class ParallelEngine {
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
             typename FINALIZE_FUNC_T, typename VID_T>
   inline void ForEach(
-      const DenseVertexSet<DynamicVertexRange<VID_T>>& dense_set,
+      const DenseVertexSet<FilterVertexRange<VID_T>>& dense_set,
       const INIT_FUNC_T& init_func, const ITER_FUNC_T& iter_func,
       const FINALIZE_FUNC_T& finalize_func, int chunk_size = 10 * 1024) {
     VertexRange<VID_T> range = dense_set.Range();
@@ -740,7 +740,7 @@ class ParallelEngine {
   template <typename INIT_FUNC_T, typename ITER_FUNC_T,
             typename FINALIZE_FUNC_T, typename VID_T>
   inline void ForEach(
-      const DenseVertexSet<DynamicDualVertexRange<VID_T>>& dense_set,
+      const DenseVertexSet<FilterDualVertexRange<VID_T>>& dense_set,
       const INIT_FUNC_T& init_func, const ITER_FUNC_T& iter_func,
       const FINALIZE_FUNC_T& finalize_func, int chunk_size = 10 * 1024) {
     VertexRange<VID_T> head = dense_set.head();

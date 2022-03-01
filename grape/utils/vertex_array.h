@@ -519,11 +519,11 @@ class VertexArray<DualVertexRange<VID_T>, T> {
  * @tparam T Vertex ID type.
  */
 template <typename T>
-class DynamicVertexRange {
+class FilterVertexRange {
  public:
   using vertex_t = Vertex<T>;
-  DynamicVertexRange() = default;
-  explicit DynamicVertexRange(const T& begin, const T& end, const T& size,
+  FilterVertexRange() = default;
+  explicit FilterVertexRange(const T& begin, const T& end, const T& size,
                               Array<bool>* filter, bool reversed = false)
       : begin_(begin),
         end_(end),
@@ -636,7 +636,7 @@ class DynamicVertexRange {
 
   size_t size() const { return size_; }
 
-  void Swap(DynamicVertexRange& rhs) {
+  void Swap(FilterVertexRange& rhs) {
     std::swap(begin_, rhs.begin_);
     std::swap(end_, rhs.end_);
     std::swap(size_, rhs.size_);
@@ -666,7 +666,7 @@ class DynamicVertexRange {
  private:
   T begin_, end_;
   T size_;
-  Array<bool>* filter_;
+  Bitset bs_
   bool reversed_;
 };
 
@@ -674,14 +674,14 @@ class DynamicVertexRange {
  * @brief A dual vertices range representation, which contain
  * vertices filters.
  *
- * @tparam T Vertex ID type.
+ * @tparam VID_T Vertex ID type.
  */
 template <typename VID_T>
-class DynamicDualVertexRange {
+class FilterDualVertexRange {
  public:
   using vertex_t = Vertex<VID_T>;
-  DynamicDualVertexRange() {}
-  explicit DynamicDualVertexRange(
+  FilterDualVertexRange() {}
+  explicit FilterDualVertexRange(
       const VID_T& head_begin, const VID_T& head_end, const VID_T& tail_begin,
       const VID_T& tail_end, Array<bool>* head_filter, Array<bool>* tail_filter)
       : head_begin_(head_begin),
@@ -863,18 +863,18 @@ class DynamicDualVertexRange {
 };
 
 template <typename VID_T, typename T>
-class VertexArray<DynamicVertexRange<VID_T>, T>
+class VertexArray<FilterVertexRange<VID_T>, T>
     : public Array<T, Allocator<T>> {
   using Base = Array<T, Allocator<T>>;
 
  public:
   VertexArray() : Base(), fake_start_(NULL) {}
-  explicit VertexArray(const DynamicVertexRange<VID_T>& range)
+  explicit VertexArray(const FilterVertexRange<VID_T>& range)
       : Base(range.end_value() - range.begin_value()),
         range_(range.full_range()) {
     fake_start_ = Base::data() - range_.begin_value();
   }
-  VertexArray(const DynamicVertexRange<VID_T>& range, const T& value)
+  VertexArray(const FilterVertexRange<VID_T>& range, const T& value)
       : Base(range.end_value() - range.begin_value(), value),
         range_(range.full_range()) {
     fake_start_ = Base::data() - range_.begin_value();
@@ -882,21 +882,21 @@ class VertexArray<DynamicVertexRange<VID_T>, T>
 
   ~VertexArray() = default;
 
-  void Init(const DynamicVertexRange<VID_T>& range) {
+  void Init(const FilterVertexRange<VID_T>& range) {
     Base::clear();
     Base::resize(range.end_value() - range.begin_value());
     range_ = range.full_range();
     fake_start_ = Base::data() - range_.begin_value();
   }
 
-  void Init(const DynamicVertexRange<VID_T>& range, const T& value) {
+  void Init(const FilterVertexRange<VID_T>& range, const T& value) {
     Base::clear();
     Base::resize(range.end_value() - range.begin_value(), value);
     range_ = range.full_range();
     fake_start_ = Base::data() - range_.begin_value();
   }
 
-  void SetValue(DynamicVertexRange<VID_T>& range, const T& value) {
+  void SetValue(FilterVertexRange<VID_T>& range, const T& value) {
     std::fill_n(&Base::data()[range.begin_value() - range_.begin_value()],
                 range.begin_value() - range_.begin_value(), value);
   }
@@ -936,14 +936,14 @@ class VertexArray<DynamicVertexRange<VID_T>, T>
 };
 
 template <typename VID_T, typename T>
-class VertexArray<DynamicDualVertexRange<VID_T>, T> {
+class VertexArray<FilterDualVertexRange<VID_T>, T> {
  public:
   VertexArray() : head_(), tail_() {}
-  explicit VertexArray(const DynamicDualVertexRange<VID_T>& range)
+  explicit VertexArray(const FilterDualVertexRange<VID_T>& range)
       : head_(range.head()), tail_(range.tail()) {
     initMid();
   }
-  VertexArray(const DynamicDualVertexRange<VID_T>& range, const T& value)
+  VertexArray(const FilterDualVertexRange<VID_T>& range, const T& value)
       : head_(range.head(), value), tail_(range.tail(), value) {
     initMid();
   }
@@ -955,13 +955,13 @@ class VertexArray<DynamicDualVertexRange<VID_T>, T> {
     initMid();
   }
 
-  void Init(const DynamicVertexRange<VID_T>& range) {
+  void Init(const FilterVertexRange<VID_T>& range) {
     head_.Init(range.full_range());
     tail_.Init(VertexRange<VID_T>(mid_, mid_));
     initMid();
   }
 
-  void Init(const DynamicDualVertexRange<VID_T>& range) {
+  void Init(const FilterDualVertexRange<VID_T>& range) {
     head_.Init(range.head());
     tail_.Init(range.tail());
     initMid();
@@ -973,7 +973,7 @@ class VertexArray<DynamicDualVertexRange<VID_T>, T> {
     initMid();
   }
 
-  void Init(const DynamicDualVertexRange<VID_T>& range, const T& value) {
+  void Init(const FilterDualVertexRange<VID_T>& range, const T& value) {
     head_.Init(range.head(), value);
     tail_.Init(range.tail(), value);
     initMid();

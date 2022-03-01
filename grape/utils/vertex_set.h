@@ -439,16 +439,16 @@ class DenseVertexSet<VertexVector<VID_T>> {
 };
 
 template <typename VID_T>
-class DenseVertexSet<DynamicVertexRange<VID_T>> {
+class DenseVertexSet<FilterVertexRange<VID_T>> {
  public:
   DenseVertexSet() = default;
 
-  explicit DenseVertexSet(const DynamicVertexRange<VID_T>& range)
+  explicit DenseVertexSet(const FilterVertexRange<VID_T>& range)
       : beg_(range.begin_value()), end_(range.end_value()), bs_(end_ - beg_) {}
 
   ~DenseVertexSet() = default;
 
-  void Init(const DynamicVertexRange<VID_T>& range, ThreadPool& thread_pool) {
+  void Init(const FilterVertexRange<VID_T>& range, ThreadPool& thread_pool) {
     beg_ = range.begin_value();
     end_ = range.end_value();
     bs_.init(end_ - beg_);
@@ -464,7 +464,7 @@ class DenseVertexSet<DynamicVertexRange<VID_T>> {
     bs_.parallel_clear(thread_pool);
   }
 
-  void Init(const DynamicVertexRange<VID_T>& range) {
+  void Init(const FilterVertexRange<VID_T>& range) {
     beg_ = range.begin_value();
     end_ = range.end_value();
     bs_.init(end_ - beg_);
@@ -540,11 +540,11 @@ class DenseVertexSet<DynamicVertexRange<VID_T>> {
 };
 
 template <typename VID_T>
-class DenseVertexSet<DynamicDualVertexRange<VID_T>> {
+class DenseVertexSet<FilterDualVertexRange<VID_T>> {
  public:
   DenseVertexSet() = default;
 
-  explicit DenseVertexSet(const DynamicDualVertexRange<VID_T>& range)
+  explicit DenseVertexSet(const FilterDualVertexRange<VID_T>& range)
       : head_beg_(range.head().begin_value()),
         head_end_(range.head().end_value()),
         tail_beg_(range.tail().begin_value()),
@@ -554,7 +554,7 @@ class DenseVertexSet<DynamicDualVertexRange<VID_T>> {
 
   ~DenseVertexSet() = default;
 
-  void Init(const DynamicDualVertexRange<VID_T>& range,
+  void Init(const FilterDualVertexRange<VID_T>& range,
             ThreadPool& thread_pool) {
     head_beg_ = range.head().begin_value();
     head_end_ = range.head().end_value();
@@ -577,7 +577,7 @@ class DenseVertexSet<DynamicDualVertexRange<VID_T>> {
     tail_end_ = tail_beg_;
   }
 
-  void Init(const DynamicDualVertexRange<VID_T>& range) {
+  void Init(const FilterDualVertexRange<VID_T>& range) {
     head_beg_ = range.head().begin_value();
     head_end_ = range.head().end_value();
     tail_beg_ = range.tail().begin_value();
