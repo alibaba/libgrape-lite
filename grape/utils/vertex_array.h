@@ -663,18 +663,6 @@ class DynamicVertexRange {
                       : (*filter_)[v.GetValue()]);
   }
 
-  inline friend InArchive& operator<<(InArchive& in_archive,
-                                      const DynamicVertexRange<T>& range) {
-    in_archive << range.begin_ << range.end_;
-    return in_archive;
-  }
-
-  inline friend OutArchive& operator>>(OutArchive& out_archive,
-                                       DynamicVertexRange<T>& range) {
-    out_archive >> range.begin_ >> range.end_;
-    return out_archive;
-  }
-
  private:
   T begin_, end_;
   T size_;
@@ -866,18 +854,6 @@ class DynamicDualVertexRange {
            (v.GetValue() < head_end_
                 ? (*head_filter_)[v.GetValue()]
                 : (*tail_filter_)[tail_end_ - v.GetValue() - 1]);
-  }
-
-  inline friend InArchive& operator<<(
-      InArchive& in_archive, const DynamicDualVertexRange<VID_T>& range) {
-    in_archive << range.head_begin_ << range.head_end_;
-    return in_archive;
-  }
-
-  inline friend OutArchive& operator>>(OutArchive& out_archive,
-                                       DynamicDualVertexRange<VID_T>& range) {
-    out_archive >> range.head_begin_ >> range.head_end_;
-    return out_archive;
   }
 
  private:

@@ -74,12 +74,12 @@ class MutableEdgecutFragment
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
 
-  static constexpr LoadStrategy load_strategy = _load_strategy;
-
   using vertex_map_t = typename traits_t::vertex_map_t;
 
   using IsEdgeCut = std::true_type;
   using IsVertexCut = std::false_type;
+
+  static constexpr LoadStrategy load_strategy = _load_strategy;
 
   using inner_vertices_t = typename traits_t::inner_vertices_t;
   using outer_vertices_t = typename traits_t::outer_vertices_t;
