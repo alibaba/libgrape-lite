@@ -666,7 +666,7 @@ class FilterVertexRange {
  private:
   T begin_, end_;
   T size_;
-  Bitset bs_
+  Array<bool>* filter_;
   bool reversed_;
 };
 
