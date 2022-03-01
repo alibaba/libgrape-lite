@@ -554,7 +554,8 @@ class DenseVertexSet<DynamicDualVertexRange<VID_T>> {
 
   ~DenseVertexSet() = default;
 
-  void Init(const DynamicDualVertexRange<VID_T>& range, ThreadPool& thread_pool) {
+  void Init(const DynamicDualVertexRange<VID_T>& range,
+            ThreadPool& thread_pool) {
     head_beg_ = range.head().begin_value();
     head_end_ = range.head().end_value();
     tail_beg_ = range.tail().begin_value();
