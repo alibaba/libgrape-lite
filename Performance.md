@@ -79,7 +79,7 @@ The best results are marked in **bold**.
 
 | Algorithm   | Dataset          | Gunrock   | Groute   | libgrape-lite-GPU |
 |-------------|------------------|-----------|----------|-------------------|
-| SSSS        | soc-LiveJournal1 |   89.9345 | 215.560  |        **32.3029**|
+| SSSP        | soc-LiveJournal1 |   89.9345 | 215.560  |        **32.3029**|
 |             | soc-twitter-2010 |  129.454  | 389.155  |        **88.0549**|
 |             | soc-sinaweibo    |  210.168  | 1649.647 |         **172.03**|
 |             | soc-orkut        |  105.121  | 193.658  |        **54.3201**|
