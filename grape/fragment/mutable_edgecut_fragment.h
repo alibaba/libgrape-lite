@@ -261,11 +261,7 @@ class MutableEdgecutFragment
           } else {
             if (!directed_ && IsInnerVertexGid(e.src)) {
               e.src = id_parser_.get_local_id(e.src);
-              if (!IsInnerVertexGid(e.dst)) {
-                e.dst = parseOrAddOuterVertexGid(e.dst);
-              } else {
-                e.dst = id_parser_.get_local_id(e.dst);
-              }
+              e.dst = parseOrAddOuterVertexGid(e.dst);
             } else {
               e.src = invalid_vid;
             }
@@ -283,11 +279,7 @@ class MutableEdgecutFragment
           } else {
             if (!directed_ && IsInnerVertexGid(e.dst)) {
               e.dst = id_parser_.get_local_id(e.dst);
-              if (!IsInnerVertexGid(e.src)) {
-                e.src = parseOrAddOuterVertexGid(e.src);
-              } else {
-                e.src = id_parser_.get_local_id(e.src);
-              }
+              e.src = parseOrAddOuterVertexGid(e.src);
             } else {
               e.src = invalid_vid;
             }
@@ -329,7 +321,7 @@ class MutableEdgecutFragment
       }
       ie_.add_vertices(new_ivnum - ivnum, new_ovnum - ovnum);
       oe_.add_vertices(new_ivnum - ivnum, new_ovnum - ovnum);
-      if (directed_) {
+      if (this->directed_) {
         ie_.add_reversed_edges(edges_to_add);
         oe_.add_forward_edges(edges_to_add);
       } else {
@@ -648,8 +640,8 @@ class MutableEdgecutFragment
   VID_T ovnum_;
   using base_t::fid_;
   using base_t::fnum_;
-  using base_t::id_parser_;
   using base_t::directed_;
+  using base_t::id_parser_;
 
   ska::flat_hash_map<VID_T, VID_T> ovg2i_;
   std::vector<VID_T> ovgid_;
