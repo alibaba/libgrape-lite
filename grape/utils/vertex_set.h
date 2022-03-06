@@ -147,7 +147,7 @@ class DenseVertexSet<DualVertexRange<VID_T>> {
 
   ~DenseVertexSet() = default;
 
-  void Init(const DualVertexRange<VID_T>& range, ThreadPool& thread_pool) {
+  void Init(const VertexRange<VID_T>& range, ThreadPool& thread_pool) {
     head_beg_ = range.head().begin_value();
     head_end_ = range.head().end_value();
     tail_beg_ = range.tail().begin_value();

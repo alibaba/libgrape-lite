@@ -58,12 +58,11 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
 #endif
 
     // Each vertex scatter its own out degree.
-    ForEach(inner_vertices.begin(), inner_vertices.end(),
-      [&messages, &frag, &ctx](int tid, vertex_t v) {
+    ForEach(inner_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
       ctx.global_degree[v] = frag.GetLocalOutDegree(v);
       messages.SendMsgThroughOEdges<fragment_t, int>(frag, v,
                                                      ctx.global_degree[v], tid);
-      });
+    });
 
 #ifdef PROFILING
     ctx.postprocess_time += GetCurrentTime();
@@ -94,8 +93,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
       ctx.exec_time -= GetCurrentTime();
 #endif
 
-      ForEach(inner_vertices.begin(), inner_vertices.end(),
-        [&frag, &ctx, &messages](int tid, vertex_t v) {
+      ForEach(inner_vertices, [&frag, &ctx, &messages](int tid, vertex_t v) {
         vid_t u_gid, v_gid;
         auto& nbr_vec = ctx.complete_neighbor[v];
         int degree = ctx.global_degree[v];
@@ -152,7 +150,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
       std::vector<DenseVertexSet<typename FRAG_T::vertices_t>> vertexsets(
           thread_num());
 
-      ForEach(inner_vertices.begin(), inner_vertices.end(),
+      ForEach(inner_vertices,
               [&vertexsets, &frag](int tid) {
                 auto& ns = vertexsets[tid];
                 ns.Init(frag.Vertices());
@@ -184,8 +182,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
       ctx.postprocess_time -= GetCurrentTime();
 #endif
 
-      ForEach(outer_vertices.begin(), outer_vertices.end(),
-        [&messages, &frag, &ctx](int tid, vertex_t v) {
+      ForEach(outer_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
         if (ctx.tricnt[v] != 0) {
           messages.SyncStateOnOuterVertex<fragment_t, int>(frag, v,
                                                            ctx.tricnt[v], tid);
