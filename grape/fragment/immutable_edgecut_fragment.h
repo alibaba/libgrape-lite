@@ -177,7 +177,11 @@ class ImmutableEdgecutFragment
             outer_vertices.push_back(e.src);
           }
         } else {
-          e.src = invalid_vid;
+          if (!directed && IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.dst);
+          } else {
+            e.src = invalid_vid;
+          }
         }
       };
       auto iter_out = [&](Edge<VID_T, EDATA_T>& e,
@@ -187,7 +191,11 @@ class ImmutableEdgecutFragment
             outer_vertices.push_back(e.dst);
           }
         } else {
-          e.src = invalid_vid;
+          if (!directed && IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+          }
         }
       };
       auto iter_out_in = [&](Edge<VID_T, EDATA_T>& e,
