@@ -73,7 +73,8 @@ class Bitset {
     }
     size_t new_size_in_words = WORD_SIZE(size);
     if (size_in_words_ != new_size_in_words) {
-      uint64_t* new_data = static_cast<uint64_t*>(malloc(new_size_in_words * sizeof(uint64_t)));
+      uint64_t* new_data =
+          static_cast<uint64_t*>(malloc(new_size_in_words * sizeof(uint64_t)));
       if (size_in_words_ > new_size_in_words) {
         for (size_t i = 0; i < new_size_in_words; ++i) {
           new_data[i] = data_[i];
