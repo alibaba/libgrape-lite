@@ -227,6 +227,16 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
+  void add_forward_edges(const std::vector<edge_t>& edges) {
+    double rate =
+        static_cast<double>(edges.size()) / static_cast<double>(edge_num());
+    if (rate < dense_threshold) {
+      add_forward_edges_sparse(edges);
+    } else {
+      add_forward_edges_dense(edges);
+    }
+  }
+
   void add_reversed_edges(const std::vector<edge_t>& edges) {
     double rate =
         static_cast<double>(edges.size()) / static_cast<double>(edge_num());
@@ -508,7 +518,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
-  void add_edges_dense(const std::vector<edge_t>& edges) {
+  void add_forward_edges_dense(const std::vector<edge_t>& edges) {
     vid_t head_num = max_head_id_ - min_id_;
     vid_t tail_num = max_id_ - min_tail_id_;
 
@@ -549,7 +559,105 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
+  void add_edges_dense(const std::vector<edge_t>& edges) {
+    vid_t head_num = max_head_id_ - min_id_;
+    vid_t tail_num = max_id_ - min_tail_id_;
+
+    std::vector<int> head_degree_to_add(head_num, 0),
+        tail_degree_to_add(tail_num, 0);
+    static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
+    for (auto& e : edges) {
+      if (e.src == invalid_vid) {
+        continue;
+      }
+      if (in_head(e.src)) {
+        ++head_degree_to_add[head_index(e.src)];
+      } else {
+        ++tail_degree_to_add[tail_index(e.src)];
+      }
+      if (in_head(e.dst)) {
+        ++head_degree_to_add[head_index(e.dst)];
+      } else {
+        ++tail_degree_to_add[tail_index(e.dst)];
+      }
+    }
+
+    head_.reserve_edges_dense(head_degree_to_add);
+    tail_.reserve_edges_dense(tail_degree_to_add);
+
+    for (auto& e : edges) {
+      if (e.src == invalid_vid) {
+        continue;
+      }
+      if (in_head(e.src)) {
+        head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
+      } else {
+        tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
+      }
+      if (in_head(e.dst)) {
+        head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
+      } else {
+        tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
+      }
+    }
+
+    if (dedup_) {
+      head_.dedup_neighbors_dense(head_degree_to_add);
+      tail_.dedup_neighbors_dense(tail_degree_to_add);
+    } else {
+      head_.sort_neighbors_dense(head_degree_to_add);
+      tail_.sort_neighbors_dense(tail_degree_to_add);
+    }
+  }
+
   void add_edges_sparse(const std::vector<edge_t>& edges) {
+    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
+    static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
+    for (auto& e : edges) {
+      if (e.src == invalid_vid) {
+        continue;
+      }
+      if (in_head(e.src)) {
+        ++head_degree_to_add[head_index(e.src)];
+      } else {
+        ++tail_degree_to_add[tail_index(e.src)];
+      }
+      if (in_head(e.dst)) {
+        ++head_degree_to_add[head_index(e.dst)];
+      } else {
+        ++tail_degree_to_add[tail_index(e.dst)];
+      }
+    }
+
+    head_.reserve_edges_sparse(head_degree_to_add);
+    tail_.reserve_edges_sparse(tail_degree_to_add);
+
+    for (auto& e : edges) {
+      if (e.src == invalid_vid) {
+        continue;
+      }
+      if (in_head(e.src)) {
+        head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
+      } else {
+        tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
+      }
+      if (in_head(e.dst)) {
+        head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
+      } else {
+        tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
+      }
+    }
+
+    if (dedup_) {
+      head_.dedup_neighbors_sparse(head_degree_to_add);
+      tail_.dedup_neighbors_sparse(tail_degree_to_add);
+    } else {
+      head_.sort_neighbors_sparse(head_degree_to_add);
+      tail_.sort_neighbors_sparse(tail_degree_to_add);
+    }
+  }
+
+  void add_forward_edges_sparse(const std::vector<edge_t>& edges) {
     std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     for (auto& e : edges) {

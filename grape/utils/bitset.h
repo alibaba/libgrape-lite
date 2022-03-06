@@ -66,6 +66,48 @@ class Bitset {
     }
   }
 
+  void resize(size_t size) {
+    if (data_ == NULL) {
+      init(size);
+      return;
+    }
+    size_t new_size_in_words = WORD_SIZE(size);
+    if (size_in_words_ != new_size_in_words) {
+      uint64_t* new_data = static_cast<uint64_t*>(malloc(new_size_in_words * sizeof(uint64_t)));
+      if (size_in_words_ > new_size_in_words) {
+        for (size_t i = 0; i < new_size_in_words; ++i) {
+          new_data[i] = data_[i];
+        }
+      } else if (size_in_words_ < new_size_in_words) {
+        for (size_t i = 0; i < size_in_words_; ++i) {
+          new_data[i] = data_[i];
+        }
+        for (size_t i = size_in_words_; i < new_size_in_words; ++i) {
+          new_data[i] = 0;
+        }
+      }
+      free(data_);
+      data_ = new_data;
+    }
+    size_ = size;
+    size_in_words_ = new_size_in_words;
+  }
+
+  void copy(const Bitset& other) {
+    assert(this != &other);
+    if (data_ != NULL) {
+      free(data_);
+    }
+    size_ = other.size_;
+    size_in_words_ = other.size_in_words_;
+    if (other.data_ != NULL) {
+      data_ = static_cast<uint64_t*>(malloc(size_in_words_ * sizeof(uint64_t)));
+      memcpy(data_, other.data_, size_in_words_ * sizeof(uint64_t));
+    } else {
+      data_ = NULL;
+    }
+  }
+
   void parallel_clear(ThreadPool& thread_pool) {
     uint32_t thread_num = thread_pool.GetThreadNum();
     size_t chunk_size =

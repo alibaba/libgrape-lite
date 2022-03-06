@@ -117,7 +117,11 @@ class MutableEdgecutFragment
             parseOrAddOuterVertexGid(e.src);
           }
         } else {
-          e.src = invalid_vid;
+          if (!directed && IsInnerVertexGid(e.src)) {
+            parseOrAddOuterVertexGid(e.dst);
+          } else {
+            e.src = invalid_vid;
+          }
         }
       }
     } else if (load_strategy == LoadStrategy::kOnlyOut) {
@@ -127,7 +131,11 @@ class MutableEdgecutFragment
             parseOrAddOuterVertexGid(e.dst);
           }
         } else {
-          e.src = invalid_vid;
+          if (!directed && IsInnerVertexGid(e.dst)) {
+            parseOrAddOuterVertexGid(e.src);
+          } else {
+            e.src = invalid_vid;
+          }
         }
       }
     } else if (load_strategy == LoadStrategy::kBothOutIn) {
@@ -251,7 +259,16 @@ class MutableEdgecutFragment
               e.src = id_parser_.get_local_id(e.src);
             }
           } else {
-            e.src = invalid_vid;
+            if (!directed_ && IsInnerVertexGid(e.src)) {
+              e.src = id_parser_.get_local_id(e.src);
+              if (!IsInnerVertexGid(e.dst)) {
+                e.dst = parseOrAddOuterVertexGid(e.dst);
+              } else {
+                e.dst = id_parser_.get_local_id(e.dst);
+              }
+            } else {
+              e.src = invalid_vid;
+            }
           }
         }
       } else if (load_strategy == LoadStrategy::kOnlyOut) {
@@ -264,7 +281,16 @@ class MutableEdgecutFragment
               e.dst = id_parser_.get_local_id(e.dst);
             }
           } else {
-            e.src = invalid_vid;
+            if (!directed_ && IsInnerVertexGid(e.dst)) {
+              e.dst = id_parser_.get_local_id(e.dst);
+              if (!IsInnerVertexGid(e.src)) {
+                e.src = parseOrAddOuterVertexGid(e.src);
+              } else {
+                e.src = id_parser_.get_local_id(e.src);
+              }
+            } else {
+              e.src = invalid_vid;
+            }
           }
         }
       } else if (load_strategy == LoadStrategy::kBothOutIn) {
@@ -302,9 +328,14 @@ class MutableEdgecutFragment
         initOuterVerticesOfFragment();
       }
       ie_.add_vertices(new_ivnum - ivnum, new_ovnum - ovnum);
-      ie_.add_reversed_edges(edges_to_add);
       oe_.add_vertices(new_ivnum - ivnum, new_ovnum - ovnum);
-      oe_.add_edges(edges_to_add);
+      if (directed_) {
+        ie_.add_reversed_edges(edges_to_add);
+        oe_.add_forward_edges(edges_to_add);
+      } else {
+        ie_.add_edges(edges_to_add);
+        oe_.add_edges(edges_to_add);
+      }
     }
     ivdata_.resize(this->ivnum_);
     ovdata_.resize(this->ovnum_);

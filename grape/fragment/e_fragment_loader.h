@@ -130,10 +130,6 @@ class EFragmentLoader {
         basic_fragment_loader_.AddEdge(src, dst, e_data);
         basic_fragment_loader_.AddVertex(src, fake_data);
         basic_fragment_loader_.AddVertex(dst, fake_data);
-
-        if (!spec.directed) {
-          basic_fragment_loader_.AddEdge(dst, src, e_data);
-        }
       }
       io_adaptor->Close();
     }
