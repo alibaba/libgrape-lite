@@ -79,6 +79,10 @@ class Bitset {
         for (size_t i = 0; i < new_size_in_words; ++i) {
           new_data[i] = data_[i];
         }
+        for (size_t i = size; i < ROUND_UP(size); ++i) {
+          __sync_fetch_and_and(new_data + WORD_INDEX(i),
+                               ~(1ul << BIT_OFFSET(i)));
+        }
       } else if (size_in_words_ < new_size_in_words) {
         for (size_t i = 0; i < size_in_words_; ++i) {
           new_data[i] = data_[i];
@@ -89,6 +93,12 @@ class Bitset {
       }
       free(data_);
       data_ = new_data;
+    } else {
+      if (size_ > size) {
+        for (size_t i = size; i < size_; ++i) {
+          __sync_fetch_and_and(data_ + WORD_INDEX(i), ~(1ul << BIT_OFFSET(i)));
+        }
+      }
     }
     size_ = size;
     size_in_words_ = new_size_in_words;
