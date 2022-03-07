@@ -80,9 +80,11 @@ class Rebalancer<
   static constexpr LoadStrategy load_strategy = FRAG_T::load_strategy;
 
  public:
-  explicit Rebalancer(const CommSpec& comm_spec, size_t rebalance_vertex_factor)
+  explicit Rebalancer(const CommSpec& comm_spec, size_t rebalance_vertex_factor,
+                      bool directed)
       : comm_spec_(comm_spec),
-        rebalance_vertex_factor_(rebalance_vertex_factor) {}
+        rebalance_vertex_factor_(rebalance_vertex_factor),
+        directed_(directed) {}
   ~Rebalancer() {}
 
   void Rebalance(std::shared_ptr<vertex_map_t> vm_ptr,
@@ -109,20 +111,32 @@ class Rebalancer<
           if (vm_ptr->GetFidFromGid(e.src) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.src)];
           }
+          if (!directed_ && vm_ptr->GetFidFromGid(e.dst) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
+          }
         }
       } else if (load_strategy == LoadStrategy::kOnlyIn) {
         for (auto& e : edges) {
           if (vm_ptr->GetFidFromGid(e.dst) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
           }
+          if (!directed_ && vm_ptr->GetFidFromGid(e.src) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.src)];
+          }
         }
       } else if (load_strategy == LoadStrategy::kBothOutIn) {
         for (auto& e : edges) {
           if (vm_ptr->GetFidFromGid(e.src) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.src)];
+            if (!directed_) {
+              ++degree_list[vm_ptr->GetLidFromGid(e.src)];
+            }
           }
           if (vm_ptr->GetFidFromGid(e.dst) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
+            if (!directed_) {
+              ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
+            }
           }
         }
       }
@@ -400,6 +414,7 @@ class Rebalancer<
  private:
   CommSpec comm_spec_;
   const size_t rebalance_vertex_factor_;
+  bool directed_;
 
   std::vector<std::vector<vid_t>> degree_lists_;
   std::vector<vid_t> vnum_list_;

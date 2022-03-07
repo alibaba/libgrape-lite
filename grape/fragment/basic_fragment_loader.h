@@ -613,7 +613,7 @@ class BasicFragmentLoader<
 
     if (rebalance_) {
       std::vector<typename fragment_t::vertex_t> fake_vertices;
-      Rebalancer<fragment_t> rb(comm_spec_, rebalance_vertex_factor_);
+      Rebalancer<fragment_t> rb(comm_spec_, rebalance_vertex_factor_, directed);
       rb.Rebalance(vm_ptr_, fake_vertices, processed_edges_);
       VLOG(1) << "[worker-" << comm_spec_.worker_id()
               << "]: finished rebalancing";
