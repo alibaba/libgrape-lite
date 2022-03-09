@@ -355,6 +355,9 @@ class AppendOnlyEdgecutFragment
             outer_vertices.push_back(e.dst);
           }
         } else {
+          if (!directed && IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          }
           e.src = invalid_vid;
         }
       }
@@ -381,12 +384,36 @@ class AppendOnlyEdgecutFragment
     {
       std::vector<int> odegree(ivnum_, 0);
       oenum_ = 0;
-      for (auto& e : edges) {
-        if (e.src != invalid_vid) {
-          InnerVertexGid2Lid(e.src, e.src);
-          Gid2Lid(e.dst, e.dst);
-          ++odegree[e.src];
-          ++oenum_;
+      if (directed) {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            InnerVertexGid2Lid(e.src, e.src);
+            Gid2Lid(e.dst, e.dst);
+            ++odegree[e.src];
+            ++oenum_;
+          }
+        }
+      } else {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            if (IsInnerVertexGid(e.src)) {
+              InnerVertexGid2Lid(e.src, e.src);
+              if (IsInnerVertexGid(e.dst)) {
+                InnerVertexGid2Lid(e.dst, e.dst);
+                ++odegree[e.dst];
+                ++oenum_;
+              } else {
+                OuterVertexGid2Lid(e.dst, e.dst);
+              }
+              ++odegree[e.src];
+              ++oenum_;
+            } else {
+              InnerVertexGid2Lid(e.dst, e.dst);
+              OuterVertexGid2Lid(e.src, e.src);
+              ++odegree[e.dst];
+              ++oenum_;
+            }
+          }
         }
       }
       oe_.resize(oenum_);
@@ -399,11 +426,32 @@ class AppendOnlyEdgecutFragment
 
     {
       Array<nbr_t*, Allocator<nbr_t*>> oeiter(oeoffset_);
-      for (auto& e : edges) {
-        if (e.src != invalid_vid) {
-          oeiter[e.src]->neighbor = e.dst;
-          oeiter[e.src]->data = e.edata;
-          ++oeiter[e.src];
+      if (directed) {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            oeiter[e.src]->neighbor = e.dst;
+            oeiter[e.src]->data = e.edata;
+            ++oeiter[e.src];
+          }
+        }
+      } else {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            if (e.src < ivnum_) {
+              oeiter[e.src]->neighbor = e.dst;
+              oeiter[e.src]->data = e.edata;
+              ++oeiter[e.src];
+              if (e.dst < ivnum_) {
+                oeiter[e.dst]->neighbor = e.src;
+                oeiter[e.dst]->data = e.edata;
+                ++oeiter[e.dst];
+              }
+            } else {
+              oeiter[e.dst]->neighbor = e.src;
+              oeiter[e.dst]->data = e.edata;
+              ++oeiter[e.dst];
+            }
+          }
         }
       }
     }

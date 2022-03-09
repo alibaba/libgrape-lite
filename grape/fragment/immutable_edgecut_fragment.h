@@ -177,11 +177,7 @@ class ImmutableEdgecutFragment
             outer_vertices.push_back(e.src);
           }
         } else {
-          if (!directed && IsInnerVertexGid(e.src)) {
-            outer_vertices.push_back(e.dst);
-          } else {
-            e.src = invalid_vid;
-          }
+          e.src = invalid_vid;
         }
       };
       auto iter_out = [&](Edge<VID_T, EDATA_T>& e,
@@ -191,11 +187,7 @@ class ImmutableEdgecutFragment
             outer_vertices.push_back(e.dst);
           }
         } else {
-          if (!directed && IsInnerVertexGid(e.dst)) {
-            outer_vertices.push_back(e.src);
-          } else {
-            e.src = invalid_vid;
-          }
+          e.src = invalid_vid;
         }
       };
       auto iter_out_in = [&](Edge<VID_T, EDATA_T>& e,
@@ -211,13 +203,54 @@ class ImmutableEdgecutFragment
         }
       };
 
+      auto iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                         std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.dst)) {
+          if (!IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          if (IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.dst);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+      auto iter_out_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                          std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          if (IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+
       if (load_strategy == LoadStrategy::kOnlyIn) {
-        for (auto& e : edges) {
-          iter_in(e, outer_vertices);
+        if (directed) {
+          for (auto& e : edges) {
+            iter_in(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            iter_in_undirected(e, outer_vertices);
+          }
         }
       } else if (load_strategy == LoadStrategy::kOnlyOut) {
-        for (auto& e : edges) {
-          iter_out(e, outer_vertices);
+        if (directed) {
+          for (auto& e : edges) {
+            iter_out(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            iter_out_undirected(e, outer_vertices);
+          }
         }
       } else if (load_strategy == LoadStrategy::kBothOutIn) {
         for (auto& e : edges) {
