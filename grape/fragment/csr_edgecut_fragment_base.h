@@ -394,67 +394,97 @@ class CSREdgecutFragmentBase
 
     auto insert_iter_in = [&](const Edge<VID_T, EDATA_T>& e) {
       if (e.src != invalid_vid) {
-        if (directed_) {
-          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-          if (!IsInnerVertexLid(e.src)) {
-            oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-          }
-        } else {
-          if (IsInnerVertexLid(e.src)) {
-            ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-          } else {
-            oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-          }
-          if (IsInnerVertexLid(e.dst)) {
-            ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-          } else {
-            oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-          }
+        ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        if (!IsInnerVertexLid(e.src)) {
+          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
         }
       }
     };
+
     auto insert_iter_out = [&](const Edge<VID_T, EDATA_T>& e) {
       if (e.src != invalid_vid) {
-        if (directed_) {
-          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-          if (!IsInnerVertexLid(e.dst)) {
-            ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-          }
-        } else {
-          if (IsInnerVertexLid(e.src)) {
-            oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-          } else {
-            ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-          }
-          if (IsInnerVertexLid(e.dst)) {
-            oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-          } else {
-            ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-          }
+        oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        if (!IsInnerVertexLid(e.dst)) {
+          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
         }
       }
     };
+
     auto insert_iter_out_in = [&](const Edge<VID_T, EDATA_T>& e) {
       if (e.src != invalid_vid) {
         ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
         oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-        if (!directed_) {
+      }
+    };
+
+    auto insert_iter_in_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        if (IsInnerVertexLid(e.src)) {
           ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        } else {
+          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        }
+        if (IsInnerVertexLid(e.dst)) {
+          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        } else {
           oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
         }
       }
     };
+
+    auto insert_iter_out_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        if (IsInnerVertexLid(e.src)) {
+          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        } else {
+          ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        }
+        if (IsInnerVertexLid(e.dst)) {
+          oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        } else {
+          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        }
+      }
+    };
+
+    auto insert_iter_out_in_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+      }
+    };
+
     if (load_strategy == LoadStrategy::kOnlyIn) {
-      for (auto& e : edges) {
-        insert_iter_in(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          insert_iter_in(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          insert_iter_in_undirected(e);
+        }
       }
     } else if (load_strategy == LoadStrategy::kOnlyOut) {
-      for (auto& e : edges) {
-        insert_iter_out(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          insert_iter_out(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          insert_iter_out_undirected(e);
+        }
       }
     } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      for (auto& e : edges) {
-        insert_iter_out_in(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          insert_iter_out_in(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          insert_iter_out_in_undirected(e);
+        }
       }
     } else {
       LOG(FATAL) << "Invalid load strategy";
