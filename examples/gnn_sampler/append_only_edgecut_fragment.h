@@ -357,8 +357,9 @@ class AppendOnlyEdgecutFragment
         } else {
           if (!directed && IsInnerVertexGid(e.dst)) {
             outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
           }
-          e.src = invalid_vid;
         }
       }
       DistinctSort(outer_vertices);
