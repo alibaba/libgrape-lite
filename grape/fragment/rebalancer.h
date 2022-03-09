@@ -258,9 +258,9 @@ class Rebalancer<
             edge_t e;
             auto& old_e = edges[i];
             e.src = gid_maps_[vm_ptr->GetFidFromGid(old_e.src)]
-                           [vm_ptr->GetLidFromGid(old_e.src)];
+                             [vm_ptr->GetLidFromGid(old_e.src)];
             e.dst = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst)]
-                           [vm_ptr->GetLidFromGid(old_e.dst)];
+                             [vm_ptr->GetLidFromGid(old_e.dst)];
             if (vm_ptr->GetFidFromGid(old_e.src) == fid) {
               e.edata = std::move(old_e.edata);
               if (vm_ptr->GetFidFromGid(e.src) == fid) {
@@ -287,16 +287,21 @@ class Rebalancer<
               if (new_src_fid == fid && new_dst_fid == fid) {
                 e.edata = std::move(old_e.edata);
                 edges[i - count] = std::move(e);
-              } else if (new_src_fid == fid || (new_dst_fid == fid && new_src_fid != old_src_fid && new_src_fid != old_dst_fid)) {
-                // if new_src_fid == fid, the cross-edge is synced by source fragment;
-                // if new_src_fid not in (old_src_fid, old_dst_fid), but new_dst_fid == fid, the cross-edge is synced by dst fragment.
+              } else if (new_src_fid == fid || (new_dst_fid == fid &&
+                         new_src_fid != old_src_fid &&
+                         new_src_fid != old_dst_fid)) {
+                // new_src_fid == fid, the cross-edge is synced by src fragment;
+                // new_src_fid not in old fids, but new_dst_fid == fid,
+                // the cross-edge is synced by dst fragment.
                 e.edata = std::move(old_e.edata);
                 edges_to_send.emplace_back(std::move(e));
                 ++count;
-              } else if (new_src_fid != old_src_fid && new_src_fid != old_dst_fid
-                         && new_dst_fid != old_src_fid && new_dst_fid != old_dst_fid && old_src_fid == fid) {
-                // if new_src_fid not in (old_src_fid, old_dst_fid) and new_dst_fid not in (old_src_fid, old_dst_fid),
-                // the edge is synced by old source fragment.
+              } else if (new_src_fid != old_src_fid &&
+                         new_src_fid != old_dst_fid &&
+                         new_dst_fid != old_src_fid &&
+                         new_dst_fid != old_dst_fid && old_src_fid == fid) {
+                // new_src_fid and new_dst_fid both not in old fids,
+                // the edge is synced by old src fragment.
                 e.edata = std::move(old_e.edata);
                 edges_to_send.emplace_back(std::move(e));
                 ++count;
@@ -344,15 +349,20 @@ class Rebalancer<
               if (new_src_fid == fid && new_dst_fid == fid) {
                 e.edata = std::move(old_e.edata);
                 edges[i - count] = std::move(e);
-              } else if (new_dst_fid == fid || (new_src_fid == fid && new_dst_fid != old_src_fid && new_dst_fid != old_dst_fid)) {
-                // if new_dst_fid == fid, the cross-edge is synced by dst fragment;
-                // if new_dst_fid not in (old_src_fid, old_dst_fid), but new_src_fid == fid, the cross-edge is synced by source fragment.
+              } else if (new_dst_fid == fid || (new_src_fid == fid &&
+                         new_dst_fid != old_src_fid &&
+                         new_dst_fid != old_dst_fid)) {
+                // new_dst_fid == fid, the cross-edge is synced by dst fragment;
+                // new_dst_fid not in old fids, but new_src_fid == fid,
+                // the cross-edge is synced by src fragment.
                 e.edata = std::move(old_e.edata);
                 edges_to_send.emplace_back(std::move(e));
                 ++count;
-              } else if (new_src_fid != old_src_fid && new_src_fid != old_dst_fid
-                         && new_dst_fid != old_src_fid && new_dst_fid != old_dst_fid && old_dst_fid == fid) {
-                // if new_src_fid not in (old_src_fid, old_dst_fid) and new_dst_fid not in (old_src_fid, old_dst_fid),
+              } else if (new_src_fid != old_src_fid &&
+                         new_src_fid != old_dst_fid &&
+                         new_dst_fid != old_src_fid &&
+                         new_dst_fid != old_dst_fid && old_dst_fid == fid) {
+                // new_src_fid and new_dst_fid both not in old fids,
                 // the edge is synced by old dst fragment.
                 e.edata = std::move(old_e.edata);
                 edges_to_send.emplace_back(std::move(e));
