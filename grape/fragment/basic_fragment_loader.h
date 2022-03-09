@@ -624,6 +624,17 @@ class BasicFragmentLoader<
     fragment->Init(comm_spec_.fid(), directed, fake_vertices, processed_edges_);
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "]: finished construction";
+    if (rebalance_) {
+      std::ofstream myfile;
+      myfile.open("/Users/weibin/Dev/libgrape-lite/tmp/frag_" + std::to_string(fragment->fid()));
+      LOG(INFO) << "output fragment";
+      for (auto& v : fragment->InnerVertices()) {
+        for (auto& e : fragment->GetOutgoingAdjList(v)) {
+          myfile << fragment->GetId(v) << " " << fragment->GetId(e.get_neighbor()) << " " << e.get_data() << "\n";
+        }
+      }
+      myfile.close();
+    }
   }
 
  private:
