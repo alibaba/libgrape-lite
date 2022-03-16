@@ -50,6 +50,12 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     degree_.resize(vnum, 0);
   }
 
+  void init(DualVertexRange<VID_T> range) {
+    vnum_ = range.head().end_value() - range.head().begin_value();
+    degree_.clear();
+    degree_.resize(vnum_, 0);
+  }
+
   void inc_degree(VID_T i) { ++degree_[i]; }
 
   void build_offsets() {

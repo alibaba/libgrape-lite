@@ -37,54 +37,45 @@ class DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   ~DeMutableCSRBuilder() {}
 
   void init(VID_T min_id, VID_T max_head, VID_T min_tail, VID_T max_id,
-            bool enable_tail = true, bool dedup = false) {
+            bool dedup = false) {
     min_id_ = min_id;
     max_id_ = max_id;
     max_head_id_ = max_head;
     min_tail_id_ = min_tail;
     dedup_ = dedup;
-    enable_tail_ = enable_tail;
 
     head_builder_.init(max_head_id_ - min_id_);
-    if (enable_tail_) {
-      tail_builder_.init(max_id_ - min_tail_id_);
-    }
+    tail_builder_.init(max_id_ - min_tail_id_);
   }
 
-  void init(DualVertexRange<VID_T> range, bool enable_tail = true,
-            bool dedup = false) {
+  void init(DualVertexRange<VID_T> range, bool dedup = false) {
     min_id_ = range.head().begin_value();
     max_id_ = range.tail().end_value();
     max_head_id_ = range.head().end_value();
     min_tail_id_ = range.tail().begin_value();
     dedup_ = dedup;
-    enable_tail_ = enable_tail;
 
     head_builder_.init(max_head_id_ - min_id_);
-    if (enable_tail_) {
-      tail_builder_.init(max_id_ - min_tail_id_);
-    }
+    tail_builder_.init(max_id_ - min_tail_id_);
   }
 
   void inc_degree(VID_T i) {
     if (in_head(i)) {
       head_builder_.inc_degree(head_index(i));
-    } else if (enable_tail_) {
+    } else {
       tail_builder_.inc_degree(tail_index(i));
     }
   }
 
   void build_offsets() {
     head_builder_.build_offsets();
-    if (enable_tail_) {
-      tail_builder_.build_offsets();
-    }
+    tail_builder_.build_offsets();
   }
 
   void add_edge(VID_T src, const Nbr<VID_T, EDATA_T>& nbr) {
     if (in_head(src)) {
       head_builder_.add_edge(head_index(src), nbr);
-    } else if (enable_tail_) {
+    } else {
       tail_builder_.add_edge(tail_index(src), nbr);
     }
   }
@@ -95,34 +86,27 @@ class DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     ret.max_head_id_ = max_head_id_;
     ret.min_tail_id_ = min_tail_id_;
     ret.dedup_ = dedup_;
-    ret.enable_tail_ = enable_tail_;
 
     head_builder_.finish(ret.head_);
-    if (enable_tail_) {
-      tail_builder_.finish(ret.tail_);
-    }
+    tail_builder_.finish(ret.tail_);
 
     if (dedup_) {
       VID_T head_num = ret.head_.vertex_num();
       for (VID_T i = 0; i < head_num; ++i) {
         ret.head_.dedup_neighbors(i);
       }
-      if (enable_tail_) {
-        VID_T tail_num = ret.tail_.vertex_num();
-        for (VID_T i = 0; i < tail_num; ++i) {
-          ret.tail_.dedup_neighbors(i);
-        }
+      VID_T tail_num = ret.tail_.vertex_num();
+      for (VID_T i = 0; i < tail_num; ++i) {
+        ret.tail_.dedup_neighbors(i);
       }
     } else {
       VID_T head_num = ret.head_.vertex_num();
       for (VID_T i = 0; i < head_num; ++i) {
         ret.head_.sort_neighbors(i);
       }
-      if (enable_tail_) {
-        VID_T tail_num = ret.tail_.vertex_num();
-        for (VID_T i = 0; i < tail_num; ++i) {
-          ret.tail_.sort_neighbors(i);
-        }
+      VID_T tail_num = ret.tail_.vertex_num();
+      for (VID_T i = 0; i < tail_num; ++i) {
+        ret.tail_.sort_neighbors(i);
       }
     }
   }
@@ -140,7 +124,6 @@ class DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   VID_T max_head_id_;
   VID_T min_tail_id_;
   bool dedup_;
-  bool enable_tail_;
 
   MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> head_builder_, tail_builder_;
 };
@@ -160,22 +143,16 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
 
   DeMutableCSR() {}
 
-  DeMutableCSR(vid_t from, vid_t to, bool dedup = false,
-               bool enable_tail = true)
+  DeMutableCSR(vid_t from, vid_t to, bool dedup = false)
       : min_id_(from),
         max_id_(to),
         max_head_id_(from),
         min_tail_id_(to),
-        dedup_(dedup),
-        enable_tail_(enable_tail) {}
+        dedup_(dedup) {}
 
   VID_T vertex_num() const {
     return (max_id_ - min_tail_id_) + (max_head_id_ - min_id_);
   }
-
-  VID_T head_num() const { return (max_head_id_ - min_id_); }
-
-  VID_T tail_num() const { return (max_id_ - min_tail_id_); }
 
   bool empty() const { return head_.empty() && tail_.empty(); }
 
@@ -189,7 +166,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   void remove_vertex(VID_T i) {
     if (in_head(i)) {
       head_.remove_vertex(head_index(i));
-    } else if (enable_tail_) {
+    } else {
       tail_.remove_vertex(tail_index(i));
     }
   }
@@ -229,36 +206,15 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
                       : tail_.get_end(tail_index(i));
   }
 
-  nbr_t* find(vid_t i, vid_t nbr) {
-    return in_head(i) ? head_.find(head_index(i), nbr)
-                      : tail_.find(tail_index(i), nbr);
-  }
-
-  const nbr_t* find(vid_t i, vid_t nbr) const {
-    return in_head(i) ? head_.find(head_index(i), nbr)
-                      : tail_.find(tail_index(i), nbr);
-  }
-
-  nbr_t* binary_find(vid_t i, vid_t nbr) {
-    return in_head(i) ? head_.binary_find(head_index(i), nbr)
-                      : tail_.binary_find(tail_index(i), nbr);
-  }
-
-  const nbr_t* binary_find(vid_t i, vid_t nbr) const {
-    return in_head(i) ? head_.binary_find(head_index(i), nbr)
-                      : tail_.binary_find(tail_index(i), nbr);
-  }
-
   void add_vertices(vid_t to_head, vid_t to_tail) {
     max_head_id_ += to_head;
-    vid_t head_num = max_head_id_ - min_id_;
-    head_.reserve_vertices(head_num);
+    min_tail_id_ -= to_tail;
 
-    if (enable_tail_) {
-      min_tail_id_ -= to_tail;
-      vid_t tail_num = max_id_ - min_tail_id_;
-      tail_.reserve_vertices(tail_num);
-    }
+    vid_t head_num = max_head_id_ - min_id_;
+    vid_t tail_num = max_id_ - min_tail_id_;
+
+    head_.reserve_vertices(head_num);
+    tail_.reserve_vertices(tail_num);
   }
 
   void add_edges(const std::vector<edge_t>& edges) {
@@ -303,7 +259,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
           vid_t index = head_index(src);
           head_modified[index] =
               head_.remove_one_with_tomb(index, e.dst) || head_modified[index];
-        } else if (enable_tail_) {
+        } else {
           vid_t index = tail_index(src);
           tail_modified[index] =
               tail_.remove_one_with_tomb(index, e.dst) || tail_modified[index];
@@ -316,7 +272,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
           vid_t index = head_index(src);
           head_modified[index] =
               head_.remove_with_tomb(index, e.dst) || head_modified[index];
-        } else if (enable_tail_) {
+        } else {
           vid_t index = tail_index(src);
           tail_modified[index] =
               tail_.remove_with_tomb(index, e.dst) || tail_modified[index];
@@ -328,11 +284,9 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         head_.remove_tombs(i);
       }
     }
-    if (enable_tail_) {
-      for (vid_t i = 0; i < tail_num; ++i) {
-        if (tail_modified[i]) {
-          tail_.remove_tombs(i);
-        }
+    for (vid_t i = 0; i < tail_num; ++i) {
+      if (tail_modified[i]) {
+        tail_.remove_tombs(i);
       }
     }
   }
@@ -353,7 +307,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
           vid_t index = head_index(src);
           head_modified[index] = head_.remove_one_with_tomb(index, e.second) ||
                                  head_modified[index];
-        } else if (enable_tail_) {
+        } else {
           vid_t index = tail_index(src);
           tail_modified[index] = tail_.remove_one_with_tomb(index, e.second) ||
                                  tail_modified[index];
@@ -369,7 +323,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
           vid_t index = head_index(src);
           head_modified[index] =
               head_.remove_with_tomb(index, e.second) || head_modified[index];
-        } else if (enable_tail_) {
+        } else {
           vid_t index = tail_index(src);
           tail_modified[index] =
               tail_.remove_with_tomb(index, e.second) || tail_modified[index];
@@ -381,11 +335,9 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         head_.remove_tombs(i);
       }
     }
-    if (enable_tail_) {
-      for (vid_t i = 0; i < tail_num; ++i) {
-        if (tail_modified[i]) {
-          tail_.remove_tombs(i);
-        }
+    for (vid_t i = 0; i < tail_num; ++i) {
+      if (tail_modified[i]) {
+        tail_.remove_tombs(i);
       }
     }
   }
@@ -407,7 +359,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
           vid_t index = head_index(src);
           head_modified[index] = head_.remove_one_with_tomb(index, e.first) ||
                                  head_modified[index];
-        } else if (enable_tail_) {
+        } else {
           vid_t index = tail_index(src);
           tail_modified[index] = tail_.remove_one_with_tomb(index, e.first) ||
                                  tail_modified[index];
@@ -423,7 +375,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
           vid_t index = head_index(src);
           head_modified[index] =
               head_.remove_with_tomb(index, e.first) || head_modified[index];
-        } else if (enable_tail_) {
+        } else {
           vid_t index = tail_index(src);
           tail_modified[index] =
               tail_.remove_with_tomb(index, e.first) || tail_modified[index];
@@ -435,11 +387,9 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         head_.remove_tombs(i);
       }
     }
-    if (enable_tail_) {
-      for (vid_t i = 0; i < tail_num; ++i) {
-        if (tail_modified[i]) {
-          tail_.remove_tombs(i);
-        }
+    for (vid_t i = 0; i < tail_num; ++i) {
+      if (tail_modified[i]) {
+        tail_.remove_tombs(i);
       }
     }
   }
@@ -447,9 +397,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   template <typename FUNC_T>
   void remove_if(const FUNC_T& func) {
     head_.remove_if(func);
-    if (enable_tail_) {
-      tail_.remove_if(func);
-    }
+    tail_.remove_if(func);
   }
 
   void update_edges(const std::vector<edge_t>& edges) {
@@ -462,7 +410,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         vid_t src = e.src;
         if (in_head(src)) {
           head_.update_one(head_index(src), e.dst, e.edata);
-        } else if (enable_tail_) {
+        } else {
           tail_.update_one(tail_index(src), e.dst, e.edata);
         }
       }
@@ -474,7 +422,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         vid_t src = e.src;
         if (in_head(src)) {
           head_.update(head_index(src), e.dst, e.edata);
-        } else if (enable_tail_) {
+        } else {
           tail_.update(tail_index(src), e.dst, e.edata);
         }
       }
@@ -491,7 +439,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         vid_t src = e.dst;
         if (in_head(src)) {
           head_.update_one(head_index(src), e.src, e.edata);
-        } else if (enable_tail_) {
+        } else {
           tail_.update_one(tail_index(src), e.src, e.edata);
         }
       }
@@ -503,144 +451,11 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         vid_t src = e.dst;
         if (in_head(src)) {
           head_.update(head_index(src), e.src, e.edata);
-        } else if (enable_tail_) {
+        } else {
           tail_.update(tail_index(src), e.src, e.edata);
         }
       }
     }
-  }
-
-  void reserve_edges(const std::vector<edge_t>& edges) {
-    double rate =
-        static_cast<double>(edges.size()) / static_cast<double>(edge_num());
-    if (rate < dense_threshold) {
-      reserve_edges_sparse(edges);
-    } else {
-      reserve_edges_dense(edges);
-    }
-  }
-
-  void reserve_forward_edges(const std::vector<edge_t>& edges) {
-    double rate =
-        static_cast<double>(edges.size()) / static_cast<double>(edge_num());
-    if (rate < dense_threshold) {
-      reserve_forward_edges_sparse(edges);
-    } else {
-      reserve_forward_edges_dense(edges);
-    }
-  }
-
-  void reserve_reversed_edges(const std::vector<edge_t>& edges) {
-    double rate =
-        static_cast<double>(edges.size()) / static_cast<double>(edge_num());
-    if (rate < dense_threshold) {
-      reserve_reversed_edges_sparse(edges);
-    } else {
-      reserve_reversed_edges_dense(edges);
-    }
-  }
-
-  void dedup_or_sort_neighbors_dense(
-      const std::vector<int>& head_degree_to_add,
-      const std::vector<int>& tail_degree_to_add) {
-    if (dedup_) {
-      head_.dedup_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_dense(tail_degree_to_add);
-      }
-    } else {
-      head_.sort_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_dense(tail_degree_to_add);
-      }
-    }
-  }
-
-  void dedup_or_sort_neighbors_sparse(
-      const std::map<vid_t, int>& head_degree_to_add,
-      const std::map<vid_t, int>& tail_degree_to_add) {
-    if (dedup_) {
-      head_.dedup_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_sparse(tail_degree_to_add);
-      }
-    } else {
-      head_.sort_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_sparse(tail_degree_to_add);
-      }
-    }
-  }
-
-  void copy(const DeMutableCSR<vid_t, nbr_t>& source_csr) {
-    min_id_ = source_csr.min_id_;
-    max_id_ = source_csr.max_id_;
-    max_head_id_ = source_csr.max_head_id_;
-    min_tail_id_ = source_csr.min_tail_id_;
-    dedup_ = source_csr.dedup_;
-    enable_tail_ = source_csr.enable_tail_;
-    vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = max_id_ - min_tail_id_;
-
-    head_.reserve_vertices(head_num);
-    if (enable_tail_) {
-      tail_.reserve_vertices(tail_num);
-    }
-    std::vector<int> head_degree_to_add(head_num, 0);
-    for (vid_t i = 0; i < head_num; ++i) {
-      head_degree_to_add[i] = source_csr.head_.degree(i);
-    }
-    head_.reserve_edges_dense(head_degree_to_add);
-    if (enable_tail_) {
-      std::vector<int> tail_degree_to_add(tail_num, 0);
-      for (vid_t i = 0; i < tail_num; ++i) {
-        tail_degree_to_add[i] = source_csr.tail_.degree(i);
-      }
-      tail_.reserve_edges_dense(tail_degree_to_add);
-    }
-
-    for (vid_t i = 0; i < head_num; ++i) {
-      auto begin = source_csr.head_.get_begin(i);
-      auto end = source_csr.head_.get_end(i);
-      for (auto iter = begin; iter != end; ++iter) {
-        head_.put_edge(i, *iter);
-      }
-    }
-    if (enable_tail_) {
-      for (vid_t i = 0; i < tail_num; ++i) {
-        auto begin = source_csr.tail_.get_begin(i);
-        auto end = source_csr.tail_.get_end(i);
-        for (auto iter = begin; iter != end; ++iter) {
-          tail_.put_edge(i, *iter);
-        }
-      }
-    }
-  }
-
-  void add_edge(const edge_t& e) {
-    add_forward_edge(e);
-    add_reversed_edge(e);
-  }
-
-  void add_forward_edge(const edge_t& e) {
-    if (in_head(e.src)) {
-      head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
-    } else if (enable_tail_) {
-      tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
-    }
-  }
-
-  void add_reversed_edge(const edge_t& e) {
-    if (in_head(e.dst)) {
-      head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
-    } else if (enable_tail_) {
-      tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
-    }
-  }
-
-  void clear_edges() {
-    head_.clear_edges();
-    tail_.clear_edges();
   }
 
   template <typename IOADAPTOR_T>
@@ -664,7 +479,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
  private:
   void add_reversed_edges_dense(const std::vector<edge_t>& edges) {
     vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = enable_tail_ ? max_id_ - min_tail_id_ : 0;
+    vid_t tail_num = max_id_ - min_tail_id_;
 
     std::vector<int> head_degree_to_add(head_num, 0),
         tail_degree_to_add(tail_num, 0);
@@ -675,7 +490,7 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.dst)) {
         ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.dst)];
       }
     }
@@ -689,27 +504,23 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.dst)) {
         head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
       }
     }
 
     if (dedup_) {
       head_.dedup_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_dense(tail_degree_to_add);
-      }
+      tail_.dedup_neighbors_dense(tail_degree_to_add);
     } else {
       head_.sort_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_dense(tail_degree_to_add);
-      }
+      tail_.sort_neighbors_dense(tail_degree_to_add);
     }
   }
 
   void add_forward_edges_dense(const std::vector<edge_t>& edges) {
     vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = enable_tail_ ? max_id_ - min_tail_id_ : 0;
+    vid_t tail_num = max_id_ - min_tail_id_;
 
     std::vector<int> head_degree_to_add(head_num, 0),
         tail_degree_to_add(tail_num, 0);
@@ -720,15 +531,13 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.src)];
       }
     }
 
     head_.reserve_edges_dense(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_dense(tail_degree_to_add);
-    }
+    tail_.reserve_edges_dense(tail_degree_to_add);
 
     for (auto& e : edges) {
       if (e.src == invalid_vid) {
@@ -736,27 +545,23 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
       }
     }
 
     if (dedup_) {
       head_.dedup_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_dense(tail_degree_to_add);
-      }
+      tail_.dedup_neighbors_dense(tail_degree_to_add);
     } else {
       head_.sort_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_dense(tail_degree_to_add);
-      }
+      tail_.sort_neighbors_dense(tail_degree_to_add);
     }
   }
 
   void add_edges_dense(const std::vector<edge_t>& edges) {
     vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = enable_tail_ ? max_id_ - min_tail_id_ : 0;
+    vid_t tail_num = max_id_ - min_tail_id_;
 
     std::vector<int> head_degree_to_add(head_num, 0),
         tail_degree_to_add(tail_num, 0);
@@ -767,20 +572,18 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.src)];
       }
       if (in_head(e.dst)) {
         ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.dst)];
       }
     }
 
     head_.reserve_edges_dense(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_dense(tail_degree_to_add);
-    }
+    tail_.reserve_edges_dense(tail_degree_to_add);
 
     for (auto& e : edges) {
       if (e.src == invalid_vid) {
@@ -788,26 +591,22 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
       }
       if (in_head(e.dst)) {
         head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
       }
     }
 
     if (dedup_) {
       head_.dedup_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_dense(tail_degree_to_add);
-      }
+      tail_.dedup_neighbors_dense(tail_degree_to_add);
     } else {
       head_.sort_neighbors_dense(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_dense(tail_degree_to_add);
-      }
+      tail_.sort_neighbors_dense(tail_degree_to_add);
     }
   }
 
@@ -820,20 +619,18 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.src)];
       }
       if (in_head(e.dst)) {
         ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.dst)];
       }
     }
 
     head_.reserve_edges_sparse(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_sparse(tail_degree_to_add);
-    }
+    tail_.reserve_edges_sparse(tail_degree_to_add);
 
     for (auto& e : edges) {
       if (e.src == invalid_vid) {
@@ -841,26 +638,22 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
       }
       if (in_head(e.dst)) {
         head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
       }
     }
 
     if (dedup_) {
       head_.dedup_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_sparse(tail_degree_to_add);
-      }
+      tail_.dedup_neighbors_sparse(tail_degree_to_add);
     } else {
       head_.sort_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_sparse(tail_degree_to_add);
-      }
+      tail_.sort_neighbors_sparse(tail_degree_to_add);
     }
   }
 
@@ -873,15 +666,13 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.src)];
       }
     }
 
     head_.reserve_edges_sparse(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_sparse(tail_degree_to_add);
-    }
+    tail_.reserve_edges_sparse(tail_degree_to_add);
 
     for (auto& e : edges) {
       if (e.src == invalid_vid) {
@@ -889,21 +680,17 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.src)) {
         head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
       }
     }
 
     if (dedup_) {
       head_.dedup_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_sparse(tail_degree_to_add);
-      }
+      tail_.dedup_neighbors_sparse(tail_degree_to_add);
     } else {
       head_.sort_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_sparse(tail_degree_to_add);
-      }
+      tail_.sort_neighbors_sparse(tail_degree_to_add);
     }
   }
 
@@ -916,15 +703,13 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.dst)) {
         ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
+      } else {
         ++tail_degree_to_add[tail_index(e.dst)];
       }
     }
 
     head_.reserve_edges_sparse(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_sparse(tail_degree_to_add);
-    }
+    tail_.reserve_edges_sparse(tail_degree_to_add);
 
     for (auto& e : edges) {
       if (e.src == invalid_vid) {
@@ -932,163 +717,17 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       }
       if (in_head(e.dst)) {
         head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
-      } else if (enable_tail_) {
+      } else {
         tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
       }
     }
 
     if (dedup_) {
       head_.dedup_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.dedup_neighbors_sparse(tail_degree_to_add);
-      }
+      tail_.dedup_neighbors_sparse(tail_degree_to_add);
     } else {
       head_.sort_neighbors_sparse(head_degree_to_add);
-      if (enable_tail_) {
-        tail_.sort_neighbors_sparse(tail_degree_to_add);
-      }
-    }
-  }
-
-  void reserve_edges_dense(const std::vector<edge_t>& edges) {
-    vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = enable_tail_ ? max_id_ - min_tail_id_ : 0;
-
-    std::vector<int> head_degree_to_add(head_num, 0),
-        tail_degree_to_add(tail_num, 0);
-    static constexpr vid_t invalid_vid = std::numeric_limits<vid_t>::max();
-    for (auto& e : edges) {
-      if (e.src == invalid_vid) {
-        continue;
-      }
-      if (in_head(e.src)) {
-        ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.src)];
-      }
-      if (in_head(e.dst)) {
-        ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.dst)];
-      }
-    }
-
-    head_.reserve_edges_dense(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_dense(tail_degree_to_add);
-    }
-  }
-
-  void reserve_forward_edges_dense(const std::vector<edge_t>& edges) {
-    vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = enable_tail_ ? max_id_ - min_tail_id_ : 0;
-
-    std::vector<int> head_degree_to_add(head_num, 0),
-        tail_degree_to_add(tail_num, 0);
-    static constexpr vid_t invalid_vid = std::numeric_limits<vid_t>::max();
-    for (auto& e : edges) {
-      if (e.src == invalid_vid) {
-        continue;
-      }
-      if (in_head(e.src)) {
-        ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.src)];
-      }
-    }
-
-    head_.reserve_edges_dense(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_dense(tail_degree_to_add);
-    }
-  }
-
-  void reserve_reversed_edges_dense(const std::vector<edge_t>& edges) {
-    vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = enable_tail_ ? max_id_ - min_tail_id_ : 0;
-
-    std::vector<int> head_degree_to_add(head_num, 0),
-        tail_degree_to_add(tail_num, 0);
-    static constexpr vid_t invalid_vid = std::numeric_limits<vid_t>::max();
-    for (auto& e : edges) {
-      if (e.src == invalid_vid) {
-        continue;
-      }
-      if (in_head(e.dst)) {
-        ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.dst)];
-      }
-    }
-
-    head_.reserve_edges_dense(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_dense(tail_degree_to_add);
-    }
-  }
-
-  void reserve_edges_sparse(const std::vector<edge_t>& edges) {
-    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
-    static constexpr vid_t invalid_vid = std::numeric_limits<vid_t>::max();
-    for (auto& e : edges) {
-      if (e.src == invalid_vid) {
-        continue;
-      }
-      if (in_head(e.src)) {
-        ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.src)];
-      }
-      if (in_head(e.dst)) {
-        ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.dst)];
-      }
-    }
-
-    head_.reserve_edges_sparse(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_sparse(tail_degree_to_add);
-    }
-  }
-
-  void reserve_forward_edges_sparse(const std::vector<edge_t>& edges) {
-    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
-    static constexpr vid_t invalid_vid = std::numeric_limits<vid_t>::max();
-    for (auto& e : edges) {
-      if (e.src == invalid_vid) {
-        continue;
-      }
-      if (in_head(e.src)) {
-        ++head_degree_to_add[head_index(e.src)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.src)];
-      }
-    }
-
-    head_.reserve_edges_sparse(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_sparse(tail_degree_to_add);
-    }
-  }
-
-  void reserve_reversed_edges_sparse(const std::vector<edge_t>& edges) {
-    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
-    static constexpr vid_t invalid_vid = std::numeric_limits<vid_t>::max();
-    for (auto& e : edges) {
-      if (e.src == invalid_vid) {
-        continue;
-      }
-      if (in_head(e.dst)) {
-        ++head_degree_to_add[head_index(e.dst)];
-      } else if (enable_tail_) {
-        ++tail_degree_to_add[tail_index(e.dst)];
-      }
-    }
-
-    head_.reserve_edges_sparse(head_degree_to_add);
-    if (enable_tail_) {
-      tail_.reserve_edges_sparse(tail_degree_to_add);
+      tail_.sort_neighbors_sparse(tail_degree_to_add);
     }
   }
 
@@ -1101,7 +740,6 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   vid_t max_head_id_;
   vid_t min_tail_id_;
   bool dedup_;
-  bool enable_tail_;
 
   MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> head_, tail_;
 };
