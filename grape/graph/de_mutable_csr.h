@@ -37,7 +37,7 @@ class DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   ~DeMutableCSRBuilder() {}
 
   void init(VID_T min_id, VID_T max_head, VID_T min_tail, VID_T max_id,
-            bool dedup = false, bool enable_tail = true) {
+            bool enable_tail = true, bool dedup = false) {
     min_id_ = min_id;
     max_id_ = max_id;
     max_head_id_ = max_head;
@@ -51,8 +51,8 @@ class DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
-  void init(DualVertexRange<VID_T> range, bool dedup = false,
-            bool enable_tail = true) {
+  void init(DualVertexRange<VID_T> range, bool enable_tail = true,
+            bool dedup = false) {
     min_id_ = range.head().begin_value();
     max_id_ = range.tail().end_value();
     max_head_id_ = range.head().end_value();
@@ -595,6 +595,32 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         }
       }
     }
+  }
+
+  void add_edge(const edge_t& e) {
+    add_forward_edge(e);
+    add_reversed_edge(e);
+  }
+
+  void add_forward_edge(const edge_t& e) {
+    if (in_head(e.src)) {
+      head_.put_edge(head_index(e.src), nbr_t(e.dst, e.edata));
+    } else if (enable_tail_) {
+      tail_.put_edge(tail_index(e.src), nbr_t(e.dst, e.edata));
+    }
+  }
+
+  void add_reversed_edge(const edge_t& e) {
+    if (in_head(e.dst)) {
+      head_.put_edge(head_index(e.dst), nbr_t(e.src, e.edata));
+    } else if (enable_tail_) {
+      tail_.put_edge(tail_index(e.dst), nbr_t(e.src, e.edata));
+    }
+  }
+
+  void clear_edges() {
+    head_.clear_edges();
+    tail_.clear_edges();
   }
 
   template <typename IOADAPTOR_T>

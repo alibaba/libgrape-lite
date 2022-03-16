@@ -291,11 +291,11 @@ class CSREdgecutFragmentBase
   using base_t::IsInnerVertexLid;
   using base_t::OuterVertexGid2Lid;
   void buildCSR(std::vector<Edge<VID_T, EDATA_T>>& edges,
-                LoadStrategy load_strategy) {
+                LoadStrategy load_strategy, bool enable_tail = true) {
     using csr_builder_t = typename TRAITS_T::csr_builder_t;
     csr_builder_t ie_builder, oe_builder;
-    ie_builder.init(Vertices());
-    oe_builder.init(Vertices());
+    ie_builder.init(Vertices(), enable_tail);
+    oe_builder.init(Vertices(), enable_tail);
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     auto parse_iter_in = [&](Edge<VID_T, EDATA_T>& e) {
