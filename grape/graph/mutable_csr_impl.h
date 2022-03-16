@@ -83,7 +83,7 @@ inline void sort_neighbors_tail(Nbr<VID_T, EDATA_T>* begin,
   Nbr<VID_T, EDATA_T>* src = last - 1;
   for (int i = unsorted - 1; i >= 0; --i) {
     auto& cur = buffer[i];
-    while (cur.neighbor.GetValue() < src->neighbor.GetValue() && src >= begin) {
+    while (src >= begin && cur.neighbor.GetValue() < src->neighbor.GetValue()) {
       *(--end) = std::move(*(src--));
     }
     *(--end) = std::move(cur);
@@ -107,10 +107,10 @@ inline Nbr<VID_T, EDATA_T>* sort_neighbors_tail_dedup(
     if (i > 0 && cur.neighbor.GetValue() == buffer[i - 1].neighbor.GetValue()) {
       continue;
     }
-    while (cur.neighbor.GetValue() < src->neighbor.GetValue() && src >= begin) {
+    while (src >= begin && cur.neighbor.GetValue() < src->neighbor.GetValue()) {
       *(--end) = std::move(*(src--));
     }
-    if (cur.neighbor.GetValue() == src->neighbor.GetValue()) {
+    if (src >= begin && cur.neighbor.GetValue() == src->neighbor.GetValue()) {
       --src;
     }
     *(--end) = std::move(cur);
@@ -281,6 +281,28 @@ inline void binary_update_one(Nbr<VID_T, EDATA_T>* begin,
   if (begin->neighbor.GetValue() == target) {
     begin->data = value;
   }
+}
+
+template <typename VID_T, typename EDATA_T>
+inline const Nbr<VID_T, EDATA_T>* binary_search_one(
+    const Nbr<VID_T, EDATA_T>* begin,
+    const Nbr<VID_T, EDATA_T>* end, VID_T target) {
+  const Nbr<VID_T, EDATA_T>* original_end = end;
+  while (begin != end) {
+    int l2 = (end - begin) >> 1;
+    const Nbr<VID_T, EDATA_T>* mid = begin + l2;
+    if (mid->neighbor.GetValue() < target) {
+      begin = mid + 1;
+    } else if (mid->neighbor.GetValue() == target) {
+      return mid;
+    } else {
+      end = begin + l2;
+    }
+  }
+  if (begin != original_end && begin->neighbor.GetValue() == target) {
+    return begin;
+  }
+  return original_end;
 }
 
 }  // namespace mutable_csr_impl

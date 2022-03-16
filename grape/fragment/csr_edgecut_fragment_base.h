@@ -284,6 +284,7 @@ class CSREdgecutFragmentBase
   using base_t::Vertices;
 
  protected:
+  using base_t::directed_;
   using base_t::Gid2Lid;
   using base_t::InnerVertexGid2Lid;
   using base_t::IsInnerVertexGid;
@@ -329,17 +330,81 @@ class CSREdgecutFragmentBase
         ie_builder.inc_degree(e.dst);
       }
     };
+    auto parse_iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        if (IsInnerVertexGid(e.src)) {
+          InnerVertexGid2Lid(e.src, e.src);
+          ie_builder.inc_degree(e.src);
+        } else {
+          CHECK(OuterVertexGid2Lid(e.src, e.src));
+          oe_builder.inc_degree(e.src);
+        }
+        if (IsInnerVertexGid(e.dst)) {
+          InnerVertexGid2Lid(e.dst, e.dst);
+          ie_builder.inc_degree(e.dst);
+        } else {
+          CHECK(OuterVertexGid2Lid(e.dst, e.dst));
+          oe_builder.inc_degree(e.dst);
+        }
+      }
+    };
+    auto parse_iter_out_undirected = [&](Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        if (IsInnerVertexGid(e.src)) {
+          InnerVertexGid2Lid(e.src, e.src);
+          oe_builder.inc_degree(e.src);
+        } else {
+          CHECK(OuterVertexGid2Lid(e.src, e.src));
+          ie_builder.inc_degree(e.src);
+        }
+        if (IsInnerVertexGid(e.dst)) {
+          InnerVertexGid2Lid(e.dst, e.dst);
+          oe_builder.inc_degree(e.dst);
+        } else {
+          CHECK(OuterVertexGid2Lid(e.dst, e.dst));
+          ie_builder.inc_degree(e.dst);
+        }
+      }
+    };
+    auto parse_iter_out_in_undirected = [&](Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        Gid2Lid(e.src, e.src);
+        oe_builder.inc_degree(e.src);
+        ie_builder.inc_degree(e.src);
+        Gid2Lid(e.dst, e.dst);
+        oe_builder.inc_degree(e.dst);
+        ie_builder.inc_degree(e.dst);
+      }
+    };
     if (load_strategy == LoadStrategy::kOnlyIn) {
-      for (auto& e : edges) {
-        parse_iter_in(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          parse_iter_in(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          parse_iter_in_undirected(e);
+        }
       }
     } else if (load_strategy == LoadStrategy::kOnlyOut) {
-      for (auto& e : edges) {
-        parse_iter_out(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          parse_iter_out(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          parse_iter_out_undirected(e);
+        }
       }
     } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      for (auto& e : edges) {
-        parse_iter_out_in(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          parse_iter_out_in(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          parse_iter_out_in_undirected(e);
+        }
       }
     } else {
       LOG(FATAL) << "Invalid load strategy";
@@ -370,17 +435,72 @@ class CSREdgecutFragmentBase
         oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
       }
     };
+    auto insert_iter_in_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        if (IsInnerVertexLid(e.src)) {
+          ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        } else {
+          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        }
+        if (IsInnerVertexLid(e.dst)) {
+          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        } else {
+          oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        }
+      }
+    };
+    auto insert_iter_out_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        if (IsInnerVertexLid(e.src)) {
+          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        } else {
+          ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        }
+        if (IsInnerVertexLid(e.dst)) {
+          oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        } else {
+          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        }
+      }
+    };
+    auto insert_iter_out_in_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
+      if (e.src != invalid_vid) {
+        ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+        ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+        oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+      }
+    };
+
     if (load_strategy == LoadStrategy::kOnlyIn) {
-      for (auto& e : edges) {
-        insert_iter_in(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          insert_iter_in(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          insert_iter_in_undirected(e);
+        }
       }
     } else if (load_strategy == LoadStrategy::kOnlyOut) {
-      for (auto& e : edges) {
-        insert_iter_out(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          insert_iter_out(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          insert_iter_out_undirected(e);
+        }
       }
     } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      for (auto& e : edges) {
-        insert_iter_out_in(e);
+      if (this->directed_) {
+        for (auto& e : edges) {
+          insert_iter_out_in(e);
+        }
+      } else {
+        for (auto& e : edges) {
+          insert_iter_out_in_undirected(e);
+        }
       }
     } else {
       LOG(FATAL) << "Invalid load strategy";

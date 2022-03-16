@@ -164,10 +164,6 @@ class EVFragmentLoader {
         }
 
         basic_fragment_loader_.AddEdge(src, dst, e_data);
-
-        if (!spec.directed) {
-          basic_fragment_loader_.AddEdge(dst, src, e_data);
-        }
       }
       io_adaptor->Close();
     }
@@ -175,7 +171,7 @@ class EVFragmentLoader {
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "] finished add vertices and edges";
 
-    basic_fragment_loader_.ConstructFragment(fragment);
+    basic_fragment_loader_.ConstructFragment(fragment, spec.directed);
 
     if (spec.serialize) {
       bool serialized = basic_fragment_loader_.SerializeFragment(

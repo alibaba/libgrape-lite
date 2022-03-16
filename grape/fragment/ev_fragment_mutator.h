@@ -114,9 +114,6 @@ class EVFragmentMutator {
           ++count;
           istrm >> src >> dst >> data;
           mutator.AddEdge(src, dst, data);
-          if (!directed) {
-            mutator.AddEdge(dst, src, data);
-          }
         } else if (type == 'd') {
           istrm >> src >> dst;
           mutator.RemoveEdge(src, dst);

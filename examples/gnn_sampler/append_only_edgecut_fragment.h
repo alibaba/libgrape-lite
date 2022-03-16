@@ -335,9 +335,9 @@ class AppendOnlyEdgecutFragment
   using base_t::init;
   using base_t::InnerVertexGid2Lid;
   using base_t::IsInnerVertexGid;
-  void Init(fid_t fid, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid);
+    init(fid, directed);
 
     ovnum_ = 0;
     oenum_ = 0;
@@ -355,7 +355,11 @@ class AppendOnlyEdgecutFragment
             outer_vertices.push_back(e.dst);
           }
         } else {
-          e.src = invalid_vid;
+          if (!directed && IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+          }
         }
       }
       DistinctSort(outer_vertices);
@@ -381,12 +385,36 @@ class AppendOnlyEdgecutFragment
     {
       std::vector<int> odegree(ivnum_, 0);
       oenum_ = 0;
-      for (auto& e : edges) {
-        if (e.src != invalid_vid) {
-          InnerVertexGid2Lid(e.src, e.src);
-          Gid2Lid(e.dst, e.dst);
-          ++odegree[e.src];
-          ++oenum_;
+      if (directed) {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            InnerVertexGid2Lid(e.src, e.src);
+            Gid2Lid(e.dst, e.dst);
+            ++odegree[e.src];
+            ++oenum_;
+          }
+        }
+      } else {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            if (IsInnerVertexGid(e.src)) {
+              InnerVertexGid2Lid(e.src, e.src);
+              if (IsInnerVertexGid(e.dst)) {
+                InnerVertexGid2Lid(e.dst, e.dst);
+                ++odegree[e.dst];
+                ++oenum_;
+              } else {
+                OuterVertexGid2Lid(e.dst, e.dst);
+              }
+              ++odegree[e.src];
+              ++oenum_;
+            } else {
+              InnerVertexGid2Lid(e.dst, e.dst);
+              OuterVertexGid2Lid(e.src, e.src);
+              ++odegree[e.dst];
+              ++oenum_;
+            }
+          }
         }
       }
       oe_.resize(oenum_);
@@ -399,11 +427,32 @@ class AppendOnlyEdgecutFragment
 
     {
       Array<nbr_t*, Allocator<nbr_t*>> oeiter(oeoffset_);
-      for (auto& e : edges) {
-        if (e.src != invalid_vid) {
-          oeiter[e.src]->neighbor = e.dst;
-          oeiter[e.src]->data = e.edata;
-          ++oeiter[e.src];
+      if (directed) {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            oeiter[e.src]->neighbor = e.dst;
+            oeiter[e.src]->data = e.edata;
+            ++oeiter[e.src];
+          }
+        }
+      } else {
+        for (auto& e : edges) {
+          if (e.src != invalid_vid) {
+            if (e.src < ivnum_) {
+              oeiter[e.src]->neighbor = e.dst;
+              oeiter[e.src]->data = e.edata;
+              ++oeiter[e.src];
+              if (e.dst < ivnum_) {
+                oeiter[e.dst]->neighbor = e.src;
+                oeiter[e.dst]->data = e.edata;
+                ++oeiter[e.dst];
+              }
+            } else {
+              oeiter[e.dst]->neighbor = e.src;
+              oeiter[e.dst]->data = e.edata;
+              ++oeiter[e.dst];
+            }
+          }
         }
       }
     }
@@ -916,6 +965,7 @@ class AppendOnlyEdgecutFragment
   using base_t::fid_;
   using base_t::fnum_;
   using base_t::id_parser_;
+  using base_t::directed_;
   using base_t::ivnum_;
   using base_t::vm_ptr_;
 

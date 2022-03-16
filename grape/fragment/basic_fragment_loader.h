@@ -228,7 +228,7 @@ class BasicFragmentLoader<
     return true;
   }
 
-  void ConstructFragment(std::shared_ptr<fragment_t>& fragment) {
+  void ConstructFragment(std::shared_ptr<fragment_t>& fragment, bool directed) {
     for (auto& va : vertices_to_frag_) {
       va.Flush();
     }
@@ -265,7 +265,8 @@ class BasicFragmentLoader<
             << "]: finished process edges";
 
     fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
-    fragment->Init(comm_spec_.fid(), processed_vertices_, processed_edges_);
+    fragment->Init(comm_spec_.fid(), directed, processed_vertices_,
+                   processed_edges_);
 
     initOuterVertexData(fragment);
   }
@@ -581,7 +582,7 @@ class BasicFragmentLoader<
     return false;
   }
 
-  void ConstructFragment(std::shared_ptr<fragment_t>& fragment) {
+  void ConstructFragment(std::shared_ptr<fragment_t>& fragment, bool directed) {
     for (auto& ea : edges_to_frag_) {
       ea.Flush();
     }
@@ -612,7 +613,7 @@ class BasicFragmentLoader<
 
     if (rebalance_) {
       std::vector<typename fragment_t::vertex_t> fake_vertices;
-      Rebalancer<fragment_t> rb(comm_spec_, rebalance_vertex_factor_);
+      Rebalancer<fragment_t> rb(comm_spec_, rebalance_vertex_factor_, directed);
       rb.Rebalance(vm_ptr_, fake_vertices, processed_edges_);
       VLOG(1) << "[worker-" << comm_spec_.worker_id()
               << "]: finished rebalancing";
@@ -620,7 +621,7 @@ class BasicFragmentLoader<
 
     fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
     std::vector<internal::Vertex<vid_t, EmptyType>> fake_vertices;
-    fragment->Init(comm_spec_.fid(), fake_vertices, processed_edges_);
+    fragment->Init(comm_spec_.fid(), directed, fake_vertices, processed_edges_);
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "]: finished construction";
   }

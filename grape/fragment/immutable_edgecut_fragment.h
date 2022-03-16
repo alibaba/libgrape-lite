@@ -163,9 +163,9 @@ class ImmutableEdgecutFragment
   using base_t::buildCSR;
   using base_t::init;
   using base_t::IsInnerVertexGid;
-  void Init(fid_t fid, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid);
+    init(fid, directed);
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
@@ -203,13 +203,54 @@ class ImmutableEdgecutFragment
         }
       };
 
+      auto iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                         std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.dst)) {
+          if (!IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          if (IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.dst);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+      auto iter_out_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                          std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          if (IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+
       if (load_strategy == LoadStrategy::kOnlyIn) {
-        for (auto& e : edges) {
-          iter_in(e, outer_vertices);
+        if (directed) {
+          for (auto& e : edges) {
+            iter_in(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            iter_in_undirected(e, outer_vertices);
+          }
         }
       } else if (load_strategy == LoadStrategy::kOnlyOut) {
-        for (auto& e : edges) {
-          iter_out(e, outer_vertices);
+        if (directed) {
+          for (auto& e : edges) {
+            iter_out(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            iter_out_undirected(e, outer_vertices);
+          }
         }
       } else if (load_strategy == LoadStrategy::kBothOutIn) {
         for (auto& e : edges) {
@@ -558,6 +599,7 @@ class ImmutableEdgecutFragment
   using base_t::fid_;
   using base_t::fnum_;
   using base_t::id_parser_;
+  using base_t::directed_;
 
   ska::flat_hash_map<VID_T, VID_T> ovg2l_;
   Array<VID_T, Allocator<VID_T>> ovgid_;

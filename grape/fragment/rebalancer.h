@@ -80,9 +80,11 @@ class Rebalancer<
   static constexpr LoadStrategy load_strategy = FRAG_T::load_strategy;
 
  public:
-  explicit Rebalancer(const CommSpec& comm_spec, size_t rebalance_vertex_factor)
+  explicit Rebalancer(const CommSpec& comm_spec, size_t rebalance_vertex_factor,
+                      bool directed)
       : comm_spec_(comm_spec),
-        rebalance_vertex_factor_(rebalance_vertex_factor) {}
+        rebalance_vertex_factor_(rebalance_vertex_factor),
+        directed_(directed) {}
   ~Rebalancer() {}
 
   void Rebalance(std::shared_ptr<vertex_map_t> vm_ptr,
@@ -109,20 +111,32 @@ class Rebalancer<
           if (vm_ptr->GetFidFromGid(e.src) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.src)];
           }
+          if (!directed_ && vm_ptr->GetFidFromGid(e.dst) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
+          }
         }
       } else if (load_strategy == LoadStrategy::kOnlyIn) {
         for (auto& e : edges) {
           if (vm_ptr->GetFidFromGid(e.dst) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
           }
+          if (!directed_ && vm_ptr->GetFidFromGid(e.src) == fid) {
+            ++degree_list[vm_ptr->GetLidFromGid(e.src)];
+          }
         }
       } else if (load_strategy == LoadStrategy::kBothOutIn) {
         for (auto& e : edges) {
           if (vm_ptr->GetFidFromGid(e.src) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.src)];
+            if (!directed_) {
+              ++degree_list[vm_ptr->GetLidFromGid(e.src)];
+            }
           }
           if (vm_ptr->GetFidFromGid(e.dst) == fid) {
             ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
+            if (!directed_) {
+              ++degree_list[vm_ptr->GetLidFromGid(e.dst)];
+            }
           }
         }
       }
@@ -239,44 +253,126 @@ class Rebalancer<
       size_t count = 0;
       fid_t fid = comm_spec_.fid();
       if (load_strategy == LoadStrategy::kOnlyOut) {
-        for (size_t i = 0; i < evec_size; ++i) {
-          edge_t e;
-          auto& old_e = edges[i];
-          e.src = gid_maps_[vm_ptr->GetFidFromGid(old_e.src)]
-                           [vm_ptr->GetLidFromGid(old_e.src)];
-          e.dst = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst)]
-                           [vm_ptr->GetLidFromGid(old_e.dst)];
-          if (vm_ptr->GetFidFromGid(old_e.src) == fid) {
-            e.edata = std::move(old_e.edata);
-            if (vm_ptr->GetFidFromGid(e.src) == fid) {
-              edges[i - count] = std::move(e);
+        if (directed_) {
+          for (size_t i = 0; i < evec_size; ++i) {
+            edge_t e;
+            auto& old_e = edges[i];
+            e.src = gid_maps_[vm_ptr->GetFidFromGid(old_e.src)]
+                             [vm_ptr->GetLidFromGid(old_e.src)];
+            e.dst = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst)]
+                             [vm_ptr->GetLidFromGid(old_e.dst)];
+            if (vm_ptr->GetFidFromGid(old_e.src) == fid) {
+              e.edata = std::move(old_e.edata);
+              if (vm_ptr->GetFidFromGid(e.src) == fid) {
+                edges[i - count] = std::move(e);
+              } else {
+                edges_to_send.emplace_back(std::move(e));
+                ++count;
+              }
             } else {
-              edges_to_send.emplace_back(std::move(e));
               ++count;
             }
-          } else {
-            ++count;
+          }
+        } else {
+          for (size_t i = 0; i < evec_size; ++i) {
+            edge_t e;
+            auto& old_e = edges[i];
+            fid_t old_src_fid = vm_ptr->GetFidFromGid(old_e.src);
+            fid_t old_dst_fid = vm_ptr->GetFidFromGid(old_e.dst);
+            e.src = gid_maps_[old_src_fid][vm_ptr->GetLidFromGid(old_e.src)];
+            e.dst = gid_maps_[old_dst_fid][vm_ptr->GetLidFromGid(old_e.dst)];
+            fid_t new_src_fid = vm_ptr->GetFidFromGid(e.src);
+            fid_t new_dst_fid = vm_ptr->GetFidFromGid(e.dst);
+            if (old_src_fid == fid || old_dst_fid == fid) {
+              if (new_src_fid == fid && new_dst_fid == fid) {
+                e.edata = std::move(old_e.edata);
+                edges[i - count] = std::move(e);
+              } else if (new_src_fid == fid || (new_dst_fid == fid &&
+                         new_src_fid != old_src_fid &&
+                         new_src_fid != old_dst_fid)) {
+                // new_src_fid == fid, the cross-edge is synced by src fragment;
+                // new_src_fid not in old fids, but new_dst_fid == fid,
+                // the cross-edge is synced by dst fragment.
+                e.edata = std::move(old_e.edata);
+                edges_to_send.emplace_back(std::move(e));
+                ++count;
+              } else if (new_src_fid != old_src_fid &&
+                         new_src_fid != old_dst_fid &&
+                         new_dst_fid != old_src_fid &&
+                         new_dst_fid != old_dst_fid && old_src_fid == fid) {
+                // new_src_fid and new_dst_fid both not in old fids,
+                // the edge is synced by old src fragment.
+                e.edata = std::move(old_e.edata);
+                edges_to_send.emplace_back(std::move(e));
+                ++count;
+              } else {
+                ++count;
+              }
+            } else {
+              ++count;
+            }
           }
         }
         edges.resize(evec_size - count);
       } else if (load_strategy == LoadStrategy::kOnlyIn) {
-        for (size_t i = 0; i < evec_size; ++i) {
-          edge_t e;
-          auto& old_e = edges[i];
-          e.src = gid_maps_[vm_ptr->GetFidFromGid(old_e.src)]
+        if (directed_) {
+          for (size_t i = 0; i < evec_size; ++i) {
+            edge_t e;
+            auto& old_e = edges[i];
+            e.src = gid_maps_[vm_ptr->GetFidFromGid(old_e.src)]
                            [vm_ptr->GetLidFromGid(old_e.src)];
-          e.dst = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst)]
+            e.dst = gid_maps_[vm_ptr->GetFidFromGid(old_e.dst)]
                            [vm_ptr->GetLidFromGid(old_e.dst)];
-          if (vm_ptr->GetFidFromGid(old_e.dst) == fid) {
-            e.edata = std::move(old_e.edata);
-            if (vm_ptr->GetFidFromGid(e.dst) == fid) {
-              edges[i - count] = std::move(e);
+            if (vm_ptr->GetFidFromGid(old_e.dst) == fid) {
+              e.edata = std::move(old_e.edata);
+              if (vm_ptr->GetFidFromGid(e.dst) == fid) {
+                edges[i - count] = std::move(e);
+              } else {
+                edges_to_send.emplace_back(std::move(e));
+                ++count;
+              }
             } else {
-              edges_to_send.emplace_back(std::move(e));
               ++count;
             }
-          } else {
-            ++count;
+          }
+        } else {
+          for (size_t i = 0; i < evec_size; ++i) {
+            edge_t e;
+            auto& old_e = edges[i];
+            fid_t old_src_fid = vm_ptr->GetFidFromGid(old_e.src);
+            fid_t old_dst_fid = vm_ptr->GetFidFromGid(old_e.dst);
+            e.src = gid_maps_[old_src_fid][vm_ptr->GetLidFromGid(old_e.src)];
+            e.dst = gid_maps_[old_dst_fid][vm_ptr->GetLidFromGid(old_e.dst)];
+            fid_t new_src_fid = vm_ptr->GetFidFromGid(e.src);
+            fid_t new_dst_fid = vm_ptr->GetFidFromGid(e.dst);
+            if (old_src_fid == fid || old_dst_fid == fid) {
+              if (new_src_fid == fid && new_dst_fid == fid) {
+                e.edata = std::move(old_e.edata);
+                edges[i - count] = std::move(e);
+              } else if (new_dst_fid == fid || (new_src_fid == fid &&
+                         new_dst_fid != old_src_fid &&
+                         new_dst_fid != old_dst_fid)) {
+                // new_dst_fid == fid, the cross-edge is synced by dst fragment;
+                // new_dst_fid not in old fids, but new_src_fid == fid,
+                // the cross-edge is synced by src fragment.
+                e.edata = std::move(old_e.edata);
+                edges_to_send.emplace_back(std::move(e));
+                ++count;
+              } else if (new_src_fid != old_src_fid &&
+                         new_src_fid != old_dst_fid &&
+                         new_dst_fid != old_src_fid &&
+                         new_dst_fid != old_dst_fid && old_dst_fid == fid) {
+                // new_src_fid and new_dst_fid both not in old fids,
+                // the edge is synced by old dst fragment.
+                e.edata = std::move(old_e.edata);
+                edges_to_send.emplace_back(std::move(e));
+                ++count;
+              } else {
+                ++count;
+              }
+            } else {
+              ++count;
+            }
           }
         }
         edges.resize(evec_size - count);
@@ -351,12 +447,21 @@ class Rebalancer<
     if (load_strategy == LoadStrategy::kOnlyOut) {
       for (auto& e : edges_to_send) {
         fid_t src_fid = vm_ptr->GetFidFromGid(e.src);
+        fid_t dst_fid = vm_ptr->GetFidFromGid(e.dst);
         delta_edges_to_frag[src_fid].Emplace(e.src, e.dst, edata_t(e.edata));
+        if (!directed_ && src_fid != dst_fid) {
+          delta_edges_to_frag[dst_fid].Emplace(e.src, e.dst, edata_t(e.edata));
+        }
       }
     } else if (load_strategy == LoadStrategy::kOnlyIn) {
       for (auto& e : edges_to_send) {
+        fid_t src_fid = vm_ptr->GetFidFromGid(e.src);
         fid_t dst_fid = vm_ptr->GetFidFromGid(e.dst);
         delta_edges_to_frag[dst_fid].Emplace(e.src, e.dst, edata_t(e.edata));
+        if (!directed_ && src_fid != dst_fid) {
+          fid_t src_fid = vm_ptr->GetFidFromGid(e.src);
+          delta_edges_to_frag[src_fid].Emplace(e.src, e.dst, edata_t(e.edata));
+        }
       }
     } else if (load_strategy == LoadStrategy::kBothOutIn) {
       for (auto& e : edges_to_send) {
@@ -400,6 +505,7 @@ class Rebalancer<
  private:
   CommSpec comm_spec_;
   const size_t rebalance_vertex_factor_;
+  bool directed_;
 
   std::vector<std::vector<vid_t>> degree_lists_;
   std::vector<vid_t> vnum_list_;
