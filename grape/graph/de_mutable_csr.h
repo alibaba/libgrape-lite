@@ -229,6 +229,16 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
                       : tail_.get_end(tail_index(i));
   }
 
+  nbr_t* find_nbr(vid_t i, vid_t nbr) {
+    return in_head(i) ? head_.find(head_index(i), nbr)
+                      : tail_.find(tail_index(i), nbr);
+  }
+
+  const nbr_t* find_nbr(vid_t i, vid_t nbr) const {
+    return in_head(i) ? head_.find(head_index(i), nbr)
+                      : tail_.find(tail_index(i), nbr);
+  }
+
   void add_vertices(vid_t to_head, vid_t to_tail) {
     max_head_id_ += to_head;
     vid_t head_num = max_head_id_ - min_id_;
