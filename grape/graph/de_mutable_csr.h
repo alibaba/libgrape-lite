@@ -506,9 +506,9 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         }
         src = e.dst;
         if (in_head(src)) {
-          head_.update(head_index(src), e.dst, e.edata);
+          head_.update(head_index(src), e.src, e.edata);
         } else {
-          tail_.update(tail_index(src), e.dst, e.edata);
+          tail_.update(tail_index(src), e.src, e.edata);
         }
       }
     }
