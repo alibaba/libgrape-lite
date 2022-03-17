@@ -277,7 +277,7 @@ class ImmutableEdgecutFragment
     this->outer_vertices_.SetRange(ivnum_, ivnum_ + ovnum_);
     this->vertices_.SetRange(0, ivnum_ + ovnum_);
 
-    buildCSR(edges, load_strategy);
+    buildCSR(this->Vertices(), edges, load_strategy);
 
     initOuterVerticesOfFragment();
 

@@ -219,6 +219,7 @@ class CSREdgecutFragmentBase
 
  private:
   using csr_t = typename TRAITS_T::csr_t;
+  using csr_builder_t = typename TRAITS_T::csr_builder_t;
 
   void initDestFidList(bool in_edge, bool out_edge,
                        ImmutableCSR<VID_T, fid_t>& csr) {
@@ -290,12 +291,12 @@ class CSREdgecutFragmentBase
   using base_t::IsInnerVertexGid;
   using base_t::IsInnerVertexLid;
   using base_t::OuterVertexGid2Lid;
-  void buildCSR(std::vector<Edge<VID_T, EDATA_T>>& edges,
+  void buildCSR(const typename csr_builder_t::vertex_range_t& vertex_range,
+                std::vector<Edge<VID_T, EDATA_T>>& edges,
                 LoadStrategy load_strategy) {
-    using csr_builder_t = typename TRAITS_T::csr_builder_t;
     csr_builder_t ie_builder, oe_builder;
-    ie_builder.init(Vertices());
-    oe_builder.init(Vertices());
+    ie_builder.init(vertex_range);
+    oe_builder.init(vertex_range);
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     auto parse_iter_in = [&](Edge<VID_T, EDATA_T>& e) {

@@ -18,6 +18,7 @@ limitations under the License.
 
 #include <assert.h>
 
+#include <algorithm>
 #include <map>
 #include <vector>
 
@@ -40,6 +41,8 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   static constexpr double relax_rate = 1.5;
 
  public:
+  using vertex_range_t = VertexRange<VID_T>;
+
   MutableCSRBuilder() {}
   ~MutableCSRBuilder() {}
 
@@ -49,7 +52,18 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     degree_.resize(vnum, 0);
   }
 
-  void inc_degree(VID_T i) { ++degree_[i]; }
+  void init(const vertex_range_t& range) {
+    assert(range.begin_value() == 0);
+    vnum_ = range.size();
+    degree_.clear();
+    degree_.resize(vnum_, 0);
+  }
+
+  void inc_degree(VID_T i) {
+    if (i < vnum_) {
+      ++degree_[i];
+    }
+  }
 
   void build_offsets() {
     size_t total_capacity = 0;
@@ -70,9 +84,10 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   }
 
   void add_edge(VID_T src, const nbr_t& nbr) {
-    CHECK(src < vnum_);
-    nbr_t* ptr = iter_[src]++;
-    *ptr = nbr;
+    if (src < vnum_) {
+      nbr_t* ptr = iter_[src]++;
+      *ptr = nbr;
+    }
   }
 
   template <typename FUNC_T>
@@ -152,6 +167,28 @@ class MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
 
   nbr_t* get_end(VID_T i) { return adj_lists_[i].end; }
   const nbr_t* get_end(VID_T i) const { return adj_lists_[i].end; }
+
+  nbr_t* find(VID_T i, VID_T nbr) {
+    return std::find_if(adj_lists_[i].begin, adj_lists_[i].end,
+                        [&nbr](const nbr_t& item) {
+                          return item.neighbor.GetValue() == nbr;
+                        });
+  }
+  const nbr_t* find(VID_T i, VID_T nbr) const {
+    return std::find_if(adj_lists_[i].begin, adj_lists_[i].end,
+                        [&nbr](const nbr_t& item) {
+                          return item.neighbor.GetValue() == nbr;
+                        });
+  }
+
+  nbr_t* binary_find(VID_T i, VID_T nbr) {
+    return mutable_csr_impl::binary_search_one(
+        adj_lists_[i].begin, adj_lists_[i].end, nbr);
+  }
+  const nbr_t* binary_find(VID_T i, VID_T nbr) const {
+    return mutable_csr_impl::binary_search_one(
+        adj_lists_[i].begin, adj_lists_[i].end, nbr);
+  }
 
   void reserve_vertices(vid_t vnum) {
     static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
