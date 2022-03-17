@@ -202,6 +202,7 @@ class ImmutableEdgecutFragment
           e.src = invalid_vid;
         }
       };
+
       auto iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e,
                          std::vector<VID_T>& outer_vertices) {
         if (IsInnerVertexGid(e.dst)) {
