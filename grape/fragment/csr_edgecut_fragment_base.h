@@ -291,7 +291,7 @@ class CSREdgecutFragmentBase
   using base_t::IsInnerVertexGid;
   using base_t::IsInnerVertexLid;
   using base_t::OuterVertexGid2Lid;
-  void buildCSR(const typename csr_builder_t::vertex_range_t vertex_range,
+  void buildCSR(const typename csr_builder_t::vertex_range_t& vertex_range,
                 std::vector<Edge<VID_T, EDATA_T>>& edges,
                 LoadStrategy load_strategy) {
     csr_builder_t ie_builder, oe_builder;
