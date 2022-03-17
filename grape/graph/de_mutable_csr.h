@@ -314,77 +314,6 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
           tail_modified[index] = tail_.remove_one_with_tomb(index, e.second) ||
                                  tail_modified[index];
         }
-        src = e.second;
-        if (in_head(src)) {
-          vid_t index = head_index(src);
-          head_modified[index] = head_.remove_one_with_tomb(index, e.first) ||
-                                 head_modified[index];
-        } else {
-          vid_t index = tail_index(src);
-          tail_modified[index] = tail_.remove_one_with_tomb(index, e.first) ||
-                                 tail_modified[index];
-        }
-      }
-    } else {
-      for (auto& e : edges) {
-        if (e.first == sentinel) {
-          continue;
-        }
-        vid_t src = e.first;
-        if (in_head(src)) {
-          vid_t index = head_index(src);
-          head_modified[index] =
-              head_.remove_with_tomb(index, e.second) || head_modified[index];
-        } else {
-          vid_t index = tail_index(src);
-          tail_modified[index] =
-              tail_.remove_with_tomb(index, e.second) || tail_modified[index];
-        }
-        src = e.second;
-        if (in_head(src)) {
-          vid_t index = head_index(src);
-          head_modified[index] =
-              head_.remove_with_tomb(index, e.first) || head_modified[index];
-        } else {
-          vid_t index = tail_index(src);
-          tail_modified[index] =
-              tail_.remove_with_tomb(index, e.first) || tail_modified[index];
-        }
-      }
-    }
-    for (vid_t i = 0; i < head_num; ++i) {
-      if (head_modified[i]) {
-        head_.remove_tombs(i);
-      }
-    }
-    for (vid_t i = 0; i < tail_num; ++i) {
-      if (tail_modified[i]) {
-        tail_.remove_tombs(i);
-      }
-    }
-  }
-
-  void remove_forward_edges(const std::vector<std::pair<vid_t, vid_t>>& edges) {
-    vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = max_id_ - min_tail_id_;
-    std::vector<bool> head_modified(head_num, false),
-        tail_modified(tail_num, false);
-    static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
-    if (dedup_) {
-      for (auto& e : edges) {
-        if (e.first == sentinel) {
-          continue;
-        }
-        vid_t src = e.first;
-        if (in_head(src)) {
-          vid_t index = head_index(src);
-          head_modified[index] = head_.remove_one_with_tomb(index, e.second) ||
-                                 head_modified[index];
-        } else {
-          vid_t index = tail_index(src);
-          tail_modified[index] = tail_.remove_one_with_tomb(index, e.second) ||
-                                 tail_modified[index];
-        }
       }
     } else {
       for (auto& e : edges) {
@@ -474,47 +403,6 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   }
 
   void update_edges(const std::vector<edge_t>& edges) {
-    static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
-    if (dedup_) {
-      for (auto& e : edges) {
-        if (e.src == sentinel) {
-          continue;
-        }
-        vid_t src = e.src;
-        if (in_head(src)) {
-          head_.update_one(head_index(src), e.dst, e.edata);
-        } else {
-          tail_.update_one(tail_index(src), e.dst, e.edata);
-        }
-        src = e.dst;
-        if (in_head(src)) {
-          head_.update_one(head_index(src), e.src, e.edata);
-        } else {
-          tail_.update_one(tail_index(src), e.src, e.edata);
-        }
-      }
-    } else {
-      for (auto& e : edges) {
-        if (e.src == sentinel) {
-          continue;
-        }
-        vid_t src = e.src;
-        if (in_head(src)) {
-          head_.update(head_index(src), e.dst, e.edata);
-        } else {
-          tail_.update(tail_index(src), e.dst, e.edata);
-        }
-        src = e.dst;
-        if (in_head(src)) {
-          head_.update(head_index(src), e.src, e.edata);
-        } else {
-          tail_.update(tail_index(src), e.src, e.edata);
-        }
-      }
-    }
-  }
-
-  void update_forward_edges(const std::vector<edge_t>& edges) {
     static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
     if (dedup_) {
       for (auto& e : edges) {
