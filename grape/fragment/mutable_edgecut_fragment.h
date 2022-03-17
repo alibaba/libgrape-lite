@@ -163,7 +163,7 @@ class MutableEdgecutFragment
                              id_parser_.max_local_id());
     initOuterVerticesOfFragment();
 
-    buildCSR(edges, load_strategy);
+    buildCSR(this->Vertices(), edges, load_strategy);
 
     ivdata_.clear();
     ivdata_.resize(ivnum_);

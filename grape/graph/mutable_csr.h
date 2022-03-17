@@ -41,6 +41,8 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   static constexpr double relax_rate = 1.5;
 
  public:
+  using vertex_range_t = VertexRange<VID_T>;
+
   MutableCSRBuilder() {}
   ~MutableCSRBuilder() {}
 
@@ -50,13 +52,18 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     degree_.resize(vnum, 0);
   }
 
-  void init(DualVertexRange<VID_T> range) {
-    vnum_ = range.head().end_value() - range.head().begin_value();
+  void init(const vertex_range_t range) {
+    assert(range.begin_value() == 0);
+    vnum_ = range.size();
     degree_.clear();
     degree_.resize(vnum_, 0);
   }
 
-  void inc_degree(VID_T i) { ++degree_[i]; }
+  void inc_degree(VID_T i) {
+    if (i < vnum_) {
+      ++degree_[i];
+    }
+  }
 
   void build_offsets() {
     size_t total_capacity = 0;
@@ -77,9 +84,10 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   }
 
   void add_edge(VID_T src, const nbr_t& nbr) {
-    CHECK(src < vnum_);
-    nbr_t* ptr = iter_[src]++;
-    *ptr = nbr;
+    if (src < vnum_) {
+      nbr_t* ptr = iter_[src]++;
+      *ptr = nbr;
+    }
   }
 
   template <typename FUNC_T>

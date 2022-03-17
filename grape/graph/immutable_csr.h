@@ -38,6 +38,8 @@ class ImmutableCSRBuild {
   using nbr_t = NBR_T;
 
  public:
+  using vertex_range_t = VertexRange<VID_T>;
+
   ImmutableCSRBuild() {}
   ~ImmutableCSRBuild() {}
 
@@ -54,7 +56,11 @@ class ImmutableCSRBuild {
     degree_.resize(vnum_, 0);
   }
 
-  void inc_degree(VID_T i) { ++degree_[i]; }
+  void inc_degree(VID_T i) {
+    if (i < vnum_) {
+      ++degree_[i];
+    }
+  }
 
   void build_offsets() {
     edge_num_ = 0;
@@ -78,8 +84,10 @@ class ImmutableCSRBuild {
   }
 
   void add_edge(VID_T src, const nbr_t& nbr) {
-    nbr_t* ptr = iter_[src]++;
-    *ptr = nbr;
+    if (src < vnum_) {
+      nbr_t* ptr = iter_[src]++;
+      *ptr = nbr;
+    }
   }
 
   template <typename FUNC_T>

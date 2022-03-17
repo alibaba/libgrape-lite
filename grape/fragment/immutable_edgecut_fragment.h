@@ -202,7 +202,6 @@ class ImmutableEdgecutFragment
           e.src = invalid_vid;
         }
       };
-
       auto iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e,
                          std::vector<VID_T>& outer_vertices) {
         if (IsInnerVertexGid(e.dst)) {
@@ -277,7 +276,7 @@ class ImmutableEdgecutFragment
     this->outer_vertices_.SetRange(ivnum_, ivnum_ + ovnum_);
     this->vertices_.SetRange(0, ivnum_ + ovnum_);
 
-    buildCSR(edges, load_strategy);
+    buildCSR(this->Vertices(), edges, load_strategy);
 
     initOuterVerticesOfFragment();
 
