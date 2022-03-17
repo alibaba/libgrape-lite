@@ -117,15 +117,9 @@ class EVFragmentMutator {
         } else if (type == 'd') {
           istrm >> src >> dst;
           mutator.RemoveEdge(src, dst);
-          if (!directed) {
-            mutator.RemoveEdge(dst, src);
-          }
         } else if (type == 'u') {
           istrm >> src >> dst >> data;
           mutator.UpdateEdge(src, dst, data);
-          if (!directed) {
-            mutator.UpdateEdge(dst, src, data);
-          }
         }
       }
       VLOG(1) << "read edges to add: " << count;

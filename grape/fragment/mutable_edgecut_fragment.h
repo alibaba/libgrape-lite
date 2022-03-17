@@ -231,8 +231,13 @@ class MutableEdgecutFragment
           e.first = sentinel;
         }
       }
-      ie_.remove_reversed_edges(mutation.edges_to_remove);
-      oe_.remove_edges(mutation.edges_to_remove);
+      if (this->directed_) {
+        ie_.remove_reversed_edges(mutation.edges_to_remove);
+        oe_.remove_forward_edges(mutation.edges_to_remove);
+      } else {
+        ie_.remove_edges(mutation.edges_to_remove);
+        oe_.remove_edges(mutation.edges_to_remove);
+      }
     }
     {
       static constexpr vid_t sentinel = std::numeric_limits<vid_t>::max();
@@ -241,8 +246,13 @@ class MutableEdgecutFragment
           e.src = sentinel;
         }
       }
-      ie_.update_reversed_edges(mutation.edges_to_update);
-      oe_.update_edges(mutation.edges_to_update);
+      if (this->directed_) {
+        ie_.update_reversed_edges(mutation.edges_to_update);
+        oe_.update_forward_edges(mutation.edges_to_update);
+      } else {
+        ie_.update_edges(mutation.edges_to_update);
+        oe_.update_edges(mutation.edges_to_update);
+      }
     }
     {
       vid_t ivnum = this->GetInnerVerticesNum();
