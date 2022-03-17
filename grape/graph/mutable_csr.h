@@ -52,7 +52,7 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     degree_.resize(vnum, 0);
   }
 
-  void init(const vertex_range_t range) {
+  void init(const vertex_range_t& range) {
     assert(range.begin_value() == 0);
     vnum_ = range.size();
     degree_.clear();

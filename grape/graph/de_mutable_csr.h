@@ -50,7 +50,7 @@ class DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     tail_builder_.init(max_id_ - min_tail_id_);
   }
 
-  void init(const vertex_range_t range, bool dedup = false) {
+  void init(const vertex_range_t& range, bool dedup = false) {
     min_id_ = range.head().begin_value();
     max_id_ = range.tail().end_value();
     max_head_id_ = range.head().end_value();

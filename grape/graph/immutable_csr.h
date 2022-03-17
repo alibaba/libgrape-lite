@@ -49,7 +49,7 @@ class ImmutableCSRBuild {
     degree_.resize(vnum, 0);
   }
 
-  void init(const VertexRange<VID_T> range) {
+  void init(const VertexRange<VID_T>& range) {
     assert(range.begin_value() == 0);
     vnum_ = range.size();
     degree_.clear();
