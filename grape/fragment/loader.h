@@ -19,7 +19,6 @@ limitations under the License.
 #include <memory>
 #include <string>
 
-#include "grape/fragment/e_fragment_loader.h"
 #include "grape/fragment/ev_fragment_loader.h"
 #include "grape/fragment/ev_fragment_mutator.h"
 #include "grape/fragment/partitioner.h"
@@ -48,16 +47,9 @@ static std::shared_ptr<FRAG_T> LoadGraph(
     const std::string& efile, const std::string& vfile,
     const CommSpec& comm_spec,
     const LoadGraphSpec& spec = DefaultLoadGraphSpec()) {
-  if (vfile.empty()) {
-    std::unique_ptr<EFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>> loader(
-        new EFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>(comm_spec));
-    return loader->LoadFragment(efile, vfile, spec);
-  } else {
-    std::unique_ptr<EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>>
-        loader(new EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>(
-            comm_spec));
-    return loader->LoadFragment(efile, vfile, spec);
-  }
+  std::unique_ptr<EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>> loader(
+      new EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>(comm_spec));
+  return loader->LoadFragment(efile, vfile, spec);
 }
 
 template <typename FRAG_T, typename IOADAPTOR_T = LocalIOAdaptor,

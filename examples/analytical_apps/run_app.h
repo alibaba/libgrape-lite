@@ -19,10 +19,6 @@ limitations under the License.
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>
 #include <glog/logging.h>
-#include <grape/fragment/immutable_edgecut_fragment.h>
-#include <grape/fragment/loader.h>
-#include <grape/grape.h>
-#include <grape/util.h>
 
 #include <algorithm>
 #include <iostream>
@@ -35,13 +31,9 @@ limitations under the License.
 
 #include <grape/fragment/immutable_edgecut_fragment.h>
 #include <grape/fragment/loader.h>
-#include <grape/fragment/mutable_edgecut_fragment.h>
 #include <grape/grape.h>
 #include <grape/util.h>
-
-#include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
-#include <glog/logging.h>
+#include <grape/vertex_map/global_vertex_map.h>
 
 #ifdef GRANULA
 #include "thirdparty/atlarge-research-granula/granula.hpp"
@@ -124,18 +116,6 @@ void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          LoadStrategy load_strategy, template <class> class APP_T>
-bool UseMutableFragment() {
-  if (FLAGS_delta_efile != "" || FLAGS_delta_vfile != "") {
-    return true;
-  }
-  using fragment_t =
-      ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
-  using context_t = typename APP_T<fragment_t>::context_t;
-  return std::is_base_of<MutationContext<fragment_t>, context_t>::value;
-}
-
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           LoadStrategy load_strategy, template <class> class APP_T,
           typename... Args>
 void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
@@ -162,27 +142,14 @@ void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
                                       out_prefix, args...);
   } else {
     graph_spec.set_rebalance(false, 0);
-    if (UseMutableFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy,
-                           APP_T>()) {
-      using FRAG_T =
-          MutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
-      std::shared_ptr<FRAG_T> fragment = LoadGraphAndMutate<FRAG_T>(
-          FLAGS_efile, FLAGS_vfile, FLAGS_delta_efile, FLAGS_delta_vfile,
-          comm_spec, graph_spec);
-      using AppType = APP_T<FRAG_T>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                        out_prefix, args...);
-    } else {
-      using FRAG_T = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                              load_strategy>;
-      std::shared_ptr<FRAG_T> fragment =
-          LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-      using AppType = APP_T<FRAG_T>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                        out_prefix, args...);
-    }
+    using FRAG_T =
+        ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
+    std::shared_ptr<FRAG_T> fragment =
+        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
+    using AppType = APP_T<FRAG_T>;
+    auto app = std::make_shared<AppType>();
+    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
+                                      out_prefix, args...);
   }
 }
 
@@ -216,10 +183,6 @@ void Run() {
   }
 #endif
   // FIXME: no barrier apps. more manager? or use a dynamic-cast.
-  std::string efile = FLAGS_efile;
-  std::string vfile = FLAGS_vfile;
-  std::string delta_efile = FLAGS_delta_efile;
-  std::string delta_vfile = FLAGS_delta_vfile;
   std::string out_prefix = FLAGS_out_prefix;
   auto spec = MultiProcessSpec(comm_spec, __AFFINITY__);
   if (FLAGS_app_concurrency != -1) {

@@ -43,6 +43,7 @@ class BasicFragmentMutator {
   using fragment_t = FRAG_T;
   using vertex_map_t = typename FRAG_T::vertex_map_t;
   using oid_t = typename FRAG_T::oid_t;
+  using internal_oid_t = typename InternalOID<oid_t>::type;
   using vid_t = typename FRAG_T::vid_t;
   using vdata_t = typename FRAG_T::vdata_t;
   using edata_t = typename FRAG_T::edata_t;
@@ -69,7 +70,58 @@ class BasicFragmentMutator {
     vm_ptr_->SetPartitioner(std::move(partitioner));
   }
 
+  void AddVerticesToRemove(const std::vector<vid_t>& id_vec) {
+    if (parsed_vertices_to_remove_.empty()) {
+      parsed_vertices_to_remove_ = id_vec;
+    } else {
+      for (auto v : id_vec) {
+        parsed_vertices_to_remove_.emplace_back(v);
+      }
+    }
+  }
+
+  void AddVerticesToRemove(std::vector<vid_t>&& id_vec) {
+    if (parsed_vertices_to_remove_.empty()) {
+      parsed_vertices_to_remove_ = std::move(id_vec);
+    } else {
+      for (auto v : id_vec) {
+        parsed_vertices_to_remove_.emplace_back(v);
+      }
+    }
+  }
+
+  void AddVerticesToUpdate(
+      const std::vector<internal::Vertex<vid_t, vdata_t>>& v_vec) {
+    if (parsed_vertices_to_update_.empty()) {
+      parsed_vertices_to_update_ = v_vec;
+    } else {
+      for (auto& v : v_vec) {
+        parsed_vertices_to_update_.emplace_back(v);
+      }
+    }
+  }
+
+  void AddVerticesToUpdate(
+      std::vector<internal::Vertex<vid_t, vdata_t>>&& v_vec) {
+    if (parsed_vertices_to_update_.empty()) {
+      parsed_vertices_to_update_ = std::move(v_vec);
+    } else {
+      for (auto& v : v_vec) {
+        parsed_vertices_to_update_.emplace_back(v);
+      }
+    }
+  }
+
   std::shared_ptr<fragment_t> MutateFragment() {
+    for (auto& shuf : vertices_to_add_) {
+      shuf.Flush();
+    }
+    for (auto& shuf : vertices_to_remove_) {
+      shuf.Flush();
+    }
+    for (auto& shuf : vertices_to_update_) {
+      shuf.Flush();
+    }
     for (auto& shuf : edges_to_add_) {
       shuf.Flush();
     }
@@ -80,55 +132,130 @@ class BasicFragmentMutator {
       shuf.Flush();
     }
     recv_thread_.join();
+    got_vertices_to_add_.emplace_back(
+        std::move(vertices_to_add_[comm_spec_.fid()].buffers()));
+    got_vertices_to_remove_.emplace_back(
+        std::move(vertices_to_remove_[comm_spec_.fid()].buffers()));
+    got_vertices_to_update_.emplace_back(
+        std::move(vertices_to_update_[comm_spec_.fid()].buffers()));
+    got_edges_to_add_.emplace_back(
+        std::move(edges_to_add_[comm_spec_.fid()].buffers()));
+    got_edges_to_remove_.emplace_back(
+        std::move(edges_to_remove_[comm_spec_.fid()].buffers()));
+    got_edges_to_update_.emplace_back(
+        std::move(edges_to_update_[comm_spec_.fid()].buffers()));
 
-    sync_comm::FlatAllGather<vid_t>(local_vertices_to_remove_,
-                                    global_vertices_to_remove_,
-                                    comm_spec_.comm());
-    processToSelfMessages();
-    if (!std::is_same<vdata_t, EmptyType>::value) {
-      std::vector<oid_t> global_added_vertices_id;
-      sync_comm::FlatAllGather<oid_t>(local_added_vertices_id_,
-                                      global_added_vertices_id,
-                                      comm_spec_.comm());
-      extendVertexMap(global_added_vertices_id);
-      size_t local_add_vnum = local_vertices_to_add_.size();
-      CHECK_EQ(local_add_vnum, local_added_vertices_id_.size());
-      for (size_t i = 0; i < local_add_vnum; ++i) {
-        auto& oid = local_added_vertices_id_[i];
-        CHECK(vm_ptr_->GetGid(oid, local_vertices_to_add_[i].vid));
+    if (!std::is_same<edata_t, grape::EmptyType>::value) {
+      for (auto& buffers : got_edges_to_update_) {
+        foreach_rval(buffers, [this](internal_oid_t&& src, internal_oid_t&& dst,
+                                     edata_t&& data) {
+          vid_t src_gid, dst_gid;
+          if (vm_ptr_->_GetGid(src, src_gid) &&
+              vm_ptr_->_GetGid(dst, dst_gid)) {
+            mutation_.edges_to_update.emplace_back(src_gid, dst_gid,
+                                                   std::move(data));
+          }
+        });
       }
-      sync_comm::FlatAllGather<internal::Vertex<vid_t, vdata_t>>(
-          local_vertices_to_add_, global_vertices_to_add_, comm_spec_.comm());
-      sync_comm::FlatAllGather<internal::Vertex<vid_t, vdata_t>>(
-          local_vertices_to_update_, global_vertices_to_update_,
-          comm_spec_.comm());
-    } else {
-      global_vertices_to_add_.clear();
-      global_vertices_to_update_.clear();
-      extendVertexMapWithEdges();
     }
+    got_edges_to_update_.clear();
 
-    parseEdgesToAdd();
+    for (auto& buffers : got_edges_to_remove_) {
+      foreach(buffers, [this](const internal_oid_t& src,
+                               const internal_oid_t& dst) {
+        vid_t src_gid, dst_gid;
+        if (vm_ptr_->_GetGid(src, src_gid) && vm_ptr_->_GetGid(dst, dst_gid)) {
+          mutation_.edges_to_remove.emplace_back(src_gid, dst_gid);
+        }
+      });
+    }
+    got_edges_to_remove_.clear();
 
-    mutation_t mutation;
-    mutation.vertices_to_add.swap(global_vertices_to_add_);
-    mutation.vertices_to_remove.swap(global_vertices_to_remove_);
-    mutation.vertices_to_update.swap(global_vertices_to_update_);
-    mutation.edges_to_add.swap(parsed_edges_to_add_);
-    mutation.edges_to_remove.swap(got_edges_to_remove_);
-    mutation.edges_to_update.swap(got_edges_to_update_);
+    for (auto& buffers : got_vertices_to_remove_) {
+      foreach(buffers, [this](const internal_oid_t& id) {
+        vid_t gid;
+        if (vm_ptr_->_GetGid(id, gid)) {
+          parsed_vertices_to_remove_.emplace_back(gid);
+        }
+      });
+    }
+    got_vertices_to_remove_.clear();
 
-    fragment_->Mutate(mutation);
+    if (!std::is_same<vdata_t, grape::EmptyType>::value) {
+      for (auto& buffers : got_vertices_to_update_) {
+        foreach_rval(buffers, [this](internal_oid_t&& id, vdata_t&& data) {
+          vid_t gid;
+          if (vm_ptr_->_GetGid(id, gid)) {
+            parsed_vertices_to_update_.emplace_back(gid, std::move(data));
+          }
+        });
+      }
+    }
+    got_vertices_to_update_.clear();
+
+    auto builder = vm_ptr_->GetLocalBuilder();
+    for (auto& buffers : got_vertices_to_add_) {
+      foreach_rval(buffers,
+                   [this, &builder](internal_oid_t&& id, vdata_t&& data) {
+                     vid_t gid;
+                     builder.add_local_vertex(id, gid);
+                     parsed_vertices_to_add_.emplace_back(gid, std::move(data));
+                   });
+    }
+    got_vertices_to_add_.clear();
+
+    for (auto& buffers : got_edges_to_add_) {
+      foreach_helper(
+          buffers,
+          [&builder](const internal_oid_t& src, const internal_oid_t& dst) {
+            builder.add_vertex(src);
+            builder.add_vertex(dst);
+          },
+          make_index_sequence<2>{});
+    }
+    builder.finish(*vm_ptr_);
+
+    for (auto& buffers : got_edges_to_add_) {
+      foreach_rval(buffers, [this](internal_oid_t&& src, internal_oid_t&& dst,
+                                   edata_t&& data) {
+        vid_t src_gid, dst_gid;
+        if (vm_ptr_->_GetGid(src, src_gid) && vm_ptr_->_GetGid(dst, dst_gid)) {
+          mutation_.edges_to_add.emplace_back(src_gid, dst_gid,
+                                              std::move(data));
+        }
+      });
+    }
+    got_edges_to_add_.clear();
+
+    sync_comm::FlatAllGather<vid_t>(parsed_vertices_to_remove_,
+                                    mutation_.vertices_to_remove,
+                                    comm_spec_.comm());
+    sync_comm::FlatAllGather<internal::Vertex<vid_t, vdata_t>>(
+        parsed_vertices_to_update_, mutation_.vertices_to_update,
+        comm_spec_.comm());
+    sync_comm::FlatAllGather<internal::Vertex<vid_t, vdata_t>>(
+        parsed_vertices_to_add_, mutation_.vertices_to_add, comm_spec_.comm());
+
+    fragment_->Mutate(mutation_);
 
     return fragment_;
   }
 
   void Start() {
+    vertices_to_add_.resize(comm_spec_.fnum());
+    vertices_to_remove_.resize(comm_spec_.fnum());
+    vertices_to_update_.resize(comm_spec_.fnum());
     edges_to_add_.resize(comm_spec_.fnum());
     edges_to_remove_.resize(comm_spec_.fnum());
     edges_to_update_.resize(comm_spec_.fnum());
     for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
       int worker_id = comm_spec_.FragToWorker(fid);
+      vertices_to_add_[fid].Init(comm_spec_.comm(), va_tag);
+      vertices_to_add_[fid].SetDestination(worker_id, fid);
+      vertices_to_remove_[fid].Init(comm_spec_.comm(), vr_tag);
+      vertices_to_remove_[fid].SetDestination(worker_id, fid);
+      vertices_to_update_[fid].Init(comm_spec_.comm(), vu_tag);
+      vertices_to_update_[fid].SetDestination(worker_id, fid);
       edges_to_add_[fid].Init(comm_spec_.comm(), ea_tag);
       edges_to_add_[fid].SetDestination(worker_id, fid);
       edges_to_remove_[fid].Init(comm_spec_.comm(), er_tag);
@@ -136,6 +263,9 @@ class BasicFragmentMutator {
       edges_to_update_[fid].Init(comm_spec_.comm(), eu_tag);
       edges_to_update_[fid].SetDestination(worker_id, fid);
       if (worker_id == comm_spec_.worker_id()) {
+        vertices_to_add_[fid].DisableComm();
+        vertices_to_remove_[fid].DisableComm();
+        vertices_to_update_[fid].DisableComm();
         edges_to_add_[fid].DisableComm();
         edges_to_remove_[fid].DisableComm();
         edges_to_update_[fid].DisableComm();
@@ -145,18 +275,25 @@ class BasicFragmentMutator {
     recv_thread_ = std::thread(&BasicFragmentMutator::recvThreadRoutine, this);
   }
 
-  template <typename Q = vdata_t>
-  typename std::enable_if<std::is_same<Q, EmptyType>::value>::type AddVertex(
-      const oid_t& id, const vdata_t& data) {}
-
-  template <typename Q = vdata_t>
-  typename std::enable_if<!std::is_same<Q, EmptyType>::value>::type AddVertex(
-      const oid_t& id, const vdata_t& data) {
-    local_added_vertices_id_.emplace_back(id);
-    local_vertices_to_add_.emplace_back(0, data);
+  void AddVertex(const internal_oid_t& id, const vdata_t& data) {
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t fid = partitioner.GetPartitionId(id);
+    vertices_to_add_[fid].Emplace(id, data);
   }
 
-  void AddEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
+  void AddVertices(
+      std::vector<typename ShuffleBuffer<internal_oid_t>::type>&& id_lists,
+      std::vector<typename ShuffleBuffer<vdata_t>::type>&& data_lists) {
+    CHECK_EQ(id_lists.size(), vertices_to_add_.size());
+    CHECK_EQ(data_lists.size(), vertices_to_add_.size());
+    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
+      vertices_to_add_[i].AppendBuffers(std::move(id_lists[i]),
+                                        std::move(data_lists[i]));
+    }
+  }
+
+  void AddEdge(const internal_oid_t& src, const internal_oid_t& dst,
+               const edata_t& data) {
     auto& partitioner = vm_ptr_->GetPartitioner();
     fid_t src_fid = partitioner.GetPartitionId(src);
     fid_t dst_fid = partitioner.GetPartitionId(dst);
@@ -166,61 +303,52 @@ class BasicFragmentMutator {
     }
   }
 
-  void RemoveVertex(const oid_t& id) {
-    vid_t gid;
-    if (vm_ptr_->GetGid(id, gid)) {
-      local_vertices_to_remove_.push_back(gid);
+  void AddEdges(
+      std::vector<typename ShuffleBuffer<internal_oid_t>::type>&& src_lists,
+      std::vector<typename ShuffleBuffer<internal_oid_t>::type>&& dst_lists,
+      std::vector<typename ShuffleBuffer<edata_t>::type>&& data_lists) {
+    CHECK_EQ(src_lists.size(), edges_to_add_.size());
+    CHECK_EQ(dst_lists.size(), edges_to_add_.size());
+    CHECK_EQ(data_lists.size(), edges_to_add_.size());
+    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
+      edges_to_add_[i].AppendBuffers(std::move(src_lists[i]),
+                                     std::move(dst_lists[i]),
+                                     std::move(data_lists[i]));
     }
   }
 
-  void RemoveVertexGidList(std::vector<vid_t>&& gid_list) {
-    if (local_vertices_to_remove_.empty()) {
-      local_vertices_to_remove_ = std::move(gid_list);
-    } else {
-      local_vertices_to_remove_.reserve(local_vertices_to_remove_.size() +
-                                        gid_list.size());
-      for (auto id : gid_list) {
-        local_vertices_to_remove_.push_back(id);
-      }
+  void RemoveVertex(const oid_t& id) {
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t fid = partitioner.GetPartitionId(id);
+    vertices_to_remove_[fid].Emplace(id);
+  }
+
+  void RemoveVertices(
+      std::vector<typename ShuffleBuffer<oid_t>::type>&& id_lists) {
+    CHECK_EQ(id_lists.size(), vertices_to_remove_.size());
+    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
+      vertices_to_remove_[i].AppendBuffers(std::move(id_lists[i]));
     }
   }
 
   void RemoveEdge(const oid_t& src, const oid_t& dst) {
-    vid_t src_gid, dst_gid;
-    if (vm_ptr_->GetGid(src, src_gid) && vm_ptr_->GetGid(dst, dst_gid)) {
-      if (load_strategy == LoadStrategy::kOnlyOut) {
-        fid_t src_fid = vm_ptr_->GetFidFromGid(src_gid);
-        edges_to_remove_[src_fid].Emplace(src_gid, dst_gid);
-      } else if (load_strategy == LoadStrategy::kOnlyIn) {
-        fid_t dst_fid = vm_ptr_->GetFidFromGid(dst_gid);
-        edges_to_remove_[dst_fid].Emplace(src_gid, dst_gid);
-      } else if (load_strategy == LoadStrategy::kBothOutIn) {
-        fid_t src_fid = vm_ptr_->GetFidFromGid(src_gid);
-        fid_t dst_fid = vm_ptr_->GetFidFromGid(dst_gid);
-        edges_to_remove_[src_fid].Emplace(src_gid, dst_gid);
-        if (src_fid != dst_fid) {
-          edges_to_remove_[dst_fid].Emplace(src_gid, dst_gid);
-        }
-      } else {
-        LOG(FATAL) << "invalid load_strategy";
-      }
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t src_fid = partitioner.GetPartitionId(src);
+    fid_t dst_fid = partitioner.GetPartitionId(dst);
+    edges_to_remove_[src_fid].Emplace(src, dst);
+    if (src_fid != dst_fid) {
+      edges_to_remove_[dst_fid].Emplace(src, dst);
     }
   }
 
-  void RemoveEdgeGid(const vid_t& src_gid, const vid_t& dst_gid) {
-    fid_t src_fid = vm_ptr_->GetFidFromGid(src_gid);
-    fid_t dst_fid = vm_ptr_->GetFidFromGid(dst_gid);
-    if (load_strategy == LoadStrategy::kOnlyOut) {
-      edges_to_remove_[src_fid].Emplace(src_gid, dst_gid);
-    } else if (load_strategy == LoadStrategy::kOnlyIn) {
-      edges_to_remove_[dst_fid].Emplace(src_gid, dst_gid);
-    } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      edges_to_remove_[src_fid].Emplace(src_gid, dst_gid);
-      if (src_fid != dst_fid) {
-        edges_to_remove_[dst_fid].Emplace(src_gid, dst_gid);
-      }
-    } else {
-      LOG(FATAL) << "invalid load_strategy";
+  void RemoveEdges(
+      std::vector<typename ShuffleBuffer<oid_t>::type>&& src_lists,
+      std::vector<typename ShuffleBuffer<oid_t>::type>&& dst_lists) {
+    CHECK_EQ(src_lists.size(), edges_to_add_.size());
+    CHECK_EQ(dst_lists.size(), edges_to_add_.size());
+    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
+      edges_to_remove_[i].AppendBuffers(std::move(src_lists[i]),
+                                        std::move(dst_lists[i]));
     }
   }
 
@@ -229,71 +357,53 @@ class BasicFragmentMutator {
       const oid_t& id, const vdata_t& data) {}
 
   template <typename Q = vdata_t>
-  typename std::enable_if<std::is_same<Q, EmptyType>::value>::type
-  UpdateVertexGidList(
-      std::vector<internal::Vertex<vid_t, vdata_t>>&& vertex_list) {}
-
-  template <typename Q = vdata_t>
   typename std::enable_if<!std::is_same<Q, EmptyType>::value>::type
   UpdateVertex(const oid_t& id, const vdata_t& data) {
-    vid_t gid;
-    if (vm_ptr_->GetGid(id, gid)) {
-      local_vertices_to_update_.emplace_back(gid, data);
-    }
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t fid = partitioner.GetPartitionId(id);
+    vertices_to_update_[fid].Emplace(id, data);
   }
 
   template <typename Q = vdata_t>
+  typename std::enable_if<std::is_same<Q, EmptyType>::value>::type
+  UpdateVertices(
+      std::vector<typename ShuffleBuffer<oid_t>::type>&& id_lists,
+      std::vector<typename ShuffleBuffer<vdata_t>::type>&& data_lists) {}
+
+  template <typename Q = vdata_t>
   typename std::enable_if<!std::is_same<Q, EmptyType>::value>::type
-  UpdateVertexGidList(
-      std::vector<internal::Vertex<vid_t, vdata_t>>&& vertex_list) {
-    if (local_vertices_to_update_.empty()) {
-      local_vertices_to_update_ = std::move(vertex_list);
-    } else {
-      local_vertices_to_update_.reserve(local_vertices_to_update_.size() +
-                                        vertex_list.size());
-      for (auto& v : vertex_list) {
-        local_vertices_to_update_.emplace_back(std::move(v));
-      }
+  UpdateVertices(
+      std::vector<typename ShuffleBuffer<oid_t>::type>&& id_lists,
+      std::vector<typename ShuffleBuffer<vdata_t>::type>&& data_lists) {
+    CHECK_EQ(id_lists.size(), vertices_to_update_.size());
+    CHECK_EQ(data_lists.size(), vertices_to_update_.size());
+    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
+      vertices_to_update_[i].AppendBuffers(std::move(id_lists[i]),
+                                           std::move(data_lists[i]));
     }
   }
 
   void UpdateEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
-    vid_t src_gid, dst_gid;
-    if (vm_ptr_->GetGid(src, src_gid) && vm_ptr_->GetGid(dst, dst_gid)) {
-      if (load_strategy == LoadStrategy::kOnlyOut) {
-        fid_t src_fid = vm_ptr_->GetFidFromGid(src_gid);
-        edges_to_update_[src_fid].Emplace(src_gid, dst_gid, data);
-      } else if (load_strategy == LoadStrategy::kOnlyIn) {
-        fid_t dst_fid = vm_ptr_->GetFidFromGid(dst_gid);
-        edges_to_update_[dst_fid].Emplace(src_gid, dst_gid, data);
-      } else if (load_strategy == LoadStrategy::kBothOutIn) {
-        fid_t src_fid = vm_ptr_->GetFidFromGid(src_gid);
-        fid_t dst_fid = vm_ptr_->GetFidFromGid(dst_gid);
-        edges_to_update_[src_fid].Emplace(src_gid, dst_gid, data);
-        if (src_fid != dst_fid) {
-          edges_to_update_[dst_fid].Emplace(src_gid, dst_gid, data);
-        }
-      } else {
-        LOG(FATAL) << "invalid load_strategy";
-      }
+    auto& partitioner = vm_ptr_->GetPartitioner();
+    fid_t src_fid = partitioner.GetPartitionId(src);
+    fid_t dst_fid = partitioner.GetPartitionId(dst);
+    edges_to_update_[src_fid].Emplace(src, dst, data);
+    if (src_fid != dst_fid) {
+      edges_to_update_[dst_fid].Emplace(src, dst, data);
     }
   }
 
-  void UpdateEdgeGid(const vid_t& src_gid, const vid_t& dst_gid,
-                     const edata_t& data) {
-    fid_t src_fid = vm_ptr_->GetFidFromGid(src_gid);
-    fid_t dst_fid = vm_ptr_->GetFidFromGid(dst_gid);
-    if (load_strategy == LoadStrategy::kOnlyOut) {
-      edges_to_update_[src_fid].Emplace(src_gid, dst_gid, data);
-    } else if (load_strategy == LoadStrategy::kOnlyIn) {
-      edges_to_update_[dst_fid].Emplace(src_gid, dst_gid, data);
-    } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      edges_to_update_[src_fid].Emplace(src_gid, dst_gid, data);
-      if (src_fid != dst_fid) {
-        edges_to_update_[dst_fid].Emplace(src_gid, dst_gid, data);
-      }
-    } else {
-      LOG(FATAL) << "invalid load_strategy";
+  void UpdateEdges(
+      std::vector<typename ShuffleBuffer<oid_t>::type>&& src_lists,
+      std::vector<typename ShuffleBuffer<oid_t>::type>&& dst_lists,
+      std::vector<typename ShuffleBuffer<edata_t>::type>&& data_lists) {
+    CHECK_EQ(src_lists.size(), edges_to_update_.size());
+    CHECK_EQ(dst_lists.size(), edges_to_update_.size());
+    CHECK_EQ(data_lists.size(), edges_to_update_.size());
+    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
+      edges_to_update_[i].AppendBuffers(std::move(src_lists[i]),
+                                        std::move(dst_lists[i]),
+                                        std::move(data_lists[i]));
     }
   }
 
@@ -302,28 +412,53 @@ class BasicFragmentMutator {
     if (comm_spec_.fnum() == 1) {
       return;
     }
-    ShuffleIn<oid_t, oid_t, edata_t> edges_to_add_in;
+    ShuffleIn<internal_oid_t> vertices_to_remove_in;
+    vertices_to_remove_in.Init(comm_spec_.fnum(), comm_spec_.comm(), vr_tag);
+    ShuffleIn<internal_oid_t, vdata_t> vertices_to_update_in;
+    vertices_to_update_in.Init(comm_spec_.fnum(), comm_spec_.comm(), vu_tag);
+    ShuffleIn<internal_oid_t, vdata_t> vertices_to_add_in;
+    vertices_to_add_in.Init(comm_spec_.fnum(), comm_spec_.comm(), va_tag);
+    ShuffleIn<internal_oid_t, internal_oid_t, edata_t> edges_to_add_in;
     edges_to_add_in.Init(comm_spec_.fnum(), comm_spec_.comm(), ea_tag);
-    ShuffleIn<vid_t, vid_t> edges_to_remove_in;
+    ShuffleIn<internal_oid_t, internal_oid_t> edges_to_remove_in;
     edges_to_remove_in.Init(comm_spec_.fnum(), comm_spec_.comm(), er_tag);
-    ShuffleIn<vid_t, vid_t, edata_t> edges_to_update_in;
+    ShuffleIn<internal_oid_t, internal_oid_t, edata_t> edges_to_update_in;
     edges_to_update_in.Init(comm_spec_.fnum(), comm_spec_.comm(), eu_tag);
 
-    int remaining_channel = 3;
+    int remaining_channel = 6;
     while (remaining_channel != 0) {
       MPI_Status status;
       MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_spec_.comm(), &status);
-      if (status.MPI_TAG == ea_tag) {
+      if (status.MPI_TAG == va_tag) {
+        if (vertices_to_add_in.RecvFrom(status.MPI_SOURCE)) {
+          got_vertices_to_add_.emplace_back(
+              std::move(vertices_to_add_in.buffers()));
+          vertices_to_add_in.Clear();
+        }
+        if (vertices_to_add_in.Finished()) {
+          --remaining_channel;
+        }
+      } else if (status.MPI_TAG == vr_tag) {
+        if (vertices_to_remove_in.RecvFrom(status.MPI_SOURCE)) {
+          got_vertices_to_remove_.emplace_back(
+              std::move(vertices_to_remove_in.buffers()));
+          vertices_to_remove_in.Clear();
+        }
+        if (vertices_to_remove_in.Finished()) {
+          --remaining_channel;
+        }
+      } else if (status.MPI_TAG == vu_tag) {
+        if (vertices_to_update_in.RecvFrom(status.MPI_SOURCE)) {
+          got_vertices_to_update_.emplace_back(
+              std::move(vertices_to_update_in.buffers()));
+          vertices_to_update_in.Clear();
+        }
+        if (vertices_to_update_in.Finished()) {
+          --remaining_channel;
+        }
+      } else if (status.MPI_TAG == ea_tag) {
         if (edges_to_add_in.RecvFrom(status.MPI_SOURCE)) {
-          std::vector<oid_t>& src_list = get_buffer<0>(edges_to_add_in);
-          std::vector<oid_t>& dst_list = get_buffer<1>(edges_to_add_in);
-          std::vector<edata_t>& data_list = get_buffer<2>(edges_to_add_in);
-          size_t num = src_list.size();
-          for (size_t k = 0; k < num; ++k) {
-            got_edges_to_add_.emplace_back(std::move(src_list[k]),
-                                           std::move(dst_list[k]),
-                                           std::move(data_list[k]));
-          }
+          got_edges_to_add_.emplace_back(std::move(edges_to_add_in.buffers()));
           edges_to_add_in.Clear();
         }
         if (edges_to_add_in.Finished()) {
@@ -331,12 +466,8 @@ class BasicFragmentMutator {
         }
       } else if (status.MPI_TAG == er_tag) {
         if (edges_to_remove_in.RecvFrom(status.MPI_SOURCE)) {
-          std::vector<vid_t>& src_list = get_buffer<0>(edges_to_remove_in);
-          std::vector<vid_t>& dst_list = get_buffer<1>(edges_to_remove_in);
-          size_t num = src_list.size();
-          for (size_t k = 0; k < num; ++k) {
-            got_edges_to_remove_.emplace_back(src_list[k], dst_list[k]);
-          }
+          got_edges_to_remove_.emplace_back(
+              std::move(edges_to_remove_in.buffers()));
           edges_to_remove_in.Clear();
         }
         if (edges_to_remove_in.Finished()) {
@@ -344,14 +475,8 @@ class BasicFragmentMutator {
         }
       } else if (status.MPI_TAG == eu_tag) {
         if (edges_to_update_in.RecvFrom(status.MPI_SOURCE)) {
-          std::vector<vid_t>& src_list = get_buffer<0>(edges_to_update_in);
-          std::vector<vid_t>& dst_list = get_buffer<1>(edges_to_update_in);
-          std::vector<edata_t>& data_list = get_buffer<2>(edges_to_update_in);
-          size_t num = src_list.size();
-          for (size_t k = 0; k < num; ++k) {
-            got_edges_to_update_.emplace_back(src_list[k], dst_list[k],
-                                              std::move(data_list[k]));
-          }
+          got_edges_to_update_.emplace_back(
+              std::move(edges_to_update_in.buffers()));
           edges_to_update_in.Clear();
         }
         if (edges_to_update_in.Finished()) {
@@ -363,118 +488,43 @@ class BasicFragmentMutator {
     }
   }
 
-  void extendVertexMap(const std::vector<oid_t>& oid_list) {
-    for (auto& id : oid_list) {
-      vm_ptr_->AddVertex(id);
-    }
-  }
-
-  void extendVertexMapWithEdges() {
-    fid_t fid = comm_spec_.fid();
-    size_t ivnum_before = vm_ptr_->GetInnerVertexSize(fid);
-    auto builder = vm_ptr_->GetLocalBuilder();
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    for (auto& e : got_edges_to_add_) {
-      fid_t src_fid = partitioner.GetPartitionId(e.src);
-      fid_t dst_fid = partitioner.GetPartitionId(e.dst);
-      if (src_fid == fid) {
-        builder.add_vertex(e.src);
-      }
-      if (dst_fid == fid) {
-        builder.add_vertex(e.dst);
-      }
-    }
-    size_t ivnum_after = vm_ptr_->GetInnerVertexSize(fid);
-    VLOG(1) << "[frag-" << fid << "] added " << ivnum_after - ivnum_before
-            << " vertices";
-    builder.finish(*vm_ptr_);
-  }
-
-  void processToSelfMessages() {
-    {
-      std::vector<oid_t>& src_list =
-          get_buffer<0>(edges_to_add_[comm_spec_.fid()]);
-      std::vector<oid_t>& dst_list =
-          get_buffer<1>(edges_to_add_[comm_spec_.fid()]);
-      std::vector<edata_t>& data_list =
-          get_buffer<2>(edges_to_add_[comm_spec_.fid()]);
-      size_t num = src_list.size();
-      for (size_t k = 0; k < num; ++k) {
-        got_edges_to_add_.emplace_back(std::move(src_list[k]),
-                                       std::move(dst_list[k]),
-                                       std::move(data_list[k]));
-      }
-      edges_to_add_[comm_spec_.fid()].Clear();
-    }
-    {
-      std::vector<vid_t>& src_list =
-          get_buffer<0>(edges_to_remove_[comm_spec_.fid()]);
-      std::vector<vid_t>& dst_list =
-          get_buffer<1>(edges_to_remove_[comm_spec_.fid()]);
-      size_t num = src_list.size();
-      for (size_t k = 0; k < num; ++k) {
-        got_edges_to_remove_.emplace_back(src_list[k], dst_list[k]);
-      }
-      edges_to_remove_[comm_spec_.fid()].Clear();
-    }
-    {
-      std::vector<vid_t>& src_list =
-          get_buffer<0>(edges_to_update_[comm_spec_.fid()]);
-      std::vector<vid_t>& dst_list =
-          get_buffer<1>(edges_to_update_[comm_spec_.fid()]);
-      std::vector<edata_t>& data_list =
-          get_buffer<2>(edges_to_update_[comm_spec_.fid()]);
-      size_t num = src_list.size();
-      for (size_t k = 0; k < num; ++k) {
-        got_edges_to_update_.emplace_back(src_list[k], dst_list[k],
-                                          std::move(data_list[k]));
-      }
-      edges_to_update_[comm_spec_.fid()].Clear();
-    }
-  }
-
-  void parseEdgesToAdd() {
-    size_t edge_num = got_edges_to_add_.size();
-    parsed_edges_to_add_.resize(edge_num);
-    for (size_t i = 0; i < edge_num; ++i) {
-      auto& ei = got_edges_to_add_[i];
-      auto& eo = parsed_edges_to_add_[i];
-      if (!(vm_ptr_->GetGid(ei.src, eo.src) &&
-            vm_ptr_->GetGid(ei.dst, eo.dst))) {
-        VLOG(10) << "edge parse failed: " << ei.src << " " << ei.dst << " "
-                 << ei.edata;
-        eo.src = std::numeric_limits<vid_t>::max();
-      } else {
-        eo.edata = std::move(ei.edata);
-      }
-    }
-  }
-
   CommSpec comm_spec_;
   std::shared_ptr<fragment_t> fragment_;
   std::shared_ptr<vertex_map_t> vm_ptr_;
 
   std::thread recv_thread_;
 
-  std::vector<oid_t> local_added_vertices_id_;
-  std::vector<internal::Vertex<vid_t, vdata_t>> local_vertices_to_add_;
-  std::vector<internal::Vertex<vid_t, vdata_t>> global_vertices_to_add_;
-  std::vector<internal::Vertex<vid_t, vdata_t>> local_vertices_to_update_;
-  std::vector<internal::Vertex<vid_t, vdata_t>> global_vertices_to_update_;
-  std::vector<vid_t> local_vertices_to_remove_;
-  std::vector<vid_t> global_vertices_to_remove_;
+  std::vector<vid_t> parsed_vertices_to_remove_;
+  std::vector<internal::Vertex<vid_t, vdata_t>> parsed_vertices_to_update_;
+  std::vector<internal::Vertex<vid_t, vdata_t>> parsed_vertices_to_add_;
 
-  std::vector<ShuffleOut<oid_t, oid_t, edata_t>> edges_to_add_;
-  static constexpr int ea_tag = 1;
-  std::vector<ShuffleOut<vid_t, vid_t>> edges_to_remove_;
-  static constexpr int er_tag = 2;
-  std::vector<ShuffleOut<vid_t, vid_t, edata_t>> edges_to_update_;
-  static constexpr int eu_tag = 3;
+  std::vector<ShuffleOut<internal_oid_t>> vertices_to_remove_;
+  std::vector<ShuffleBufferTuple<internal_oid_t>> got_vertices_to_remove_;
+  static constexpr int vr_tag = 1;
+  std::vector<ShuffleOut<internal_oid_t, vdata_t>> vertices_to_add_;
+  std::vector<ShuffleBufferTuple<internal_oid_t, vdata_t>> got_vertices_to_add_;
+  static constexpr int va_tag = 2;
+  std::vector<ShuffleOut<internal_oid_t, vdata_t>> vertices_to_update_;
+  std::vector<ShuffleBufferTuple<internal_oid_t, vdata_t>>
+      got_vertices_to_update_;
+  static constexpr int vu_tag = 3;
 
-  std::vector<Edge<oid_t, edata_t>> got_edges_to_add_;
-  std::vector<Edge<vid_t, edata_t>> parsed_edges_to_add_;
-  std::vector<std::pair<vid_t, vid_t>> got_edges_to_remove_;
-  std::vector<Edge<vid_t, edata_t>> got_edges_to_update_;
+  std::vector<ShuffleOut<internal_oid_t, internal_oid_t>> edges_to_remove_;
+  std::vector<ShuffleBufferTuple<internal_oid_t, internal_oid_t>>
+      got_edges_to_remove_;
+  static constexpr int er_tag = 4;
+  std::vector<ShuffleOut<internal_oid_t, internal_oid_t, edata_t>>
+      edges_to_update_;
+  std::vector<ShuffleBufferTuple<internal_oid_t, internal_oid_t, edata_t>>
+      got_edges_to_update_;
+  static constexpr int ea_tag = 5;
+  std::vector<ShuffleOut<internal_oid_t, internal_oid_t, edata_t>>
+      edges_to_add_;
+  std::vector<ShuffleBufferTuple<internal_oid_t, internal_oid_t, edata_t>>
+      got_edges_to_add_;
+  static constexpr int eu_tag = 6;
+
+  mutation_t mutation_;
 };
 
 }  // namespace grape

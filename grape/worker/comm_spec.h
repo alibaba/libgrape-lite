@@ -91,7 +91,8 @@ class CommSpec {
     return *this;
   }
 
-  __attribute__((no_sanitize_address)) void Init(MPI_Comm comm) {
+  __attribute__((no_sanitize_address)) void Init(
+      MPI_Comm comm, const std::string& hostname = "") {
     if (owner_ && ValidComm(comm_)) {
       MPI_Comm_free(&comm_);
     }
@@ -105,7 +106,7 @@ class CommSpec {
     owner_ = false;
     local_owner_ = false;
 
-    initLocalInfo();
+    initLocalInfo(hostname);
 
     fnum_ = worker_num_;
     fid_ = worker_id_;
@@ -162,11 +163,19 @@ class CommSpec {
   }
 
  private:
-  __attribute__((no_sanitize_address)) void initLocalInfo() {
+  __attribute__((no_sanitize_address)) void initLocalInfo(
+      const std::string& hostname) {
     char hn[MPI_MAX_PROCESSOR_NAME];
     int hn_len;
 
-    MPI_Get_processor_name(hn, &hn_len);
+    if (hostname.empty()) {
+      MPI_Get_processor_name(hn, &hn_len);
+    } else {
+      hn_len = hostname.length() > MPI_MAX_PROCESSOR_NAME
+                   ? MPI_MAX_PROCESSOR_NAME
+                   : hostname.length();
+      strncpy(hn, hostname.c_str(), hn_len);
+    }
 
     char* recv_buf = reinterpret_cast<char*>(calloc(worker_num_, sizeof(hn)));
     MPI_Allgather(hn, MPI_MAX_PROCESSOR_NAME, MPI_CHAR, recv_buf,

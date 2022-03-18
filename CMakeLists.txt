@@ -208,13 +208,16 @@ else ()
                         ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
   install_libgrapelite_target(analytical_apps)
 
-  add_executable(benchmark_app examples/analytical_apps/mutate_benchmark_flags.cc
-                 examples/analytical_apps/mutate_benchmark.cc)
-  target_include_directories(benchmark_app PRIVATE
-                             examples/analytical_apps)
-  target_link_libraries(benchmark_app grape-lite ${MPI_CXX_LIBRARIES}
-                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
-  install_libgrapelite_target(benchmark_app)
+  file(GLOB TEST_FILES RELATIVE "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/*.cc")
+  foreach(f ${TEST_FILES})
+    string(REGEX MATCH "^(.*)\\.[^.]*$" dummy ${f})
+    set(T_NAME ${CMAKE_MATCH_1})
+    message(STATUS "Found test - " ${T_NAME})
+    add_executable(${T_NAME} tests/${T_NAME}.cc)
+    target_include_directories(${T_NAME} PRIVATE examples/analytical_apps)
+    target_link_libraries(${T_NAME} PRIVATE grape-lite ${MPI_CXX_LIBRARIES} 
+                          ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
+  endforeach()
 
   if (WITH_CUDA)
     cuda_add_executable(gpu_analytical_apps examples/analytical_apps/flags.cc examples/analytical_apps/run_cuda_app.cu)
@@ -325,7 +328,9 @@ install(EXPORT libgrapelite-targets
 file(GLOB_RECURSE FILES_NEED_FORMAT "grape/*.cc"
                                     "grape/*.h"
                                     "examples/*.h"
-                                    "examples/*.cc")
+                                    "examples/*.cc"
+                                    "tests/*.h"
+                                    "tests/*.cc")
 foreach (file_path ${FILES_NEED_FORMAT})
   if (${file_path} MATCHES ".*thirdparty.*")
     list(REMOVE_ITEM FILES_NEED_FORMAT ${file_path})

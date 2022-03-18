@@ -94,7 +94,7 @@ class EVFragmentLoader {
 
     std::vector<oid_t> id_list;
     std::vector<vdata_t> vdata_list;
-    {
+    if (!vfile.empty()) {
       auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(vfile));
       io_adaptor->Open();
       std::string line;
@@ -188,8 +188,7 @@ class EVFragmentLoader {
  private:
   CommSpec comm_spec_;
 
-  BasicFragmentLoader<fragment_t, partitioner_t, io_adaptor_t>
-      basic_fragment_loader_;
+  BasicFragmentLoader<fragment_t, io_adaptor_t> basic_fragment_loader_;
   line_parser_t line_parser_;
 };
 

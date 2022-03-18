@@ -21,8 +21,6 @@ limitations under the License.
 DEFINE_string(application, "", "application name");
 DEFINE_string(efile, "", "edge file");
 DEFINE_string(vfile, "", "vertex file");
-DEFINE_string(delta_efile, "", "delta edge file");
-DEFINE_string(delta_vfile, "", "delta vertex file");
 DEFINE_string(out_prefix, "", "output directory of results");
 DEFINE_string(jobid, "", "jobid, only used in LDBC graphanalytics.");
 DEFINE_bool(directed, false, "input graph is directed or not.");

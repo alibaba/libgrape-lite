@@ -27,6 +27,7 @@ limitations under the License.
 
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"
+#include "grape/utils/string_view_vector.h"
 
 namespace grape {
 
@@ -443,6 +444,53 @@ struct CommImpl<OutArchive, void> {
       arc.Allocate(len);
     }
     bcast_buffer<char>(arc.GetBuffer(), len, root, comm);
+  }
+};
+
+template <>
+struct CommImpl<StringViewVector, void> {
+  static void send(const StringViewVector& vec, int dst_worker_id, int tag,
+                   MPI_Comm comm) {
+    CommImpl<std::vector<char>>::send(vec.content_buffer(), dst_worker_id, tag,
+                                      comm);
+    CommImpl<std::vector<size_t>>::send(vec.offset_buffer(), dst_worker_id, tag,
+                                        comm);
+  }
+
+  static void recv(StringViewVector& vec, int src_worker_id, int tag,
+                   MPI_Comm comm) {
+    CommImpl<std::vector<char>>::recv(vec.content_buffer(), src_worker_id, tag,
+                                      comm);
+    CommImpl<std::vector<size_t>>::recv(vec.offset_buffer(), src_worker_id, tag,
+                                        comm);
+  }
+
+  template <typename ITER_T>
+  static void multiple_send(const StringViewVector& vec,
+                            const ITER_T& worker_id_begin,
+                            const ITER_T& worker_id_end, int tag,
+                            MPI_Comm comm) {
+    for (ITER_T iter = worker_id_begin; iter != worker_id_end; ++iter) {
+      int dst_worker_id = *iter;
+      send(vec, dst_worker_id, tag, comm);
+    }
+  }
+
+  static void bcast(StringViewVector& vec, int root, MPI_Comm comm) {
+    int worker_id;
+    MPI_Comm_rank(comm, &worker_id);
+    size_t len[2];
+    if (worker_id == root) {
+      len[0] = vec.content_buffer().size();
+      len[1] = vec.offset_buffer().size();
+    }
+    bcast_small_buffer<size_t>(len, 2, root, comm);
+    if (worker_id != root) {
+      vec.content_buffer().resize(len[0]);
+      vec.offset_buffer().resize(len[1]);
+    }
+    bcast_buffer<char>(vec.content_buffer().data(), len[0], root, comm);
+    bcast_buffer<size_t>(vec.offset_buffer().data(), len[1], root, comm);
   }
 };
 
