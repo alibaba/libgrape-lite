@@ -256,6 +256,7 @@ if (PROFILING)
 endif()
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
+                  ${PROJECT_SOURCE_DIR}/thirdparty/string_view
         DESTINATION include
         FILES_MATCHING
         PATTERN "*.h"
