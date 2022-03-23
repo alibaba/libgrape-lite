@@ -150,7 +150,7 @@ class GlobalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
   bool AddVertex(const OID_T& oid, VID_T& gid) {
     fid_t fid = partitioner_.GetPartitionId(oid);
     internal_oid_t internal_oid(oid);
-    if (indexers_[fid].add(internal_oid, gid)) {
+    if (indexers_[fid].add(std::move(internal_oid), gid)) {
       gid = Lid2Gid(fid, gid);
       return true;
     }
