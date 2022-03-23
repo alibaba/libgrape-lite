@@ -165,6 +165,28 @@ class IdIndexer {
     return true;
   }
 
+  bool add(KEY_T&& oid, INDEX_T& lid) {
+    size_t index =
+        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
+
+    int8_t distance_from_desired = 0;
+    for (; distances_[index] >= distance_from_desired;
+         ++index, ++distance_from_desired) {
+      INDEX_T cur_lid = indices_[index];
+      if (keys_[cur_lid] == oid) {
+        lid = cur_lid;
+        return false;
+      }
+    }
+
+    lid = static_cast<INDEX_T>(keys_.size());
+    keys_.push_back(std::move(oid));
+    assert(keys_.size() == num_elements_ + 1);
+    emplace_new_value(distance_from_desired, index, lid);
+    assert(keys_.size() == num_elements_);
+    return true;
+  }
+
   bool _add(const KEY_T& oid, size_t hash_value, INDEX_T& lid) {
     size_t index =
         hash_policy_.index_for_hash(hash_value, num_slots_minus_one_);
@@ -187,6 +209,28 @@ class IdIndexer {
     return true;
   }
 
+  bool _add(KEY_T&& oid, size_t hash_value, INDEX_T& lid) {
+    size_t index =
+        hash_policy_.index_for_hash(hash_value, num_slots_minus_one_);
+
+    int8_t distance_from_desired = 0;
+    for (; distances_[index] >= distance_from_desired;
+         ++index, ++distance_from_desired) {
+      INDEX_T cur_lid = indices_[index];
+      if (keys_[cur_lid] == oid) {
+        lid = cur_lid;
+        return false;
+      }
+    }
+
+    lid = static_cast<INDEX_T>(keys_.size());
+    keys_.push_back(std::move(oid));
+    assert(keys_.size() == num_elements_ + 1);
+    emplace_new_value(distance_from_desired, index, lid);
+    assert(keys_.size() == num_elements_);
+    return true;
+  }
+
   void _add(const KEY_T& oid) {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
@@ -201,6 +245,25 @@ class IdIndexer {
 
     INDEX_T lid = static_cast<INDEX_T>(keys_.size());
     keys_.push_back(oid);
+    assert(keys_.size() == num_elements_ + 1);
+    emplace_new_value(distance_from_desired, index, lid);
+    assert(keys_.size() == num_elements_);
+  }
+
+  void _add(KEY_T&& oid) {
+    size_t index =
+        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
+
+    int8_t distance_from_desired = 0;
+    for (; distances_[index] >= distance_from_desired;
+         ++index, ++distance_from_desired) {
+      if (keys_[indices_[index]] == oid) {
+        return;
+      }
+    }
+
+    INDEX_T lid = static_cast<INDEX_T>(keys_.size());
+    keys_.push_back(std::move(oid));
     assert(keys_.size() == num_elements_ + 1);
     emplace_new_value(distance_from_desired, index, lid);
     assert(keys_.size() == num_elements_);
