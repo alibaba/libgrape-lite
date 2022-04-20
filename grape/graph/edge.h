@@ -44,6 +44,7 @@ struct Edge {
   DEV_HOST Edge(const Edge& e) : src(e.src), dst(e.dst), edata(e.edata) {}
   DEV_HOST Edge(const VID_T& src, const VID_T& dst, EDATA_T&& edata)
       : src(src), dst(dst), edata(std::move(edata)) {}
+  DEV_HOST Edge(Edge&& e) noexcept : src(e.src), dst(e.dst), edata(std::move(e.edata)) {}
 
   DEV_HOST Edge& operator=(const Edge& other) {
     if (this == &other) {
