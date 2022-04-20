@@ -43,6 +43,8 @@ struct Nbr {
       : neighbor(nbr_), data(data_) {}
   DEV_HOST Nbr(const Vertex<VID_T>& nbr_, const EDATA_T& data_)
       : neighbor(nbr_), data(data_) {}
+  DEV_HOST Nbr(const VID_T& nbr_, EDATA_T&& data_)
+      : neighbor(nbr_), data(std::move(data_)) {}
   DEV_HOST ~Nbr() {}
 
   DEV_HOST_INLINE Nbr& operator=(const Nbr& rhs) {

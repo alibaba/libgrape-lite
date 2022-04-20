@@ -41,7 +41,11 @@ struct Vertex {
   DEV_HOST explicit Vertex(const VID_T& vid) : vid(vid), vdata() {}
   DEV_HOST Vertex(const VID_T& vid, const VDATA_T& vdata)
       : vid(vid), vdata(vdata) {}
+  DEV_HOST Vertex(const VID_T& vid, VDATA_T&& vdata)
+      : vid(vid), vdata(std::move(vdata)) {}
   DEV_HOST Vertex(const Vertex& vert) : vid(vert.vid), vdata(vert.vdata) {}
+  DEV_HOST Vertex(Vertex&& vert)
+      : vid(vert.vid), vdata(std::move(std::vert.vdata)) {}
 
   DEV_HOST ~Vertex() {}
 

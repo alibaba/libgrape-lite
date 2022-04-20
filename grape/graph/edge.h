@@ -42,6 +42,8 @@ struct Edge {
   DEV_HOST Edge(const VID_T& src, const VID_T& dst, const EDATA_T& edata)
       : src(src), dst(dst), edata(edata) {}
   DEV_HOST Edge(const Edge& e) : src(e.src), dst(e.dst), edata(e.edata) {}
+  DEV_HOST Edge(const VID_T& src, const VID_T& dst, EDATA_T&& edata)
+      : src(src), dst(dst), edata(std::move(edata)) {}
 
   DEV_HOST Edge& operator=(const Edge& other) {
     if (this == &other) {
@@ -50,6 +52,16 @@ struct Edge {
     src = other.src;
     dst = other.dst;
     edata = other.edata;
+    return *this;
+  }
+
+  DEV_HOST Edge& operator=(Edge&& other) {
+    if (this == &other) {
+      return *this;
+    }
+    src = other.src;
+    dst = other.dst;
+    edata = std::move(other.edata);
     return *this;
   }
 
