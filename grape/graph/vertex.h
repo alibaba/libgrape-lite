@@ -44,8 +44,8 @@ struct Vertex {
   DEV_HOST Vertex(const VID_T& vid, VDATA_T&& vdata)
       : vid(vid), vdata(std::move(vdata)) {}
   DEV_HOST Vertex(const Vertex& vert) : vid(vert.vid), vdata(vert.vdata) {}
-  DEV_HOST Vertex(Vertex&& vert) noexcept
-      : vid(vert.vid), vdata(std::move(vert.vdata)) {}
+  DEV_HOST Vertex(Vertex&& vert)
+      noexcept : vid(vert.vid), vdata(std::move(vert.vdata)) {}
 
   DEV_HOST ~Vertex() {}
 
