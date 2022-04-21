@@ -39,10 +39,14 @@ struct Nbr {
   DEV_HOST explicit Nbr(const VID_T& nbr_) : neighbor(nbr_), data() {}
   DEV_HOST explicit Nbr(const Vertex<VID_T>& nbr_) : neighbor(nbr_), data() {}
   DEV_HOST Nbr(const Nbr& rhs) : neighbor(rhs.neighbor), data(rhs.data) {}
+  DEV_HOST Nbr(Nbr&& rhs)
+      noexcept : neighbor(rhs.neighbor), data(std::move(rhs.data)) {}
   DEV_HOST Nbr(const VID_T& nbr_, const EDATA_T& data_)
       : neighbor(nbr_), data(data_) {}
   DEV_HOST Nbr(const Vertex<VID_T>& nbr_, const EDATA_T& data_)
       : neighbor(nbr_), data(data_) {}
+  DEV_HOST Nbr(const VID_T& nbr_, EDATA_T&& data_)
+      : neighbor(nbr_), data(std::move(data_)) {}
   DEV_HOST ~Nbr() {}
 
   DEV_HOST_INLINE Nbr& operator=(const Nbr& rhs) {
