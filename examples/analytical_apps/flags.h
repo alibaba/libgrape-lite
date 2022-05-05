@@ -31,6 +31,8 @@ DECLARE_double(pr_d);
 DECLARE_int32(pr_mr);
 DECLARE_int32(cdlp_mr);
 
+DECLARE_int32(degree_threshold);
+
 DECLARE_bool(segmented_partition);
 DECLARE_bool(rebalance);
 DECLARE_int32(rebalance_vertex_factor);

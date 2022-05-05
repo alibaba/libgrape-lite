@@ -17,6 +17,8 @@ limitations under the License.
 
 #include <gflags/gflags.h>
 
+#include <limits>
+
 /* flags related to the job. */
 DEFINE_string(application, "", "application name");
 DEFINE_string(efile, "", "edge file");
@@ -31,6 +33,8 @@ DEFINE_int32(cdlp_mr, 10, "max rounds of cdlp.");
 DEFINE_int64(sssp_source, 0, "source vertex of sssp.");
 DEFINE_double(pr_d, 0.85, "damping_factor of pagerank");
 DEFINE_int32(pr_mr, 10, "max rounds of pagerank");
+DEFINE_int32(degree_threshold, std::numeric_limits<int>::max(),
+             "Filtering threshold for some algorithms");
 
 DEFINE_bool(segmented_partition, true,
             "whether to use segmented partitioning.");
