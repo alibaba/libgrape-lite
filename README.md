@@ -15,6 +15,7 @@
 ## Building **libgrape-lite**
 
 ### Dependencies
+
 **libgrape-lite** is developed and tested on CentOS 7. It should also work on other unix-like distributions. Building libgrape-lite requires the following softwares installed as dependencies.
 
 - [CMake](https://cmake.org/) (>=2.8)
@@ -22,8 +23,8 @@
 - [MPICH](https://www.mpich.org/) (>= 2.1.4) or [OpenMPI](https://www.open-mpi.org/) (>= 3.0.0)
 - [glog](https://github.com/google/glog) (>= 0.3.4)
 
-
 Here are the dependencies for optional features:
+
 - [jemalloc](http://jemalloc.net/) (>= 5.0.0) for better memory allocation;
 - [Doxygen](https://www.doxygen.nl/index.html) (>= 1.8) for generating documentation;
 - Linux [HUGE_PAGES](http://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt) support, for better performance.
@@ -31,10 +32,10 @@ Here are the dependencies for optional features:
 - [NCCL](https://developer.nvidia.com/nccl) (>= 2.7) for multi-GPU communication.
 
 Extra dependencies are required by examples:
+
 - [gflags](https://github.com/gflags/gflags) (>= 2.2.0);
 - [Apache Kafka](https://github.com/apache/kafka) (>= 2.3.0);
 - [librdkafka](https://github.com/edenhill/librdkafka)(>= 0.11.3);
-
 
 ### Building libgrape-lite and examples
 
@@ -54,6 +55,15 @@ Alternatively, you can build a particular target with command:
 make libgrape-lite # or
 make analytical_apps # or
 make gnn_sampler
+```
+
+### Building libgrape-lite with GPU support
+
+libgrape-lite supports deploying graph algorithms to GPUs. To enable the support for GPUs, you first
+need initialize the dependencies with the following command before building.
+
+```bash
+git submodule update --init --recursive
 ```
 
 ## Running libgrape-lite applications
