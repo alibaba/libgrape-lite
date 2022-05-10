@@ -83,7 +83,12 @@ else()
   include("cmake/FindNCCL.cmake")
   set(NCCL_VERSION "${NCCL_MAJOR_VERSION}.${NCCL_MINOR_VERSION}")
   if (NCCL_VERSION VERSION_LESS "2.7")
-    message(WARNING "Disable gpu support because NCCL >= 2.7 not found")
+    message(WARNING "Disable GPU support because NCCL >= 2.7 not found")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+  elseif ((NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/thirdparty/cub/.git") OR
+          (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/thirdparty/thrust/.git") OR
+          (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/thirdparty/moderngpu/.git"))
+    message(WARNING "Disable GPU support because dependencies not found, please run 'git submodules update --init --recursive'")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
   else ()
     option(WITH_CUDA "Whether to enable cuda support" ON)
@@ -93,8 +98,8 @@ else()
   
     include_directories(${CUDA_TOOLKIT_INCLUDE})
     set(CUDA_LIBS ${CUDA_TOOLKIT_TARGET_DIR}/lib64/stubs/libcuda.so
-            ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libnvToolsExt.so
-            ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libcudart.so)
+                  ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libnvToolsExt.so
+                  ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libcudart.so)
 
     if(${CMAKE_VERSION} VERSION_LESS_EQUAL "3.13.4")
       cuda_select_nvcc_arch_flags(ARCH_FLAGS "Auto")
