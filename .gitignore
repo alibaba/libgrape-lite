@@ -1,5 +1,6 @@
 src/alg/
 src/core/bak/
 src/exp/
+run/app/
 *.DS_Store
 
