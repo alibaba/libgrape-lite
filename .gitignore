@@ -2,5 +2,6 @@ src/alg/
 src/core/bak/
 src/exp/
 run/app/
+run/flash
 *.DS_Store
 

@@ -1,4 +1,4 @@
-#include "core/flash.h"
+#include "core/graph.h"
 
 void update_info(const char *st, bool &directed, bool &bipartite, bool &weighted) {
 	if(strcmp(st, "directed") == 0 ) directed = true;
