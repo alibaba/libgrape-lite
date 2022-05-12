@@ -35,12 +35,12 @@ inline VSet vertexMap(VSet &U, F &f) {
 }
 
 template<class VTYPE, class F, class M, class C, class H> 
-VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, H h, F &f, M &m, C &c) {
-	return edgeMapDenseFunction(G, U, h, All, f, m, c);
+VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, H h, F &f, M &m, C &c, bool b = true) {
+	return edgeMapDenseFunction(G, U, h, All, f, m, c, b);
 }
 
 template<class VTYPE, class F, class M, class C> 
-VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, int h, VSet &T, F &f, M &m, C &c) {
+VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, int h, VSet &T, F &f, M &m, C &c, bool b = true) {
 	bool flag = ((&U) == (&All));
 	if (!flag) U.sync();
 	VSet res;
@@ -49,19 +49,22 @@ VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, int h, VSet &T, F &f, M &m, 
 			if (use_filter(c))
 				for_nb(if (flag || U.contain(nb_id)) if (use_f_dense(f)) use_dense(m); if (!use_filter(c)) break);
 		};
-		res = T.Pull(use_pull(pull));
+		if (b) res = T.Pull(use_pull(pull));
+		else res = T.Pull(use_pull(pull), NONE);
 	} else if (h == ED) {
 		DefinePull(pull) {
 			if (use_filter(c))
 				for_in(if (flag || U.contain(nb_id)) if (use_f_dense(f)) use_dense(m); if (!use_filter(c)) break);
 		};
-		res = T.Pull(use_pull(pull));
+		if (b) res = T.Pull(use_pull(pull));
+		else res = T.Pull(use_pull(pull), NONE);
 	} else if (h == ER) {
 		DefinePull(pull) {
 			if (use_filter(c))
 				for_out(if (flag || U.contain(nb_id)) if (use_f_dense(f)) use_dense(m); if (!use_filter(c)) break);
 		};
-		res = T.Pull(use_pull(pull));
+		if (b) res = T.Pull(use_pull(pull));
+		else res = T.Pull(use_pull(pull), NONE);
 	} else {
 		res = U;
 	}
@@ -69,7 +72,7 @@ VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, int h, VSet &T, F &f, M &m, 
 }
 
 template<class VTYPE, class F, class M, class C, class H> 
-VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, H &h, VSet &T, F &f, M &m, C &c) {
+VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, H &h, VSet &T, F &f, M &m, C &c, bool b = true) {
 	bool flag = ((&U) == (&All));
 	if (!flag) U.sync();
 	VSet res;
@@ -82,7 +85,8 @@ VSet edgeMapDenseFunction(Graph<VTYPE> &G, VSet &U, H &h, VSet &T, F &f, M &m, C
 				use_dense(m); 
 		}
 	};
-	res = T.Pull(use_pull(pull));
+	if (b) res = T.Pull(use_pull(pull));
+	else res = T.Pull(use_pull(pull), NONE);
 	return res;
 }
 

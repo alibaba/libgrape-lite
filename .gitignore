@@ -1,6 +1,8 @@
 src/alg/
 src/core/bak/
 src/exp/
+src/flash.h
+src/gfs.h
 run/app/
 run/flash
 *.DS_Store

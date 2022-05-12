@@ -35,7 +35,9 @@ using namespace std;
 
 #define Size(U) U.size()
 #define edgeMap(U, H, F, M, C, R) edgeMapFunction(G, U, H, F, M, C, R)
-#define edgeMapDense(U, H, F, M, C) edgeMapDenseFunction(G, U, H, F, M, C)
+//#define edgeMapDense(U, H, F, M, C) edgeMapDenseFunction(G, U, H, F, M, C)
+//#define edgeMapDense(U, H, F, M, C, b) edgeMapDenseFunction(G, U, H, F, M, C, b)
+#define edgeMapDense(U, H, F, M, C, ...) edgeMapDenseFunction(G, U, H, F, M, C, ##__VA_ARGS__)
 #define edgeMapSparse(U, H, F, M, C, R) edgeMapSparseFunction(G, U, H, F, M, C, R)
 
 #define DefineFV(F) auto F=[&](VTYPE& v, VTYPE*& v_all, MetaInfo& info)
