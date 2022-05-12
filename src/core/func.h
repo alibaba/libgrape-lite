@@ -24,6 +24,7 @@ using namespace std;
 
 #define id(v) v_id
 #define deg(v) v_deg
+#define weight nb_w
 #define vertexSubset VSet
 #define CTrueV cTrueV<VTYPE>
 #define CTrueE cTrueE<VTYPE>
