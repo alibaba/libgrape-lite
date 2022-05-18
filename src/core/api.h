@@ -25,8 +25,12 @@
 using namespace std;
 
 template<class VTYPE, class F, class M> 
-inline VSet vertexMap(VSet &U, F &f, M &m) {
-	return U.Filter(use_f_v(f)).Local(use_map_v(m));
+inline VSet vertexMap(VSet &U, F &f, M &m, bool b = true) {
+	if (b) 
+		return U.Filter(use_f_v(f)).Local(use_map_v(m));
+	else
+		return U.Filter(use_f_v(f)).Local(use_map_v(m), NONE);
+
 }
 
 template<class VTYPE, class F> 
