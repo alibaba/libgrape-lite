@@ -98,9 +98,10 @@ class HostFragment {
       : vm_ptr_(vm_ptr),
         d_vm_ptr_(std::make_shared<dev_vertex_map_t>(vm_ptr)) {}
 
-  void Init(fid_t fid, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
     fid_ = fid;
+    directed_ = directed;
     fnum_ = vm_ptr_->GetFragmentNum();
 
     id_parser_.init(fnum_);
@@ -133,6 +134,22 @@ class HostFragment {
           e.dst = invalid_vid;
         }
       };
+      auto first_iter_in_ud = [&is_iv_gid, invalid_vid](
+                               grape::Edge<VID_T, EDATA_T>& e,
+                               std::vector<VID_T>& outer_vertices) {
+        if (is_iv_gid(e.dst)) {
+          if (!is_iv_gid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          if (is_iv_gid(e.src)){
+            outer_vertices.push_back(e.dst);
+          }else{
+            e.src = invalid_vid;
+            e.dst = invalid_vid;
+          }
+        }
+      };
       auto first_iter_out = [&is_iv_gid, invalid_vid](
                                 grape::Edge<VID_T, EDATA_T>& e,
                                 std::vector<VID_T>& outer_vertices) {
@@ -143,6 +160,22 @@ class HostFragment {
         } else {
           e.src = invalid_vid;
           e.dst = invalid_vid;
+        }
+      };
+      auto first_iter_out_ud = [&is_iv_gid, invalid_vid](
+                                grape::Edge<VID_T, EDATA_T>& e,
+                                std::vector<VID_T>& outer_vertices) {
+        if (is_iv_gid(e.src)) {
+          if (!is_iv_gid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          if (is_iv_gid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+            e.dst = invalid_vid;
+          }
         }
       };
       auto first_iter_out_in = [&is_iv_gid, invalid_vid](
@@ -161,12 +194,24 @@ class HostFragment {
       };
 
       if (load_strategy == grape::LoadStrategy::kOnlyIn) {
-        for (auto& e : edges) {
-          first_iter_in(e, outer_vertices);
+        if (directed) {
+          for (auto& e : edges) {
+            first_iter_in(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            first_iter_in_ud(e, outer_vertices);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kOnlyOut) {
-        for (auto& e : edges) {
-          first_iter_out(e, outer_vertices);
+        if(directed){
+          for (auto& e : edges) {
+            first_iter_out(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            first_iter_out_ud(e, outer_vertices);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kBothOutIn) {
         for (auto& e : edges) {
@@ -412,7 +457,7 @@ class HostFragment {
     io_adaptor->Open("wb");
 
     int ils = underlying_value(load_strategy);
-    ia << ivnum_ << ovnum_ << ienum_ << oenum_ << fid_ << fnum_ << ils;
+    ia << ivnum_ << ovnum_ << ienum_ << oenum_ << fid_ << fnum_ << directed_ << ils;
     CHECK(io_adaptor->WriteArchive(ia));
     ia.Clear();
 
@@ -472,7 +517,7 @@ class HostFragment {
 
     CHECK(io_adaptor->ReadArchive(oa));
 
-    oa >> ivnum_ >> ovnum_ >> ienum_ >> oenum_ >> fid_ >> fnum_ >> ils;
+    oa >> ivnum_ >> ovnum_ >> ienum_ >> oenum_ >> fid_ >> fnum_ >> directed_ >> ils;
     auto got_load_strategy = grape::LoadStrategy(ils);
 
     if (got_load_strategy != load_strategy) {
@@ -1523,6 +1568,7 @@ class HostFragment {
   size_t ienum_{}, oenum_{};
   fid_t fid_{}, fnum_{};
 
+  bool directed_;
   IdParser<VID_T> id_parser_;
 
   std::unordered_map<VID_T, VID_T> ovg2l_;
