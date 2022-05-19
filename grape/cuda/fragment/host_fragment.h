@@ -98,9 +98,10 @@ class HostFragment {
       : vm_ptr_(vm_ptr),
         d_vm_ptr_(std::make_shared<dev_vertex_map_t>(vm_ptr)) {}
 
-  void Init(fid_t fid, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
     fid_ = fid;
+    directed_ = directed;
     fnum_ = vm_ptr_->GetFragmentNum();
 
     id_parser_.init(fnum_);
@@ -133,6 +134,22 @@ class HostFragment {
           e.dst = invalid_vid;
         }
       };
+      auto first_iter_in_ud = [&is_iv_gid, invalid_vid](
+                                  grape::Edge<VID_T, EDATA_T>& e,
+                                  std::vector<VID_T>& outer_vertices) {
+        if (is_iv_gid(e.dst)) {
+          if (!is_iv_gid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          if (is_iv_gid(e.src)) {
+            outer_vertices.push_back(e.dst);
+          } else {
+            e.src = invalid_vid;
+            e.dst = invalid_vid;
+          }
+        }
+      };
       auto first_iter_out = [&is_iv_gid, invalid_vid](
                                 grape::Edge<VID_T, EDATA_T>& e,
                                 std::vector<VID_T>& outer_vertices) {
@@ -143,6 +160,22 @@ class HostFragment {
         } else {
           e.src = invalid_vid;
           e.dst = invalid_vid;
+        }
+      };
+      auto first_iter_out_ud = [&is_iv_gid, invalid_vid](
+                                   grape::Edge<VID_T, EDATA_T>& e,
+                                   std::vector<VID_T>& outer_vertices) {
+        if (is_iv_gid(e.src)) {
+          if (!is_iv_gid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          if (is_iv_gid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+            e.dst = invalid_vid;
+          }
         }
       };
       auto first_iter_out_in = [&is_iv_gid, invalid_vid](
@@ -161,12 +194,24 @@ class HostFragment {
       };
 
       if (load_strategy == grape::LoadStrategy::kOnlyIn) {
-        for (auto& e : edges) {
-          first_iter_in(e, outer_vertices);
+        if (directed) {
+          for (auto& e : edges) {
+            first_iter_in(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            first_iter_in_ud(e, outer_vertices);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kOnlyOut) {
-        for (auto& e : edges) {
-          first_iter_out(e, outer_vertices);
+        if (directed) {
+          for (auto& e : edges) {
+            first_iter_out(e, outer_vertices);
+          }
+        } else {
+          for (auto& e : edges) {
+            first_iter_out_ud(e, outer_vertices);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kBothOutIn) {
         for (auto& e : edges) {
@@ -226,6 +271,35 @@ class HostFragment {
         }
       };
 
+      auto second_iter_in_ud =
+          [this, &iv_gid_to_lid, &ov_gid_to_lid, invalid_vid, &is_iv_gid](
+              grape::Edge<VID_T, EDATA_T>& e, std::vector<int>& idegree,
+              std::vector<int>& odegree) {
+            if (e.src != invalid_vid) {
+              VID_T src_lid, dst_lid;
+              if (is_iv_gid(e.src)) {
+                src_lid = iv_gid_to_lid(e.src);
+                ++idegree[src_lid];
+                ++ienum_;
+              } else {
+                src_lid = ov_gid_to_lid(e.src);
+                ++odegree[src_lid];
+                ++oenum_;
+              }
+              if (is_iv_gid(e.dst)) {
+                dst_lid = iv_gid_to_lid(e.dst);
+                ++idegree[dst_lid];
+                ++ienum_;
+              } else {
+                dst_lid = ov_gid_to_lid(e.dst);
+                ++odegree[dst_lid];
+                ++oenum_;
+              }
+              e.src = src_lid;
+              e.dst = dst_lid;
+            }
+          };
+
       auto second_iter_out = [this, &iv_gid_to_lid, &ov_gid_to_lid, invalid_vid,
                               &is_iv_gid](grape::Edge<VID_T, EDATA_T>& e,
                                           std::vector<int>& idegree,
@@ -246,6 +320,35 @@ class HostFragment {
         }
       };
 
+      auto second_iter_out_ud =
+          [this, &iv_gid_to_lid, &ov_gid_to_lid, invalid_vid, &is_iv_gid](
+              grape::Edge<VID_T, EDATA_T>& e, std::vector<int>& idegree,
+              std::vector<int>& odegree) {
+            if (e.src != invalid_vid) {
+              VID_T src_lid, dst_lid;
+              if (is_iv_gid(e.src)) {
+                src_lid = iv_gid_to_lid(e.src);
+                ++odegree[src_lid];
+                ++oenum_;
+              } else {
+                src_lid = ov_gid_to_lid(e.src);
+                ++idegree[src_lid];
+                ++ienum_;
+              }
+              if (is_iv_gid(e.dst)) {
+                dst_lid = iv_gid_to_lid(e.dst);
+                ++odegree[dst_lid];
+                ++oenum_;
+              } else {
+                dst_lid = ov_gid_to_lid(e.dst);
+                ++idegree[dst_lid];
+                ++ienum_;
+              }
+              e.src = src_lid;
+              e.dst = dst_lid;
+            }
+          };
+
       auto second_iter_out_in = [this, &gid_to_lid, invalid_vid](
                                     grape::Edge<VID_T, EDATA_T>& e,
                                     std::vector<int>& idegree,
@@ -261,17 +364,54 @@ class HostFragment {
         }
       };
 
+      auto second_iter_out_in_ud = [this, &gid_to_lid, invalid_vid](
+                                       grape::Edge<VID_T, EDATA_T>& e,
+                                       std::vector<int>& idegree,
+                                       std::vector<int>& odegree) {
+        if (e.src != invalid_vid) {
+          VID_T src_lid = gid_to_lid(e.src), dst_lid = gid_to_lid(e.dst);
+          ++odegree[src_lid];
+          ++oenum_;
+          ++idegree[src_lid];
+          ++ienum_;
+          ++idegree[dst_lid];
+          ++ienum_;
+          ++odegree[dst_lid];
+          ++oenum_;
+          e.src = src_lid;
+          e.dst = dst_lid;
+        }
+      };
+
       if (load_strategy == grape::LoadStrategy::kOnlyIn) {
-        for (auto& e : edges) {
-          second_iter_in(e, idegree, odegree);
+        if (this->directed_) {
+          for (auto& e : edges) {
+            second_iter_in(e, idegree, odegree);
+          }
+        } else {
+          for (auto& e : edges) {
+            second_iter_in_ud(e, idegree, odegree);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kOnlyOut) {
-        for (auto& e : edges) {
-          second_iter_out(e, idegree, odegree);
+        if (this->directed_) {
+          for (auto& e : edges) {
+            second_iter_out(e, idegree, odegree);
+          }
+        } else {
+          for (auto& e : edges) {
+            second_iter_out_ud(e, idegree, odegree);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kBothOutIn) {
-        for (auto& e : edges) {
-          second_iter_out_in(e, idegree, odegree);
+        if (this->directed_) {
+          for (auto& e : edges) {
+            second_iter_out_in(e, idegree, odegree);
+          }
+        } else {
+          for (auto& e : edges) {
+            second_iter_out_in_ud(e, idegree, odegree);
+          }
         }
       } else {
         LOG(FATAL) << "Invalid load strategy";
@@ -311,6 +451,33 @@ class HostFragment {
             }
           };
 
+      auto third_iter_in_ud =
+          [invalid_vid, &is_iv_gid, this](
+              const grape::Edge<VID_T, EDATA_T>& e,
+              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
+              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
+            if (e.src != invalid_vid) {
+              if (is_iv_gid(e.src)) {
+                ieiter[e.src]->neighbor = e.dst;
+                ieiter[e.src]->data = e.edata;
+                ++ieiter[e.src];
+              } else {
+                oeiter[e.src]->neighbor = e.dst;
+                oeiter[e.src]->data = e.edata;
+                ++oeiter[e.src];
+              }
+              if (is_iv_gid(e.dst)) {
+                ieiter[e.dst]->neighbor = e.src;
+                ieiter[e.dst]->data = e.edata;
+                ++ieiter[e.dst];
+              } else {
+                oeiter[e.dst]->neighbor = e.src;
+                oeiter[e.dst]->data = e.edata;
+                ++oeiter[e.src];
+              }
+            }
+          };
+
       auto third_iter_out =
           [invalid_vid, this](
               const grape::Edge<VID_T, EDATA_T>& e,
@@ -324,6 +491,33 @@ class HostFragment {
                 ieiter[e.dst]->neighbor = e.src;
                 ieiter[e.dst]->data = e.edata;
                 ++ieiter[e.dst];
+              }
+            }
+          };
+
+      auto third_iter_out_ud =
+          [invalid_vid, &is_iv_gid, this](
+              const grape::Edge<VID_T, EDATA_T>& e,
+              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
+              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
+            if (e.src != invalid_vid) {
+              if (is_iv_gid(e.src)) {
+                oeiter[e.src]->neighbor = e.dst;
+                oeiter[e.src]->data = e.edata;
+                ++oeiter[e.src];
+              } else {
+                ieiter[e.src]->neighbor = e.dst;
+                ieiter[e.src]->data = e.edata;
+                ++ieiter[e.src];
+              }
+              if (is_iv_gid(e.dst)) {
+                oeiter[e.dst]->neighbor = e.src;
+                oeiter[e.dst]->data = e.edata;
+                ++oeiter[e.dst];
+              } else {
+                ieiter[e.dst]->neighbor = e.src;
+                ieiter[e.dst]->data = e.edata;
+                ++ieiter[e.src];
               }
             }
           };
@@ -343,17 +537,56 @@ class HostFragment {
             }
           };
 
+      auto third_iter_out_in_ud =
+          [invalid_vid, &is_iv_gid](
+              const grape::Edge<VID_T, EDATA_T>& e,
+              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
+              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
+            if (e.src != invalid_vid) {
+              ieiter[e.dst]->neighbor = e.src;
+              ieiter[e.dst]->data = e.edata;
+              ++ieiter[e.dst];
+              oeiter[e.src]->neighbor = e.dst;
+              oeiter[e.src]->data = e.edata;
+              ++oeiter[e.src];
+              ieiter[e.src]->neighbor = e.dst;
+              ieiter[e.src]->data = e.edata;
+              ++ieiter[e.src];
+              oeiter[e.dst]->neighbor = e.src;
+              oeiter[e.dst]->data = e.edata;
+              ++oeiter[e.dst];
+            }
+          };
+
       if (load_strategy == grape::LoadStrategy::kOnlyIn) {
-        for (auto& e : edges) {
-          third_iter_in(e, ieiter, oeiter);
+        if (this->directed_) {
+          for (auto& e : edges) {
+            third_iter_in(e, ieiter, oeiter);
+          }
+        } else {
+          for (auto& e : edges) {
+            third_iter_in_ud(e, ieiter, oeiter);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kOnlyOut) {
-        for (auto& e : edges) {
-          third_iter_out(e, ieiter, oeiter);
+        if (this->directed_) {
+          for (auto& e : edges) {
+            third_iter_out(e, ieiter, oeiter);
+          }
+        } else {
+          for (auto& e : edges) {
+            third_iter_out_ud(e, ieiter, oeiter);
+          }
         }
       } else if (load_strategy == grape::LoadStrategy::kBothOutIn) {
-        for (auto& e : edges) {
-          third_iter_out_in(e, ieiter, oeiter);
+        if (this->directed_) {
+          for (auto& e : edges) {
+            third_iter_out_in(e, ieiter, oeiter);
+          }
+        } else {
+          for (auto& e : edges) {
+            third_iter_out_in_ud(e, ieiter, oeiter);
+          }
         }
       } else {
         LOG(FATAL) << "Invalid load strategy";
@@ -395,6 +628,9 @@ class HostFragment {
     mirrors_range_[fid_].SetRange(0, 0);
     mirrors_of_frag_.resize(fnum_);
 
+    this->inner_vertices_.SetRange(0, ivnum_);
+    this->outer_vertices_.SetRange(ivnum_, tvnum_);
+
     __allocate_device_fragment__();
   }
 
@@ -412,7 +648,8 @@ class HostFragment {
     io_adaptor->Open("wb");
 
     int ils = underlying_value(load_strategy);
-    ia << ivnum_ << ovnum_ << ienum_ << oenum_ << fid_ << fnum_ << ils;
+    ia << ivnum_ << ovnum_ << ienum_ << oenum_ << fid_ << fnum_ << directed_
+       << ils;
     CHECK(io_adaptor->WriteArchive(ia));
     ia.Clear();
 
@@ -472,7 +709,8 @@ class HostFragment {
 
     CHECK(io_adaptor->ReadArchive(oa));
 
-    oa >> ivnum_ >> ovnum_ >> ienum_ >> oenum_ >> fid_ >> fnum_ >> ils;
+    oa >> ivnum_ >> ovnum_ >> ienum_ >> oenum_ >> fid_ >> fnum_ >> directed_ >>
+        ils;
     auto got_load_strategy = grape::LoadStrategy(ils);
 
     if (got_load_strategy != load_strategy) {
@@ -607,12 +845,12 @@ class HostFragment {
 
   inline vertex_range_t Vertices() const { return vertex_range_t(0, tvnum_); }
 
-  inline vertex_range_t InnerVertices() const {
-    return vertex_range_t(0, ivnum_);
+  inline const vertex_range_t& InnerVertices() const {
+    return inner_vertices_;
   }
 
-  inline vertex_range_t OuterVertices() const {
-    return vertex_range_t(ivnum_, tvnum_);
+  inline const vertex_range_t& OuterVertices() const {
+    return outer_vertices_;
   }
 
   inline vertex_range_t OuterVertices(fid_t fid) const {
@@ -1204,20 +1442,21 @@ class HostFragment {
         idx++;
       }
 
-      LaunchKernel(stream,
-                   [] __device__(VID_T * gids, VID_T * lids, VID_T size,
-                                 CUDASTL::HashMap<VID_T, VID_T> * ovg2l) {
-                     auto tid = TID_1D;
-                     auto nthreads = TOTAL_THREADS_1D;
+      LaunchKernel(
+          stream,
+          [] __device__(VID_T * gids, VID_T * lids, VID_T size,
+                        CUDASTL::HashMap<VID_T, VID_T> * ovg2l) {
+            auto tid = TID_1D;
+            auto nthreads = TOTAL_THREADS_1D;
 
-                     for (VID_T idx = 0 + tid; idx < size; idx += nthreads) {
-                       VID_T gid = gids[idx];
-                       VID_T lid = lids[idx];
+            for (VID_T idx = 0 + tid; idx < size; idx += nthreads) {
+              VID_T gid = gids[idx];
+              VID_T lid = lids[idx];
 
-                       (*ovg2l)[gid] = lid;
-                     }
-                   },
-                   gids.data(), lids.data(), size, d_ovg2l_.get());
+              (*ovg2l)[gid] = lid;
+            }
+          },
+          gids.data(), lids.data(), size, d_ovg2l_.get());
     }
 
     d_mirrors_of_frag_holder_.resize(fnum_);
@@ -1291,20 +1530,20 @@ class HostFragment {
           h_degree[i] = e_splitter[i] - eoffset[0];
         }
 
-        LaunchKernel(stream,
-                     [] __device__(size_t * h_degree, vid_t ivnum,
-                                   ArrayView<nbr_t*> offset,
-                                   ArrayView<nbr_t*> espliter) {
-                       auto tid = TID_1D;
-                       auto nthreads = TOTAL_THREADS_1D;
+        LaunchKernel(
+            stream,
+            [] __device__(size_t * h_degree, vid_t ivnum,
+                          ArrayView<nbr_t*> offset,
+                          ArrayView<nbr_t*> espliter) {
+              auto tid = TID_1D;
+              auto nthreads = TOTAL_THREADS_1D;
 
-                       for (size_t i = 0 + tid; i < ivnum; i += nthreads) {
-                         espliter[i] = offset[0] + h_degree[i];
-                       }
-                     },
-                     thrust::raw_pointer_cast(h_degree.data()), ivnum_,
-                     ArrayView<nbr_t*>(d_eoffset),
-                     ArrayView<nbr_t*>(d_espliters[fid]));
+              for (size_t i = 0 + tid; i < ivnum; i += nthreads) {
+                espliter[i] = offset[0] + h_degree[i];
+              }
+            },
+            thrust::raw_pointer_cast(h_degree.data()), ivnum_,
+            ArrayView<nbr_t*>(d_eoffset), ArrayView<nbr_t*>(d_espliters[fid]));
       }
     }
   }
@@ -1523,7 +1762,11 @@ class HostFragment {
   size_t ienum_{}, oenum_{};
   fid_t fid_{}, fnum_{};
 
+  bool directed_;
   IdParser<VID_T> id_parser_;
+
+  vertex_range_t inner_vertices_;
+  vertex_range_t outer_vertices_;
 
   std::unordered_map<VID_T, VID_T> ovg2l_;
   grape::Array<VID_T, grape::Allocator<VID_T>> ovgid_;
