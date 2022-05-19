@@ -452,7 +452,7 @@ class HostFragment {
           };
 
       auto third_iter_in_ud =
-          [invalid_vid, this](
+          [invalid_vid, &is_iv_gid, this](
               const grape::Edge<VID_T, EDATA_T>& e,
               grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
               grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
@@ -496,7 +496,7 @@ class HostFragment {
           };
 
       auto third_iter_out_ud =
-          [invalid_vid, this](
+          [invalid_vid, &is_iv_gid, this](
               const grape::Edge<VID_T, EDATA_T>& e,
               grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
               grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
@@ -538,7 +538,7 @@ class HostFragment {
           };
 
       auto third_iter_out_in_ud =
-          [invalid_vid](
+          [invalid_vid, &is_iv_gid](
               const grape::Edge<VID_T, EDATA_T>& e,
               grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
               grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
