@@ -9,6 +9,7 @@
 
 [![C/C++ CI](https://github.com/alibaba/libgrape-lite/workflows/C++%20CI/badge.svg)](https://github.com/alibaba/libgrape-lite/actions?workflow=C++%20CI)
 [![codecov](https://codecov.io/gh/alibaba/libgrape-lite/branch/master/graph/badge.svg)](https://codecov.io/gh/alibaba/libgrape-lite)
+[![GraphScope)(https://img.shields.io/badge/Enables-Graphscope-blue)](https://github.com/alibaba/GraphScope)
 
 **libgrape-lite** is a C++ library from Alibaba for parallel graph processing. It differs from prior systems in its ability to parallelize sequential graph algorithms as a whole by following the *PIE* programming model from [GRAPE](https://dl.acm.org/doi/10.1145/3035918.3035942). Sequential algorithms can be easily ["plugged into"](examples/analytical_apps/sssp/sssp_auto.h) libgrape-lite with only minor changes and get parallelized to handle large graphs efficiently. In addition to the ease of programming, libgrape-lite is designed to be highly [efficient](Performance.md) and [flexible](examples/gnn_sampler), to cope the scale, variety and complexity from real-life graph applications.
 
