@@ -102,6 +102,10 @@ The analytical applications support the LDBC Analytical Benchmark suite with the
 
 In addition to offline graph analytics, libgrape-lite could also be utilized to handle more complex graph tasks. A sampler for GNN training/inference on dynamic graphs (taking graph changes and queries, and producing results via [Kafka](https://kafka.apache.org/)) is included as an example. Please refer to [examples/gnn_sampler](./examples/gnn_sampler) for more details.
 
+### GPU-based graph analytics
+
+libgrape-lite also supports graph analytics on multi-GPU servers. Unlike CPUs, GPUs have more-but-weaker cores, making load balancing the key to high-performance sparse graph processing on GPUs. libgrape-lite provides multiple load balancing strategies on GPUs (`wm`, `cm`, `cta`, and `strict`). libgrape-lite adopts NCCL to handle communication between multiple GPUs. With GPU acceleration, libgrape-lite can obtain similar performance for a 4-node CPU cluster with a single GPU. The detailed benchmark results of libgrape-lite on GPUs could also be found [here](Performance.md).
+
 ## Documentation
 
 Documentation is generated using Doxygen. Users can build doxygen documentation in the build directory using:
