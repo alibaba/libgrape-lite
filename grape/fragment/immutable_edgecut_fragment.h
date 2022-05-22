@@ -506,8 +506,7 @@ class ImmutableEdgecutFragment
     return const_adj_list_t(oespliters_[dst_fid][v],
                             oespliters_[dst_fid + 1][v]);
   }
-
- private:
+ protected:
   void initOuterVerticesOfFragment() {
     std::vector<int> frag_v_num(fnum_, 0);
     fid_t cur_fid = 0;

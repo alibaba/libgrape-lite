@@ -16,10 +16,10 @@ limitations under the License.
 #ifndef GRAPE_GRAPH_IMMUTABLE_CSR_H_
 #define GRAPE_GRAPH_IMMUTABLE_CSR_H_
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <vector>
-
-#include <glog/logging.h>
 
 #include "grape/config.h"
 #include "grape/graph/adj_list.h"
@@ -177,6 +177,9 @@ class ImmutableCSR {
 
   nbr_t* get_end(VID_T i) { return offsets_[i + 1]; }
   const nbr_t* get_end(VID_T i) const { return offsets_[i + 1]; }
+
+  Array<nbr_t, Allocator<nbr_t>> const & get_edges() { return edges_; }
+  Array<nbr_t*, Allocator<nbr_t*>> const & get_offsets() { return offsets_; }
 
   template <typename IOADAPTOR_T>
   void Serialize(std::unique_ptr<IOADAPTOR_T>& writer) {

@@ -36,6 +36,7 @@ limitations under the License.
 #include "grape/cuda/vertex_map/device_vertex_map.h"
 #include "grape/fragment/edgecut_fragment_base.h"
 #include "grape/fragment/id_parser.h"
+#include "grape/fragment/immutable_edgecut_fragment.h"
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
@@ -66,22 +67,25 @@ inline void CalculateOffsetWithPrefixSum(const Stream& stream,
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut,
           typename VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T>>
-class HostFragment {
+class HostFragment
+    : public ImmutableEdgecutFragment<OID_T, VID_T, EDATA_T, _load_strategy,
+                                      VERTEX_MAP_T> {
  public:
-  using internal_vertex_t = grape::internal::Vertex<VID_T, VDATA_T>;
-  using edge_t = grape::Edge<VID_T, EDATA_T>;
-  using nbr_t = Nbr<VID_T, EDATA_T>;
-  using vertex_t = Vertex<VID_T>;
-  using const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
-  using adj_list_t = AdjList<VID_T, EDATA_T>;
+  using base_t = ImmutableEdgecutFragment<OID_T, VID_T, EDATA_T, _load_strategy,
+                                          VERTEX_MAP_T>;
+  using internal_vertex_t = typename base_t::internal_vertex_t;
+  using edge_t = typename base_t::edge_t;
+  using nbr_t = typename base_t::nbr_t;
+  using vertex_t = typename base_t::vertex_t;
+  using const_adj_list_t = typename base_t::const_adj_list_t;
+  using adj_list_t = typename base_t::adj_list_t;
   using vid_t = VID_T;
   using oid_t = OID_T;
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
-  using vertex_range_t = VertexRange<VID_T>;
-  template <typename DATA_T>
-  using vertex_array_t = grape::VertexArray<DATA_T, vid_t>;
-  using vertex_map_t = VERTEX_MAP_T;
+  using vertex_range_t = typename base_t::vertex_range_t;
+  using vertex_array_t = typename base_t::vertex_array_t;
+  using vertex_map_t = typename base_t::vertex_map_t;
   using dev_vertex_map_t = cuda::DeviceVertexMap<vertex_map_t>;
   using device_t =
       dev::DeviceFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy>;
@@ -100,704 +104,24 @@ class HostFragment {
 
   void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
-    fid_ = fid;
-    directed_ = directed;
-    fnum_ = vm_ptr_->GetFragmentNum();
-
-    id_parser_.init(fnum_);
-
-    ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
-    tvnum_ = ivnum_;
-    oenum_ = 0;
-    ienum_ = 0;
-
-    ie_.clear();
-    oe_.clear();
-    ieoffset_.clear();
-    oeoffset_.clear();
-
-    VID_T invalid_vid = std::numeric_limits<VID_T>::max();
-    auto is_iv_gid = [this](VID_T id) {
-      return id_parser_.get_fragment_id(id) == fid_;
-    };
-    {
-      std::vector<VID_T> outer_vertices;
-      auto first_iter_in = [&is_iv_gid, invalid_vid](
-                               grape::Edge<VID_T, EDATA_T>& e,
-                               std::vector<VID_T>& outer_vertices) {
-        if (is_iv_gid(e.dst)) {
-          if (!is_iv_gid(e.src)) {
-            outer_vertices.push_back(e.src);
-          }
-        } else {
-          e.src = invalid_vid;
-          e.dst = invalid_vid;
-        }
-      };
-      auto first_iter_in_ud = [&is_iv_gid, invalid_vid](
-                                  grape::Edge<VID_T, EDATA_T>& e,
-                                  std::vector<VID_T>& outer_vertices) {
-        if (is_iv_gid(e.dst)) {
-          if (!is_iv_gid(e.src)) {
-            outer_vertices.push_back(e.src);
-          }
-        } else {
-          if (is_iv_gid(e.src)) {
-            outer_vertices.push_back(e.dst);
-          } else {
-            e.src = invalid_vid;
-            e.dst = invalid_vid;
-          }
-        }
-      };
-      auto first_iter_out = [&is_iv_gid, invalid_vid](
-                                grape::Edge<VID_T, EDATA_T>& e,
-                                std::vector<VID_T>& outer_vertices) {
-        if (is_iv_gid(e.src)) {
-          if (!is_iv_gid(e.dst)) {
-            outer_vertices.push_back(e.dst);
-          }
-        } else {
-          e.src = invalid_vid;
-          e.dst = invalid_vid;
-        }
-      };
-      auto first_iter_out_ud = [&is_iv_gid, invalid_vid](
-                                   grape::Edge<VID_T, EDATA_T>& e,
-                                   std::vector<VID_T>& outer_vertices) {
-        if (is_iv_gid(e.src)) {
-          if (!is_iv_gid(e.dst)) {
-            outer_vertices.push_back(e.dst);
-          }
-        } else {
-          if (is_iv_gid(e.dst)) {
-            outer_vertices.push_back(e.src);
-          } else {
-            e.src = invalid_vid;
-            e.dst = invalid_vid;
-          }
-        }
-      };
-      auto first_iter_out_in = [&is_iv_gid, invalid_vid](
-                                   grape::Edge<VID_T, EDATA_T>& e,
-                                   std::vector<VID_T>& outer_vertices) {
-        if (is_iv_gid(e.src)) {
-          if (!is_iv_gid(e.dst)) {
-            outer_vertices.push_back(e.dst);
-          }
-        } else if (is_iv_gid(e.dst)) {
-          outer_vertices.push_back(e.src);
-        } else {
-          e.src = invalid_vid;
-          e.dst = invalid_vid;
-        }
-      };
-
-      if (load_strategy == grape::LoadStrategy::kOnlyIn) {
-        if (directed) {
-          for (auto& e : edges) {
-            first_iter_in(e, outer_vertices);
-          }
-        } else {
-          for (auto& e : edges) {
-            first_iter_in_ud(e, outer_vertices);
-          }
-        }
-      } else if (load_strategy == grape::LoadStrategy::kOnlyOut) {
-        if (directed) {
-          for (auto& e : edges) {
-            first_iter_out(e, outer_vertices);
-          }
-        } else {
-          for (auto& e : edges) {
-            first_iter_out_ud(e, outer_vertices);
-          }
-        }
-      } else if (load_strategy == grape::LoadStrategy::kBothOutIn) {
-        for (auto& e : edges) {
-          first_iter_out_in(e, outer_vertices);
-        }
-      } else {
-        LOG(FATAL) << "Invalid load strategy";
-      }
-
-      grape::DistinctSort(outer_vertices);
-
-      ovgid_.resize(outer_vertices.size());
-      memcpy(&ovgid_[0], &outer_vertices[0],
-             outer_vertices.size() * sizeof(VID_T));
-    }
-
-    tvnum_ = ivnum_;
-    for (auto gid : ovgid_) {
-      ovg2l_.emplace(gid, tvnum_);
-      ++tvnum_;
-    }
-    ovnum_ = tvnum_ - ivnum_;
-
-    {
-      std::vector<int> idegree(tvnum_, 0), odegree(tvnum_, 0);
-      ienum_ = 0;
-      oenum_ = 0;
-
-      auto gid_to_lid = [this](VID_T gid) {
-        return (id_parser_.get_fragment_id(gid) == fid_)
-                   ? id_parser_.get_local_id(gid)
-                   : (ovg2l_.at(gid));
-      };
-
-      auto iv_gid_to_lid = [this](VID_T gid) {
-        return id_parser_.get_local_id(gid);
-      };
-      auto ov_gid_to_lid = [this](VID_T gid) { return ovg2l_.at(gid); };
-
-      auto second_iter_in = [this, &iv_gid_to_lid, &ov_gid_to_lid, invalid_vid,
-                             &is_iv_gid](grape::Edge<VID_T, EDATA_T>& e,
-                                         std::vector<int>& idegree,
-                                         std::vector<int>& odegree) {
-        if (e.src != invalid_vid) {
-          VID_T src_lid, dst_lid = iv_gid_to_lid(e.dst);
-          if (is_iv_gid(e.src)) {
-            src_lid = iv_gid_to_lid(e.src);
-          } else {
-            src_lid = ov_gid_to_lid(e.src);
-            ++odegree[src_lid];
-            ++oenum_;
-          }
-          ++idegree[dst_lid];
-          ++ienum_;
-          e.src = src_lid;
-          e.dst = dst_lid;
-        }
-      };
-
-      auto second_iter_in_ud =
-          [this, &iv_gid_to_lid, &ov_gid_to_lid, invalid_vid, &is_iv_gid](
-              grape::Edge<VID_T, EDATA_T>& e, std::vector<int>& idegree,
-              std::vector<int>& odegree) {
-            if (e.src != invalid_vid) {
-              VID_T src_lid, dst_lid;
-              if (is_iv_gid(e.src)) {
-                src_lid = iv_gid_to_lid(e.src);
-                ++idegree[src_lid];
-                ++ienum_;
-              } else {
-                src_lid = ov_gid_to_lid(e.src);
-                ++odegree[src_lid];
-                ++oenum_;
-              }
-              if (is_iv_gid(e.dst)) {
-                dst_lid = iv_gid_to_lid(e.dst);
-                ++idegree[dst_lid];
-                ++ienum_;
-              } else {
-                dst_lid = ov_gid_to_lid(e.dst);
-                ++odegree[dst_lid];
-                ++oenum_;
-              }
-              e.src = src_lid;
-              e.dst = dst_lid;
-            }
-          };
-
-      auto second_iter_out = [this, &iv_gid_to_lid, &ov_gid_to_lid, invalid_vid,
-                              &is_iv_gid](grape::Edge<VID_T, EDATA_T>& e,
-                                          std::vector<int>& idegree,
-                                          std::vector<int>& odegree) {
-        if (e.src != invalid_vid) {
-          VID_T src_lid = iv_gid_to_lid(e.src), dst_lid;
-          if (is_iv_gid(e.dst)) {
-            dst_lid = iv_gid_to_lid(e.dst);
-          } else {
-            dst_lid = ov_gid_to_lid(e.dst);
-            ++idegree[dst_lid];
-            ++ienum_;
-          }
-          ++odegree[src_lid];
-          ++oenum_;
-          e.src = src_lid;
-          e.dst = dst_lid;
-        }
-      };
-
-      auto second_iter_out_ud =
-          [this, &iv_gid_to_lid, &ov_gid_to_lid, invalid_vid, &is_iv_gid](
-              grape::Edge<VID_T, EDATA_T>& e, std::vector<int>& idegree,
-              std::vector<int>& odegree) {
-            if (e.src != invalid_vid) {
-              VID_T src_lid, dst_lid;
-              if (is_iv_gid(e.src)) {
-                src_lid = iv_gid_to_lid(e.src);
-                ++odegree[src_lid];
-                ++oenum_;
-              } else {
-                src_lid = ov_gid_to_lid(e.src);
-                ++idegree[src_lid];
-                ++ienum_;
-              }
-              if (is_iv_gid(e.dst)) {
-                dst_lid = iv_gid_to_lid(e.dst);
-                ++odegree[dst_lid];
-                ++oenum_;
-              } else {
-                dst_lid = ov_gid_to_lid(e.dst);
-                ++idegree[dst_lid];
-                ++ienum_;
-              }
-              e.src = src_lid;
-              e.dst = dst_lid;
-            }
-          };
-
-      auto second_iter_out_in = [this, &gid_to_lid, invalid_vid](
-                                    grape::Edge<VID_T, EDATA_T>& e,
-                                    std::vector<int>& idegree,
-                                    std::vector<int>& odegree) {
-        if (e.src != invalid_vid) {
-          VID_T src_lid = gid_to_lid(e.src), dst_lid = gid_to_lid(e.dst);
-          ++odegree[src_lid];
-          ++idegree[dst_lid];
-          ++oenum_;
-          ++ienum_;
-          e.src = src_lid;
-          e.dst = dst_lid;
-        }
-      };
-
-      auto second_iter_out_in_ud = [this, &gid_to_lid, invalid_vid](
-                                       grape::Edge<VID_T, EDATA_T>& e,
-                                       std::vector<int>& idegree,
-                                       std::vector<int>& odegree) {
-        if (e.src != invalid_vid) {
-          VID_T src_lid = gid_to_lid(e.src), dst_lid = gid_to_lid(e.dst);
-          ++odegree[src_lid];
-          ++oenum_;
-          ++idegree[src_lid];
-          ++ienum_;
-          ++idegree[dst_lid];
-          ++ienum_;
-          ++odegree[dst_lid];
-          ++oenum_;
-          e.src = src_lid;
-          e.dst = dst_lid;
-        }
-      };
-
-      if (load_strategy == grape::LoadStrategy::kOnlyIn) {
-        if (this->directed_) {
-          for (auto& e : edges) {
-            second_iter_in(e, idegree, odegree);
-          }
-        } else {
-          for (auto& e : edges) {
-            second_iter_in_ud(e, idegree, odegree);
-          }
-        }
-      } else if (load_strategy == grape::LoadStrategy::kOnlyOut) {
-        if (this->directed_) {
-          for (auto& e : edges) {
-            second_iter_out(e, idegree, odegree);
-          }
-        } else {
-          for (auto& e : edges) {
-            second_iter_out_ud(e, idegree, odegree);
-          }
-        }
-      } else if (load_strategy == grape::LoadStrategy::kBothOutIn) {
-        if (this->directed_) {
-          for (auto& e : edges) {
-            second_iter_out_in(e, idegree, odegree);
-          }
-        } else {
-          for (auto& e : edges) {
-            second_iter_out_in_ud(e, idegree, odegree);
-          }
-        }
-      } else {
-        LOG(FATAL) << "Invalid load strategy";
-      }
-
-      ie_.resize(ienum_);
-      oe_.resize(oenum_);
-      ieoffset_.resize(tvnum_ + 1);
-      oeoffset_.resize(tvnum_ + 1);
-      ieoffset_[0] = &ie_[0];
-      oeoffset_[0] = &oe_[0];
-
-      for (VID_T i = 0; i < tvnum_; ++i) {
-        ieoffset_[i + 1] = ieoffset_[i] + idegree[i];
-        oeoffset_[i + 1] = oeoffset_[i] + odegree[i];
-      }
-    }
-
-    {
-      grape::Array<nbr_t*, grape::Allocator<nbr_t*>> ieiter(ieoffset_),
-          oeiter(oeoffset_);
-
-      auto third_iter_in =
-          [invalid_vid, this](
-              const grape::Edge<VID_T, EDATA_T>& e,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
-            if (e.src != invalid_vid) {
-              ieiter[e.dst]->neighbor = e.src;
-              ieiter[e.dst]->data = e.edata;
-              ++ieiter[e.dst];
-              if (e.src >= ivnum_) {
-                oeiter[e.src]->neighbor = e.dst;
-                oeiter[e.src]->data = e.edata;
-                ++oeiter[e.src];
-              }
-            }
-          };
-
-      auto third_iter_in_ud =
-          [invalid_vid, &is_iv_gid, this](
-              const grape::Edge<VID_T, EDATA_T>& e,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
-            if (e.src != invalid_vid) {
-              if (is_iv_gid(e.src)) {
-                ieiter[e.src]->neighbor = e.dst;
-                ieiter[e.src]->data = e.edata;
-                ++ieiter[e.src];
-              } else {
-                oeiter[e.src]->neighbor = e.dst;
-                oeiter[e.src]->data = e.edata;
-                ++oeiter[e.src];
-              }
-              if (is_iv_gid(e.dst)) {
-                ieiter[e.dst]->neighbor = e.src;
-                ieiter[e.dst]->data = e.edata;
-                ++ieiter[e.dst];
-              } else {
-                oeiter[e.dst]->neighbor = e.src;
-                oeiter[e.dst]->data = e.edata;
-                ++oeiter[e.src];
-              }
-            }
-          };
-
-      auto third_iter_out =
-          [invalid_vid, this](
-              const grape::Edge<VID_T, EDATA_T>& e,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
-            if (e.src != invalid_vid) {
-              oeiter[e.src]->neighbor = e.dst;
-              oeiter[e.src]->data = e.edata;
-              ++oeiter[e.src];
-              if (e.dst >= ivnum_) {
-                ieiter[e.dst]->neighbor = e.src;
-                ieiter[e.dst]->data = e.edata;
-                ++ieiter[e.dst];
-              }
-            }
-          };
-
-      auto third_iter_out_ud =
-          [invalid_vid, &is_iv_gid, this](
-              const grape::Edge<VID_T, EDATA_T>& e,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
-            if (e.src != invalid_vid) {
-              if (is_iv_gid(e.src)) {
-                oeiter[e.src]->neighbor = e.dst;
-                oeiter[e.src]->data = e.edata;
-                ++oeiter[e.src];
-              } else {
-                ieiter[e.src]->neighbor = e.dst;
-                ieiter[e.src]->data = e.edata;
-                ++ieiter[e.src];
-              }
-              if (is_iv_gid(e.dst)) {
-                oeiter[e.dst]->neighbor = e.src;
-                oeiter[e.dst]->data = e.edata;
-                ++oeiter[e.dst];
-              } else {
-                ieiter[e.dst]->neighbor = e.src;
-                ieiter[e.dst]->data = e.edata;
-                ++ieiter[e.src];
-              }
-            }
-          };
-
-      auto third_iter_out_in =
-          [invalid_vid](
-              const grape::Edge<VID_T, EDATA_T>& e,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
-            if (e.src != invalid_vid) {
-              ieiter[e.dst]->neighbor = e.src;
-              ieiter[e.dst]->data = e.edata;
-              ++ieiter[e.dst];
-              oeiter[e.src]->neighbor = e.dst;
-              oeiter[e.src]->data = e.edata;
-              ++oeiter[e.src];
-            }
-          };
-
-      auto third_iter_out_in_ud =
-          [invalid_vid, &is_iv_gid](
-              const grape::Edge<VID_T, EDATA_T>& e,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& ieiter,
-              grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& oeiter) {
-            if (e.src != invalid_vid) {
-              ieiter[e.dst]->neighbor = e.src;
-              ieiter[e.dst]->data = e.edata;
-              ++ieiter[e.dst];
-              oeiter[e.src]->neighbor = e.dst;
-              oeiter[e.src]->data = e.edata;
-              ++oeiter[e.src];
-              ieiter[e.src]->neighbor = e.dst;
-              ieiter[e.src]->data = e.edata;
-              ++ieiter[e.src];
-              oeiter[e.dst]->neighbor = e.src;
-              oeiter[e.dst]->data = e.edata;
-              ++oeiter[e.dst];
-            }
-          };
-
-      if (load_strategy == grape::LoadStrategy::kOnlyIn) {
-        if (this->directed_) {
-          for (auto& e : edges) {
-            third_iter_in(e, ieiter, oeiter);
-          }
-        } else {
-          for (auto& e : edges) {
-            third_iter_in_ud(e, ieiter, oeiter);
-          }
-        }
-      } else if (load_strategy == grape::LoadStrategy::kOnlyOut) {
-        if (this->directed_) {
-          for (auto& e : edges) {
-            third_iter_out(e, ieiter, oeiter);
-          }
-        } else {
-          for (auto& e : edges) {
-            third_iter_out_ud(e, ieiter, oeiter);
-          }
-        }
-      } else if (load_strategy == grape::LoadStrategy::kBothOutIn) {
-        if (this->directed_) {
-          for (auto& e : edges) {
-            third_iter_out_in(e, ieiter, oeiter);
-          }
-        } else {
-          for (auto& e : edges) {
-            third_iter_out_in_ud(e, ieiter, oeiter);
-          }
-        }
-      } else {
-        LOG(FATAL) << "Invalid load strategy";
-      }
-    }
-
-    for (VID_T i = 0; i < tvnum_; ++i) {
-      std::sort(ieoffset_[i], ieoffset_[i + 1],
-                [](const nbr_t& lhs, const nbr_t& rhs) {
-                  return lhs.neighbor.GetValue() < rhs.neighbor.GetValue();
-                });
-    }
-    for (VID_T i = 0; i < tvnum_; ++i) {
-      std::sort(oeoffset_[i], oeoffset_[i + 1],
-                [](const nbr_t& lhs, const nbr_t& rhs) {
-                  return lhs.neighbor.GetValue() < rhs.neighbor.GetValue();
-                });
-    }
-
-    initOuterVerticesOfFragment();
-
-    vdata_.clear();
-    vdata_.resize(tvnum_);
-    if (sizeof(internal_vertex_t) > sizeof(VID_T)) {
-      for (auto& v : vertices) {
-        VID_T gid = v.vid;
-        if (is_iv_gid(gid)) {
-          vdata_[id_parser_.get_local_id(gid)] = v.vdata;
-        } else {
-          auto iter = ovg2l_.find(gid);
-          if (iter != ovg2l_.end()) {
-            vdata_[iter->second] = v.vdata;
-          }
-        }
-      }
-    }
-
-    mirrors_range_.resize(fnum_);
-    mirrors_range_[fid_].SetRange(0, 0);
-    mirrors_of_frag_.resize(fnum_);
-
-    this->inner_vertices_.SetRange(0, ivnum_);
-    this->outer_vertices_.SetRange(ivnum_, tvnum_);
-
+    base_t::Init(fid, directed, vertices, edges);
     __allocate_device_fragment__();
   }
 
   template <typename IOADAPTOR_T>
   void Serialize(const std::string& prefix) {
-    char fbuf[1024];
-
-    snprintf(fbuf, sizeof(fbuf), grape::kSerializationFilenameFormat,
-             prefix.c_str(), fid_);
-
-    auto io_adaptor =
-        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
-    grape::InArchive ia;
-
-    io_adaptor->Open("wb");
-
-    int ils = underlying_value(load_strategy);
-    ia << ivnum_ << ovnum_ << ienum_ << oenum_ << fid_ << fnum_ << directed_
-       << ils;
-    CHECK(io_adaptor->WriteArchive(ia));
-    ia.Clear();
-
-    if (ovnum_ > 0) {
-      CHECK(io_adaptor->Write(&ovgid_[0], ovnum_ * sizeof(VID_T)));
-    }
-
-    {
-      if (std::is_pod<EDATA_T>::value || (sizeof(nbr_t) == sizeof(VID_T))) {
-        if (ienum_ > 0) {
-          CHECK(io_adaptor->Write(&ie_[0], ienum_ * sizeof(nbr_t)));
-        }
-        if (oenum_ > 0) {
-          CHECK(io_adaptor->Write(&oe_[0], oenum_ * sizeof(nbr_t)));
-        }
-      } else {
-        ia << ie_;
-        CHECK(io_adaptor->WriteArchive(ia));
-        ia.Clear();
-
-        ia << oe_;
-        CHECK(io_adaptor->WriteArchive(ia));
-        ia.Clear();
-      }
-
-      std::vector<int> idegree(tvnum_);
-      for (VID_T i = 0; i < tvnum_; ++i) {
-        idegree[i] = ieoffset_[i + 1] - ieoffset_[i];
-      }
-      CHECK(io_adaptor->Write(&idegree[0], sizeof(int) * tvnum_));
-
-      std::vector<int> odegree(tvnum_);
-      for (VID_T i = 0; i < tvnum_; ++i) {
-        odegree[i] = oeoffset_[i + 1] - oeoffset_[i];
-      }
-      CHECK(io_adaptor->Write(&odegree[0], sizeof(int) * tvnum_));
-    }
-
-    ia << vdata_;
-    CHECK(io_adaptor->WriteArchive(ia));
-    ia.Clear();
-
-    io_adaptor->Close();
+    base_t::Serialize(prefix);
   }
 
   template <typename IOADAPTOR_T>
   void Deserialize(const std::string& prefix, const fid_t fid) {
-    char fbuf[1024];
-    snprintf(fbuf, sizeof(fbuf), grape::kSerializationFilenameFormat,
-             prefix.c_str(), fid);
-    auto io_adaptor =
-        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
-    io_adaptor->Open();
-
-    grape::OutArchive oa;
-    int ils;
-
-    CHECK(io_adaptor->ReadArchive(oa));
-
-    oa >> ivnum_ >> ovnum_ >> ienum_ >> oenum_ >> fid_ >> fnum_ >> directed_ >>
-        ils;
-    auto got_load_strategy = grape::LoadStrategy(ils);
-
-    if (got_load_strategy != load_strategy) {
-      LOG(FATAL) << "load strategy not consistent.";
-    }
-    tvnum_ = ivnum_ + ovnum_;
-
-    oa.Clear();
-
-    ovgid_.clear();
-    ovgid_.resize(ovnum_);
-    if (ovnum_ > 0) {
-      CHECK(io_adaptor->Read(&ovgid_[0], ovnum_ * sizeof(VID_T)));
-    }
-
-    id_parser_.init(fnum_);
-    initOuterVerticesOfFragment();
-
-    {
-      ovg2l_.clear();
-      VID_T ovid = ivnum_;
-      for (auto gid : ovgid_) {
-        ovg2l_.emplace(gid, ovid);
-        ++ovid;
-      }
-    }
-
-    ie_.clear();
-    oe_.clear();
-    if (std::is_pod<EDATA_T>::value || (sizeof(nbr_t) == sizeof(VID_T))) {
-      ie_.resize(ienum_);
-      if (ienum_ > 0) {
-        CHECK(io_adaptor->Read(&ie_[0], ienum_ * sizeof(nbr_t)));
-      }
-      oe_.resize(oenum_);
-      if (oenum_ > 0) {
-        CHECK(io_adaptor->Read(&oe_[0], oenum_ * sizeof(nbr_t)));
-      }
-    } else {
-      CHECK(io_adaptor->ReadArchive(oa));
-      oa >> ie_;
-      oa.Clear();
-      CHECK_EQ(ie_.size(), ienum_);
-
-      CHECK(io_adaptor->ReadArchive(oa));
-      oa >> oe_;
-      oa.Clear();
-      CHECK_EQ(oe_.size(), oenum_);
-    }
-
-    ieoffset_.clear();
-    ieoffset_.resize(tvnum_ + 1);
-    ieoffset_[0] = &ie_[0];
-    {
-      std::vector<int> idegree(tvnum_);
-      CHECK(io_adaptor->Read(&idegree[0], sizeof(int) * tvnum_));
-      for (VID_T i = 0; i < tvnum_; ++i) {
-        ieoffset_[i + 1] = ieoffset_[i] + idegree[i];
-      }
-    }
-
-    oeoffset_.clear();
-    oeoffset_.resize(tvnum_ + 1);
-    oeoffset_[0] = &oe_[0];
-    {
-      std::vector<int> odegree(tvnum_);
-      CHECK(io_adaptor->Read(&odegree[0], sizeof(int) * tvnum_));
-      for (VID_T i = 0; i < tvnum_; ++i) {
-        oeoffset_[i + 1] = oeoffset_[i] + odegree[i];
-      }
-    }
-
-    mirrors_range_.clear();
-    mirrors_range_.resize(fnum_);
-    mirrors_range_[fid_].SetRange(0, 0);
-    mirrors_of_frag_.clear();
-    mirrors_of_frag_.resize(fnum_);
-
-    CHECK(io_adaptor->ReadArchive(oa));
-    oa >> vdata_;
-
-    io_adaptor->Close();
-
+    base_t::Deserialize(prefix, fid);
     __allocate_device_fragment__();
   }
 
   void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) {
+    base_t::PrepareToRunApp(comm_spec, conf);
+
     Stream stream;
     if (conf.message_strategy ==
             grape::MessageStrategy::kAlongEdgeToOuterVertex ||
@@ -805,24 +129,18 @@ class HostFragment {
             grape::MessageStrategy::kAlongIncomingEdgeToOuterVertex ||
         conf.message_strategy ==
             grape::MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
-      initMessageDestination(stream, conf.message_strategy);
+      __initMessageDestination(stream, conf.message_strategy);
     }
 
-    if (conf.need_split_edges) {
-      if (load_strategy == grape::LoadStrategy::kOnlyIn ||
-          load_strategy == grape::LoadStrategy::kBothOutIn) {
-        __init_edges_splitter__(stream, ieoffset_, iespliters_, d_ieoffset_,
-                                d_iespliters_holder_, d_iespliters_);
-      }
-      if (load_strategy == grape::LoadStrategy::kOnlyOut ||
-          load_strategy == grape::LoadStrategy::kBothOutIn) {
-        __init_edges_splitter__(stream, oeoffset_, oespliters_, d_oeoffset_,
-                                d_oespliters_holder_, d_oespliters_);
-      }
+    if (conf.need_split_edges_by_fragment) {
+      __init_edges_splitter__(stream, ie_.get_offsets(), iespliters_,
+                              d_ieoffset_, d_iespliters_holder_, d_iespliters_);
+      __init_edges_splitter__(stream, oe_.get_offsets(), oespliters_,
+                              d_oeoffset_, d_oespliters_holder_, d_oespliters_);
     }
 
     if (conf.need_mirror_info) {
-      initMirrorInfo(comm_spec);
+      __initMirrorInfo(comm_spec);
     }
 
     if (conf.need_build_device_vm) {
@@ -831,114 +149,7 @@ class HostFragment {
     stream.Sync();
   }
 
-  inline fid_t fid() const { return fid_; }
-
-  inline fid_t fnum() const { return fnum_; }
-
   inline const vid_t* GetOuterVerticesGid() const { return &ovgid_[0]; }
-
-  inline size_t GetEdgeNum() const { return ienum_ + oenum_; }
-
-  inline VID_T GetVerticesNum() const { return tvnum_; }
-
-  size_t GetTotalVerticesNum() const { return vm_ptr_->GetTotalVertexSize(); }
-
-  inline vertex_range_t Vertices() const { return vertex_range_t(0, tvnum_); }
-
-  inline const vertex_range_t& InnerVertices() const {
-    return inner_vertices_;
-  }
-
-  inline const vertex_range_t& OuterVertices() const {
-    return outer_vertices_;
-  }
-
-  inline vertex_range_t OuterVertices(fid_t fid) const {
-    return outer_vertices_of_frag_[fid];
-  }
-
-  inline bool GetVertex(const OID_T& oid, vertex_t& v) const {
-    VID_T gid;
-    OID_T internal_oid(oid);
-    if (vm_ptr_->GetGid(internal_oid, gid)) {
-      return id_parser_.get_fragment_id(gid) == fid_
-                 ? InnerVertexGid2Vertex(gid, v)
-                 : OuterVertexGid2Vertex(gid, v);
-    } else {
-      return false;
-    }
-  }
-
-  inline OID_T GetId(const vertex_t& v) const {
-    return IsInnerVertex(v) ? GetInnerVertexId(v) : GetOuterVertexId(v);
-  }
-
-  inline fid_t GetFragId(const vertex_t& u) const {
-    auto gid = ovgid_[u.GetValue() - ivnum_];
-    return IsInnerVertex(u) ? fid_ : id_parser_.get_fragment_id(gid);
-  }
-
-  inline const VDATA_T& GetData(const vertex_t& v) const {
-    return vdata_[v.GetValue()];
-  }
-
-  inline void SetData(const vertex_t& v, const VDATA_T& val) {
-    vdata_[v.GetValue()] = val;
-  }
-
-  inline bool HasChild(const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    return oeoffset_[v.GetValue()] != oeoffset_[v.GetValue() + 1];
-  }
-
-  inline bool HasParent(const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    return ieoffset_[v.GetValue()] != ieoffset_[v.GetValue() + 1];
-  }
-
-  inline int GetLocalOutDegree(const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    return oeoffset_[v.GetValue() + 1] - oeoffset_[v.GetValue()];
-  }
-
-  inline int GetLocalInDegree(const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    return ieoffset_[v.GetValue() + 1] - ieoffset_[v.GetValue()];
-  }
-
-  inline bool Gid2Vertex(const VID_T& gid, vertex_t& v) const {
-    return id_parser_.get_fragment_id(gid) == fid_
-               ? InnerVertexGid2Vertex(gid, v)
-               : OuterVertexGid2Vertex(gid, v);
-  }
-
-  inline VID_T Vertex2Gid(const vertex_t& v) const {
-    return IsInnerVertex(v) ? GetInnerVertexGid(v) : GetOuterVertexGid(v);
-  }
-
-  inline VID_T GetInnerVerticesNum() const { return ivnum_; }
-
-  inline VID_T GetOuterVerticesNum() const { return ovnum_; }
-
-  inline bool IsInnerVertex(const vertex_t& v) const {
-    return (v.GetValue() < ivnum_);
-  }
-
-  inline bool IsOuterVertex(const vertex_t& v) const {
-    return (v.GetValue() < tvnum_ && v.GetValue() >= ivnum_);
-  }
-
-  inline bool GetInnerVertex(const OID_T& oid, vertex_t& v) const {
-    VID_T gid;
-    OID_T internal_oid(oid);
-    if (vm_ptr_->GetGid(internal_oid, gid)) {
-      if (id_parser_.get_fragment_id(gid) == fid_) {
-        v.SetValue(id_parser_.get_local_id(gid));
-        return true;
-      }
-    }
-    return false;
-  }
 
   inline bool GetOuterVertex(const OID_T& oid, vertex_t& v) const {
     VID_T gid;
@@ -950,370 +161,9 @@ class HostFragment {
     }
   }
 
-  inline OID_T GetInnerVertexId(const vertex_t& v) const {
-    OID_T internal_oid;
-    CHECK(vm_ptr_->GetOid(fid_, v.GetValue(), internal_oid));
-    return internal_oid;
-  }
-
-  inline OID_T GetOuterVertexId(const vertex_t& v) const {
-    VID_T gid = ovgid_[v.GetValue() - ivnum_];
-    OID_T internal_oid;
-    CHECK(vm_ptr_->GetOid(gid, internal_oid));
-    return internal_oid;
-  }
-
-  inline OID_T Gid2Oid(const VID_T& gid) const {
-    OID_T internal_oid;
-    vm_ptr_->GetOid(gid, internal_oid);
-    return internal_oid;
-  }
-
   inline bool Oid2Gid(const OID_T& oid, VID_T& gid) const {
     OID_T internal_oid(oid);
     return vm_ptr_->GetGid(internal_oid, gid);
-  }
-
-  inline bool InnerVertexGid2Vertex(const VID_T& gid, vertex_t& v) const {
-    v.SetValue(id_parser_.get_local_id(gid));
-    return true;
-  }
-
-  inline bool OuterVertexGid2Vertex(const VID_T& gid, vertex_t& v) const {
-    auto iter = ovg2l_.find(gid);
-    if (iter != ovg2l_.end()) {
-      v.SetValue(iter->second);
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  inline VID_T GetOuterVertexGid(const vertex_t& v) const {
-    return ovgid_[v.GetValue() - ivnum_];
-  }
-  inline VID_T GetInnerVertexGid(const vertex_t& v) const {
-    return id_parser_.generate_global_id(fid_, v.GetValue());
-  }
-
-  /**
-   * @brief Check if inner vertex v is an incoming border vertex, that is,
-   * existing edge u->v, u is an outer vertex.
-   *
-   * @param v Input vertex.
-   *
-   * @return True if vertex v is incoming border vertex, false otherwise.
-   * @attention This method is only available when application set message
-   * strategy as kAlongOutgoingEdgeToOuterVertex.
-   */
-  inline bool IsIncomingBorderVertex(const vertex_t& v) const {
-    return (!idoffset_.empty() && IsInnerVertex(v) &&
-            (idoffset_[v.GetValue()] != idoffset_[v.GetValue() + 1]));
-  }
-
-  /**
-   * @brief Check if inner vertex v is an outgoing border vertex, that is,
-   * existing edge v->u, u is an outer vertex.
-   *
-   * @param v Input vertex.
-   *
-   * @return True if vertex v is outgoing border vertex, false otherwise.
-   * @attention This method is only available when application set message
-   * strategy as kAlongIncomingEdgeToOuterVertex.
-   */
-  inline bool IsOutgoingBorderVertex(const vertex_t& v) const {
-    return (!odoffset_.empty() && IsInnerVertex(v) &&
-            (odoffset_[v.GetValue()] != odoffset_[v.GetValue() + 1]));
-  }
-
-  /**
-   * @brief Check if inner vertex v is an border vertex, that is,
-   * existing edge v->u or u->v, u is an outer vertex.
-   *
-   * @param v Input vertex.
-   *
-   * @return True if vertex v is border vertex, false otherwise.
-   * @attention This method is only available when application set message
-   * strategy as kAlongEdgeToOuterVertex.
-   */
-  inline bool IsBorderVertex(const vertex_t& v) const {
-    return (!iodoffset_.empty() && IsInnerVertex(v) &&
-            iodoffset_[v.GetValue()] != iodoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Return the incoming edge destination fragment ID list of a inner
-   * vertex.
-   *
-   * @param v Input vertex.
-   *
-   * @return The incoming edge destination fragment ID list.
-   *
-   * @attention This method is only available when application set message
-   * strategy as kAlongIncomingEdgeToOuterVertex.
-   */
-  inline DestList IEDests(const vertex_t& v) const {
-    assert(!idoffset_.empty());
-    assert(IsInnerVertex(v));
-    return DestList(idoffset_[v.GetValue()], idoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Return the outgoing edge destination fragment ID list of a Vertex.
-   *
-   * @param v Input vertex.
-   *
-   * @return The outgoing edge destination fragment ID list.
-   *
-   * @attention This method is only available when application set message
-   * strategy as kAlongOutgoingedge_toOuterVertex.
-   */
-  inline DestList OEDests(const vertex_t& v) const {
-    assert(!odoffset_.empty());
-    assert(IsInnerVertex(v));
-    return DestList(odoffset_[v.GetValue()], odoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Return the edge destination fragment ID list of a inner vertex.
-   *
-   * @param v Input vertex.
-   *
-   * @return The edge destination fragment ID list.
-   *
-   * @attention This method is only available when application set message
-   * strategy as kAlongedge_toOuterVertex.
-   */
-  inline DestList IOEDests(const vertex_t& v) const {
-    assert(!iodoffset_.empty());
-    assert(IsInnerVertex(v));
-    return DestList(iodoffset_[v.GetValue()], iodoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Returns the incoming adjacent vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The incoming adjacent vertices of v.
-   *
-   * @attention Only inner vertex is available.
-   */
-  inline adj_list_t GetIncomingAdjList(const vertex_t& v) {
-    return adj_list_t(ieoffset_[v.GetValue()], ieoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Returns the incoming adjacent vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The incoming adjacent vertices of v.
-   *
-   * @attention Only inner vertex is available.
-   */
-  inline const_adj_list_t GetIncomingAdjList(const vertex_t& v) const {
-    return const_adj_list_t(ieoffset_[v.GetValue()],
-                            ieoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Returns the outgoing adjacent vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The outgoing adjacent vertices of v.
-   *
-   * @attention Only inner vertex is available.
-   */
-  inline adj_list_t GetOutgoingAdjList(const vertex_t& v) {
-    return adj_list_t(oeoffset_[v.GetValue()], oeoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Returns the outgoing adjacent vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The outgoing adjacent vertices of v.
-   *
-   * @attention Only inner vertex is available.
-   */
-  inline const_adj_list_t GetOutgoingAdjList(const vertex_t& v) const {
-    return const_adj_list_t(oeoffset_[v.GetValue()],
-                            oeoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Returns the incoming adjacent inner vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The incoming adjacent inner vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline adj_list_t GetIncomingInnerVertexAdjList(const vertex_t& v) {
-    assert(IsInnerVertex(v));
-    assert(!iespliters_.empty());
-    return adj_list_t(ieoffset_[v.GetValue()], iespliters_[0][v.GetValue()]);
-  }
-
-  /**
-   * @brief Returns the incoming adjacent inner vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The incoming adjacent inner vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline const_adj_list_t GetIncomingInnerVertexAdjList(
-      const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    assert(!iespliters_.empty());
-    return const_adj_list_t(ieoffset_[v.GetValue()],
-                            iespliters_[0][v.GetValue()]);
-  }
-  /**
-   * @brief Returns the incoming adjacent outer vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The incoming adjacent outer vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline adj_list_t GetIncomingOuterVertexAdjList(const vertex_t& v) {
-    assert(IsInnerVertex(v));
-    assert(!iespliters_.empty());
-    return adj_list_t(iespliters_[0][v.GetValue()],
-                      ieoffset_[v.GetValue() + 1]);
-  }
-  /**
-   * @brief Returns the incoming adjacent outer vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The incoming adjacent outer vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline const_adj_list_t GetIncomingOuterVertexAdjList(
-      const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    assert(!iespliters_.empty());
-    return const_adj_list_t(iespliters_[0][v.GetValue()],
-                            ieoffset_[v.GetValue() + 1]);
-  }
-  /**
-   * @brief Returns the outgoing adjacent inner vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The outgoing adjacent inner vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline adj_list_t GetOutgoingInnerVertexAdjList(const vertex_t& v) {
-    assert(IsInnerVertex(v));
-    assert(!oespliters_.empty());
-    return adj_list_t(oeoffset_[v.GetValue()], oespliters_[0][v.GetValue()]);
-  }
-  /**
-   * @brief Returns the outgoing adjacent inner vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The outgoing adjacent inner vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline const_adj_list_t GetOutgoingInnerVertexAdjList(
-      const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    assert(!oespliters_.empty());
-    return const_adj_list_t(oeoffset_[v.GetValue()],
-                            oespliters_[0][v.GetValue()]);
-  }
-
-  /**
-   * @brief Returns the outgoing adjacent outer vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The outgoing adjacent outer vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline adj_list_t GetOutgoingOuterVertexAdjList(const vertex_t& v) {
-    assert(IsInnerVertex(v));
-    assert(!oespliters_.empty());
-    return adj_list_t(oespliters_[0][v.GetValue()],
-                      oeoffset_[v.GetValue() + 1]);
-  }
-
-  /**
-   * @brief Returns the outgoing adjacent outer vertices of v.
-   *
-   * @param v Input vertex.
-   *
-   * @return The outgoing adjacent outer vertices of v.
-   *
-   * @attention This method is available only when need_split_edges set in
-   * application's specification.
-   */
-  inline const_adj_list_t GetOutgoingOuterVertexAdjList(
-      const vertex_t& v) const {
-    assert(IsInnerVertex(v));
-    assert(!oespliters_.empty());
-    return const_adj_list_t(oespliters_[0][v.GetValue()],
-                            oeoffset_[v.GetValue() + 1]);
-  }
-
-  inline adj_list_t GetIncomingAdjList(const vertex_t& v, fid_t src_fid) {
-    assert(IsInnerVertex(v));
-    assert(!iespliters_.empty());
-    assert(src_fid != fid_);
-    return adj_list_t(iespliters_[src_fid][v.GetValue()],
-                      iespliters_[src_fid + 1][v.GetValue()]);
-  }
-
-  inline const_adj_list_t GetIncomingAdjList(const vertex_t& v,
-                                             fid_t src_fid) const {
-    assert(IsInnerVertex(v));
-    assert(!iespliters_.empty());
-    assert(src_fid != fid_);
-    return const_adj_list_t(iespliters_[src_fid][v.GetValue()],
-                            iespliters_[src_fid + 1][v.GetValue()]);
-  }
-
-  inline adj_list_t GetOutgoingAdjList(const vertex_t& v, fid_t dst_fid) {
-    assert(IsInnerVertex(v));
-    assert(!oespliters_.empty());
-    assert(dst_fid != fid_);
-    return adj_list_t(oespliters_[dst_fid][v.GetValue()],
-                      oespliters_[dst_fid + 1][v.GetValue()]);
-  }
-
-  inline const_adj_list_t GetOutgoingAdjList(const vertex_t& v,
-                                             fid_t dst_fid) const {
-    assert(IsInnerVertex(v));
-    assert(!oespliters_.empty());
-    assert(dst_fid != fid_);
-    return const_adj_list_t(oespliters_[dst_fid][v.GetValue()],
-                            oespliters_[dst_fid + 1][v.GetValue()]);
-  }
-
-  inline const std::vector<vertex_t>& MirrorVertices(fid_t fid) const {
-    return mirrors_of_frag_[fid];
   }
 
   device_t DeviceObject() const {
@@ -1323,9 +173,9 @@ class HostFragment {
 
     dev_frag.ivnum_ = ivnum_;
     dev_frag.ovnum_ = ovnum_;
-    dev_frag.tvnum_ = tvnum_;
-    dev_frag.ienum_ = ienum_;
-    dev_frag.oenum_ = oenum_;
+    dev_frag.tvnum_ = ivnum_ + ivnum_;
+    dev_frag.ienum_ = ie_.edge_num();
+    dev_frag.oenum_ = oe_.edge_num();
 
     dev_frag.fid_ = fid_;
 
@@ -1363,11 +213,16 @@ class HostFragment {
 
   void __allocate_device_fragment__() {
     auto& comm_spec = vm_ptr_->GetCommSpec();
+    auto& ie = ie_.get_edges();
+    auto& ieoffset = ie_.get_offsets();
+    auto& oe = oe_.get_edges();
+    auto& oeoffset = oe_.get_offsets();
+
     int dev_id = comm_spec.local_id();
     CHECK_CUDA(cudaSetDevice(dev_id));
     Stream stream;
 
-    auto offset_size = tvnum_ + 1;
+    auto offset_size = ivnum_ + ovnum_ + 1;
     auto compute_prefix_sum =
         [offset_size](
             const grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& offset) {
@@ -1382,12 +237,12 @@ class HostFragment {
     if (load_strategy == grape::LoadStrategy::kOnlyIn ||
         load_strategy == grape::LoadStrategy::kBothOutIn) {
       d_ieoffset_.resize(offset_size);
-      d_ie_.resize(ienum_);
+      d_ie_.resize(ie_.edge_num());
       CHECK_CUDA(cudaMemcpyAsync(thrust::raw_pointer_cast(d_ie_.data()),
-                                 ie_.data(), sizeof(nbr_t) * ienum_,
+                                 ie.data(), sizeof(nbr_t) * ie_.edge_num(),
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
 
-      auto prefix_sum = compute_prefix_sum(ieoffset_);
+      auto prefix_sum = compute_prefix_sum(ieoffset);
       ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
       CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
@@ -1400,10 +255,10 @@ class HostFragment {
       d_oeoffset_.resize(offset_size);
       d_oe_.resize(oenum_);
       CHECK_CUDA(cudaMemcpyAsync(thrust::raw_pointer_cast(d_oe_.data()),
-                                 oe_.data(), sizeof(nbr_t) * oenum_,
+                                 oe.data(), sizeof(nbr_t) * oenum_,
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
 
-      auto prefix_sum = compute_prefix_sum(oeoffset_);
+      auto prefix_sum = compute_prefix_sum(oeoffset);
       ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
       CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
@@ -1412,9 +267,10 @@ class HostFragment {
     }
 
     if (sizeof(internal_vertex_t) > sizeof(VID_T)) {
-      d_vdata_.resize(tvnum_);
+      d_vdata_.resize(ivnum_ + ovnum_);
       CHECK_CUDA(cudaMemcpyAsync(thrust::raw_pointer_cast(d_vdata_.data()),
-                                 vdata_.data(), sizeof(VDATA_T) * tvnum_,
+                                 vdata_.data(),
+                                 sizeof(VDATA_T) * (ivnum_ + ovnum_),
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
     }
 
@@ -1476,76 +332,7 @@ class HostFragment {
     stream.Sync();
 
     VLOG(1) << "fid: " << fid_ << " ivnum: " << ivnum_ << " ovnum: " << ovnum_
-            << " ienum: " << ienum_ << " oenum: " << oenum_;
-  }
-
-  void __init_edges_splitter__(
-      const Stream& stream,
-      grape::Array<nbr_t*, grape::Allocator<nbr_t*>>& eoffset,
-      std::vector<grape::Array<nbr_t*, grape::Allocator<nbr_t*>>>& espliters,
-      thrust::device_vector<nbr_t*>& d_eoffset,
-      std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
-      thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
-    if (!espliters.empty()) {
-      return;
-    }
-
-    espliters.resize(fnum_ + 1);
-    for (auto& vec : espliters) {
-      vec.resize(ivnum_);
-    }
-    std::vector<int> frag_count;
-
-    for (VID_T i = 0; i < ivnum_; ++i) {
-      frag_count.clear();
-      frag_count.resize(fnum_, 0);
-      adj_list_t edges(eoffset[i], eoffset[i + 1]);
-      for (auto& e : edges) {
-        if (e.neighbor.GetValue() >= ivnum_) {
-          fid_t fid = id_parser_.get_fragment_id(
-              ovgid_[e.neighbor.GetValue() - ivnum_]);
-          ++frag_count[fid];
-        } else {
-          ++frag_count[fid_];
-        }
-      }
-      espliters[0][i] = eoffset[i] + frag_count[fid_];
-      frag_count[fid_] = 0;
-      for (fid_t j = 0; j < fnum_; ++j) {
-        espliters[j + 1][i] = espliters[j][i] + frag_count[j];
-      }
-    }
-
-    d_espliters_holder.resize(fnum_ + 1);
-    for (auto& vec : d_espliters_holder) {
-      vec.resize(ivnum_);
-      d_espliters.push_back(ArrayView<nbr_t*>(vec));
-    }
-    for (fid_t fid = 0; fid < fnum_ + 1; fid++) {
-      auto& e_splitter = espliters[fid];
-
-      if (!e_splitter.empty()) {
-        pinned_vector<size_t> h_degree(e_splitter.size());
-        for (size_t i = 0; i < e_splitter.size(); i++) {
-          h_degree[i] = e_splitter[i] - eoffset[0];
-        }
-
-        LaunchKernel(
-            stream,
-            [] __device__(size_t * h_degree, vid_t ivnum,
-                          ArrayView<nbr_t*> offset,
-                          ArrayView<nbr_t*> espliter) {
-              auto tid = TID_1D;
-              auto nthreads = TOTAL_THREADS_1D;
-
-              for (size_t i = 0 + tid; i < ivnum; i += nthreads) {
-                espliter[i] = offset[0] + h_degree[i];
-              }
-            },
-            thrust::raw_pointer_cast(h_degree.data()), ivnum_,
-            ArrayView<nbr_t*>(d_eoffset), ArrayView<nbr_t*>(d_espliters[fid]));
-      }
-    }
+            << " ienum: " << ie_.edge_num() << " oenum: " << oenum_;
   }
 
   void ReleaseDeviceCSR() {
@@ -1602,78 +389,39 @@ class HostFragment {
     return coo_frag_;
   }
 
- private:
-  void initMessageDestination(const Stream& stream,
-                              const grape::MessageStrategy& msg_strategy) {
+ protected:
+  void __initMessageDestination(const Stream& stream,
+                                const grape::MessageStrategy& msg_strategy) {
     if (msg_strategy ==
         grape::MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
-      initDestFidList(stream, false, true, odst_, odoffset_, d_odst_,
-                      d_odoffst_);
+      __initDestFidList(stream, false, true, odst_.get_edges(),
+                        odst_.get_offsets(), d_odst_, d_odoffst_);
     } else if (msg_strategy ==
                grape::MessageStrategy::kAlongIncomingEdgeToOuterVertex) {
-      initDestFidList(stream, true, false, idst_, idoffset_, d_idst_,
-                      d_idoffset_);
+      __initDestFidList(stream, true, false, idst_.get_edges(),
+                        idst_.get_offsets(), d_idst_, d_idoffset_);
     } else if (msg_strategy ==
                grape::MessageStrategy::kAlongEdgeToOuterVertex) {
-      initDestFidList(stream, true, true, iodst_, iodoffset_, d_iodst_,
-                      d_iodoffset_);
+      __initDestFidList(stream, true, true, iodst_.get_edges(),
+                        iodst_.get_offsets(), d_iodst_, d_iodoffset_);
     }
   }
 
-  void initDestFidList(
+  void __initDestFidList(
       const Stream& stream, bool in_edge, bool out_edge,
-      grape::Array<fid_t, grape::Allocator<fid_t>>& fid_list,
-      grape::Array<fid_t*, grape::Allocator<fid_t*>>& fid_list_offset,
+      grape::Array<fid_t, grape::Allocator<fid_t>> const& fid_list,
+      grape::Array<fid_t*, grape::Allocator<fid_t*>> const& fid_list_offset,
       thrust::device_vector<fid_t>& d_fid_list,
       thrust::device_vector<fid_t*>& d_fid_list_offset) {
     if (!fid_list_offset.empty()) {
       return;
     }
-    std::set<fid_t> dstset;
-    std::vector<fid_t> tmp_fids;
-    std::vector<int> id_num(ivnum_, 0);
-
-    for (VID_T i = 0; i < ivnum_; ++i) {
-      dstset.clear();
-      if (in_edge) {
-        nbr_t* ptr = ieoffset_[i];
-        while (ptr != ieoffset_[i + 1]) {
-          VID_T lid = ptr->neighbor.GetValue();
-          if (lid >= ivnum_) {
-            fid_t f = id_parser_.get_fragment_id(ovgid_[lid - ivnum_]);
-            dstset.insert(f);
-          }
-          ++ptr;
-        }
-      }
-      if (out_edge) {
-        nbr_t* ptr = oeoffset_[i];
-        while (ptr != oeoffset_[i + 1]) {
-          VID_T lid = ptr->neighbor.GetValue();
-          if (lid >= ivnum_) {
-            fid_t f = id_parser_.get_fragment_id(ovgid_[lid - ivnum_]);
-            dstset.insert(f);
-          }
-          ++ptr;
-        }
-      }
-      id_num[i] = dstset.size();
-      for (auto fid : dstset) {
-        tmp_fids.push_back(fid);
-      }
-    }
-
-    fid_list.resize(tmp_fids.size());
-    fid_list_offset.resize(ivnum_ + 1);
-
-    memcpy(&fid_list[0], &tmp_fids[0], sizeof(fid_t) * fid_list.size());
-    fid_list_offset[0] = fid_list.data();
     pinned_vector<size_t> prefix_sum(ivnum_ + 1, 0);
     ArrayView<size_t> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
     for (VID_T i = 0; i < ivnum_; ++i) {
-      fid_list_offset[i + 1] = fid_list_offset[i] + id_num[i];
-      prefix_sum[i + 1] = prefix_sum[i] + id_num[i];
+      prefix_sum[i + 1] =
+          prefix_sum[i] + (fid_list_offset[i + 1] - fid_list_offset[i]);
     }
 
     d_fid_list.resize(fid_list.size());
@@ -1688,66 +436,51 @@ class HostFragment {
     stream.Sync();
   }
 
-  void initOuterVerticesOfFragment() {
-    std::vector<int> frag_v_num(fnum_, 0);
-    fid_t last_fid = 0;
-
-    for (VID_T i = 0; i < ovnum_; ++i) {
-      VID_T gid = ovgid_[i];
-      fid_t fid = id_parser_.get_fragment_id(gid);
-
-      CHECK_GE(fid, last_fid);
-      last_fid = fid;
-      ++frag_v_num[fid];
+  void __init_edges_splitter__(
+      const Stream& stream,
+      grape::Array<nbr_t*, grape::Allocator<nbr_t*>> const& eoffset,
+      std::vector<grape::Array<nbr_t*, grape::Allocator<nbr_t*>>> const&
+          espliters,
+      thrust::device_vector<nbr_t*>& d_eoffset,
+      std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
+      thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
+    if (!espliters.empty()) {
+      return;
     }
 
-    outer_vertices_of_frag_.clear();
-    outer_vertices_of_frag_.reserve(fnum_);
-
-    VID_T cur_lid = ivnum_;
-
-    for (fid_t fid = 0; fid < fnum_; fid++) {
-      VID_T next_lid = cur_lid + frag_v_num[fid];
-      outer_vertices_of_frag_.emplace_back(cur_lid, next_lid);
-      cur_lid = next_lid;
+    d_espliters_holder.resize(fnum_ + 1);
+    for (auto& vec : d_espliters_holder) {
+      vec.resize(ivnum_);
+      d_espliters.push_back(ArrayView<nbr_t*>(vec));
     }
-    CHECK_EQ(cur_lid, tvnum_);
+    for (fid_t fid = 0; fid < fnum_ + 1; fid++) {
+      auto& e_splitter = espliters[fid];
+
+      if (!e_splitter.empty()) {
+        pinned_vector<size_t> h_degree(e_splitter.size());
+        for (size_t i = 0; i < e_splitter.size(); i++) {
+          h_degree[i] = e_splitter[i] - eoffset[0];
+        }
+
+        LaunchKernel(
+            stream,
+            [] __device__(size_t * h_degree, vid_t ivnum,
+                          ArrayView<nbr_t*> offset,
+                          ArrayView<nbr_t*> espliter) {
+              auto tid = TID_1D;
+              auto nthreads = TOTAL_THREADS_1D;
+
+              for (size_t i = 0 + tid; i < ivnum; i += nthreads) {
+                espliter[i] = offset[0] + h_degree[i];
+              }
+            },
+            thrust::raw_pointer_cast(h_degree.data()), ivnum_,
+            ArrayView<nbr_t*>(d_eoffset), ArrayView<nbr_t*>(d_espliters[fid]));
+      }
+    }
   }
 
-  void initMirrorInfo(const CommSpec& comm_spec) {
-    int worker_id = comm_spec.worker_id();
-    int worker_num = comm_spec.worker_num();
-    mirrors_of_frag_.resize(fnum_);
-
-    std::thread send_thread([&]() {
-      std::vector<vertex_t> gid_list;
-      for (int i = 1; i < worker_num; ++i) {
-        int dst_worker_id = (worker_id + i) % worker_num;
-        fid_t dst_fid = comm_spec.WorkerToFrag(dst_worker_id);
-        auto range = OuterVertices(dst_fid);
-        gid_list.clear();
-        gid_list.reserve(range.size());
-        for (auto& v : range) {
-          gid_list.emplace_back(id_parser_.get_local_id(Vertex2Gid(v)));
-        }
-        sync_comm::Send<std::vector<vertex_t>>(gid_list, dst_worker_id, 0,
-                                               comm_spec.comm());
-      }
-    });
-
-    std::thread recv_thread([&]() {
-      for (int i = 1; i < worker_num; ++i) {
-        int src_worker_id = (worker_id + worker_num - i) % worker_num;
-        fid_t src_fid = comm_spec.WorkerToFrag(src_worker_id);
-        auto& mirror_vec = mirrors_of_frag_[src_fid];
-        sync_comm::Recv<std::vector<vertex_t>>(mirror_vec, src_worker_id, 0,
-                                               comm_spec.comm());
-      }
-    });
-
-    recv_thread.join();
-    send_thread.join();
-
+  void __initMirrorInfo(const CommSpec& comm_spec) {
     int dev_id = comm_spec.local_id();
     CHECK_CUDA(cudaSetDevice(dev_id));
 
@@ -1757,35 +490,32 @@ class HostFragment {
     }
   }
 
-  std::shared_ptr<vertex_map_t> vm_ptr_;
-  VID_T ivnum_, ovnum_, tvnum_;
-  size_t ienum_{}, oenum_{};
-  fid_t fid_{}, fnum_{};
+  using base_t::fnum_;
+  using base_t::ivnum_;
+  using base_t::vm_ptr_;
+  using bast_t::directed_;
+  using bast_t::fid_;
+  using bast_t::id_parser_;
+  using bast_t::ovnum_;
 
-  bool directed_;
-  IdParser<VID_T> id_parser_;
+  using base_t::ovg2l_;
+  using base_t::ovgid_;
+  using base_t::vdata_;
 
-  vertex_range_t inner_vertices_;
-  vertex_range_t outer_vertices_;
+  using base_t::mirrors_of_frag_;
+  using base_t::outer_vertices_of_frag_;
 
-  std::unordered_map<VID_T, VID_T> ovg2l_;
-  grape::Array<VID_T, grape::Allocator<VID_T>> ovgid_;
-  grape::Array<nbr_t, grape::Allocator<nbr_t>> ie_, oe_;
+  // CSR
+  using base_t::ie_;
+  using base_t::oe_;
 
-  grape::Array<nbr_t*, grape::Allocator<nbr_t*>> ieoffset_, oeoffset_;
-  grape::Array<VDATA_T, grape::Allocator<VDATA_T>> vdata_;
+  // CSR
+  using base_t::idst_;
+  using base_t::iodst_;
+  using base_t::odst_;
 
-  std::vector<vertex_range_t> outer_vertices_of_frag_;
-
-  std::vector<vertex_range_t> mirrors_range_;
-  std::vector<std::vector<vertex_t>> mirrors_of_frag_;
-
-  grape::Array<fid_t, grape::Allocator<fid_t>> idst_, odst_, iodst_;
-  grape::Array<fid_t*, grape::Allocator<fid_t*>> idoffset_, odoffset_,
-      iodoffset_;
-
-  std::vector<grape::Array<nbr_t*, grape::Allocator<nbr_t*>>> iespliters_,
-      oespliters_;
+  using base_t::iespliters_;
+  using base_t::oespliters_;
 
   std::shared_ptr<dev_vertex_map_t> d_vm_ptr_;
   std::shared_ptr<CUDASTL::HashMap<VID_T, VID_T>> d_ovg2l_;
