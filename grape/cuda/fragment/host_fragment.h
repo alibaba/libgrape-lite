@@ -68,11 +68,11 @@ template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut,
           typename VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T>>
 class HostFragment
-    : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy,
-                                      VERTEX_MAP_T> {
+    : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                      _load_strategy, VERTEX_MAP_T> {
  public:
-  using base_t = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy,
-                                          VERTEX_MAP_T>;
+  using base_t = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                          _load_strategy, VERTEX_MAP_T>;
   using internal_vertex_t = typename base_t::internal_vertex_t;
   using edge_t = typename base_t::edge_t;
   using nbr_t = typename base_t::nbr_t;
@@ -84,7 +84,7 @@ class HostFragment
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
   using vertex_range_t = typename base_t::vertex_range_t;
-  using vertex_array_t = typename base_t::vertex_array_t;
+
   using vertex_map_t = typename base_t::vertex_map_t;
   using dev_vertex_map_t = cuda::DeviceVertexMap<vertex_map_t>;
   using device_t =
@@ -99,7 +99,7 @@ class HostFragment
   HostFragment() = default;
 
   explicit HostFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : vm_ptr_(vm_ptr),
+      : immutable_edgecut_fragment(vm_ptr),
         d_vm_ptr_(std::make_shared<dev_vertex_map_t>(vm_ptr)) {}
 
   void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
@@ -253,9 +253,9 @@ class HostFragment
     if (load_strategy == grape::LoadStrategy::kOnlyOut ||
         load_strategy == grape::LoadStrategy::kBothOutIn) {
       d_oeoffset_.resize(offset_size);
-      d_oe_.resize(oenum_);
+      d_oe_.resize(oe_.edge_num());
       CHECK_CUDA(cudaMemcpyAsync(thrust::raw_pointer_cast(d_oe_.data()),
-                                 oe.data(), sizeof(nbr_t) * oenum_,
+                                 oe.data(), sizeof(nbr_t) * oe_.edge_num(),
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
 
       auto prefix_sum = compute_prefix_sum(oeoffset);
@@ -332,7 +332,7 @@ class HostFragment
     stream.Sync();
 
     VLOG(1) << "fid: " << fid_ << " ivnum: " << ivnum_ << " ovnum: " << ovnum_
-            << " ienum: " << ie_.edge_num() << " oenum: " << oenum_;
+            << " ienum: " << ie_.edge_num() << " oenum: " << oe_.edge_num();
   }
 
   void ReleaseDeviceCSR() {
@@ -389,6 +389,64 @@ class HostFragment
     return coo_frag_;
   }
 
+ public:
+  using base_t::GetIncomingAdjList;
+  using base_t::GetOutgoingAdjList;
+
+  // This is a restriction of the extended device lambda. From CUDA C
+  // Programming guide:
+  // If the enclosing function is a class member, then the following conditions
+  // must be satisfied :
+  //   - All classes enclosing the member function must have a name. The member
+  //     function must not have private or
+  //   - protected access within its parent class. All enclosing classes must
+  //     not have private or
+  //   - protected access within their respective parent classes.
+  // http://docs.nvidia.com/cuda/cuda-c-programming-guide/#device-lambda-restrictions
+  void __init_edges_splitter__(
+      const Stream& stream,
+      grape::Array<nbr_t*, grape::Allocator<nbr_t*>> const& eoffset,
+      std::vector<grape::Array<nbr_t*, grape::Allocator<nbr_t*>>> const&
+          espliters,
+      thrust::device_vector<nbr_t*>& d_eoffset,
+      std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
+      thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
+    if (!espliters.empty()) {
+      return;
+    }
+
+    d_espliters_holder.resize(fnum_ + 1);
+    for (auto& vec : d_espliters_holder) {
+      vec.resize(ivnum_);
+      d_espliters.push_back(ArrayView<nbr_t*>(vec));
+    }
+    for (fid_t fid = 0; fid < fnum_ + 1; fid++) {
+      auto& e_splitter = espliters[fid];
+
+      if (!e_splitter.empty()) {
+        pinned_vector<size_t> h_degree(e_splitter.size());
+        for (size_t i = 0; i < e_splitter.size(); i++) {
+          h_degree[i] = e_splitter[i] - eoffset[0];
+        }
+
+        LaunchKernel(
+            stream,
+            [] __device__(size_t * h_degree, vid_t ivnum,
+                          ArrayView<nbr_t*> offset,
+                          ArrayView<nbr_t*> espliter) {
+              auto tid = TID_1D;
+              auto nthreads = TOTAL_THREADS_1D;
+
+              for (size_t i = 0 + tid; i < ivnum; i += nthreads) {
+                espliter[i] = offset[0] + h_degree[i];
+              }
+            },
+            thrust::raw_pointer_cast(h_degree.data()), ivnum_,
+            ArrayView<nbr_t*>(d_eoffset), ArrayView<nbr_t*>(d_espliters[fid]));
+      }
+    }
+  }
+
  protected:
   void __initMessageDestination(const Stream& stream,
                                 const grape::MessageStrategy& msg_strategy) {
@@ -436,50 +494,6 @@ class HostFragment
     stream.Sync();
   }
 
-  void __init_edges_splitter__(
-      const Stream& stream,
-      grape::Array<nbr_t*, grape::Allocator<nbr_t*>> const& eoffset,
-      std::vector<grape::Array<nbr_t*, grape::Allocator<nbr_t*>>> const&
-          espliters,
-      thrust::device_vector<nbr_t*>& d_eoffset,
-      std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
-      thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
-    if (!espliters.empty()) {
-      return;
-    }
-
-    d_espliters_holder.resize(fnum_ + 1);
-    for (auto& vec : d_espliters_holder) {
-      vec.resize(ivnum_);
-      d_espliters.push_back(ArrayView<nbr_t*>(vec));
-    }
-    for (fid_t fid = 0; fid < fnum_ + 1; fid++) {
-      auto& e_splitter = espliters[fid];
-
-      if (!e_splitter.empty()) {
-        pinned_vector<size_t> h_degree(e_splitter.size());
-        for (size_t i = 0; i < e_splitter.size(); i++) {
-          h_degree[i] = e_splitter[i] - eoffset[0];
-        }
-
-        LaunchKernel(
-            stream,
-            [] __device__(size_t * h_degree, vid_t ivnum,
-                          ArrayView<nbr_t*> offset,
-                          ArrayView<nbr_t*> espliter) {
-              auto tid = TID_1D;
-              auto nthreads = TOTAL_THREADS_1D;
-
-              for (size_t i = 0 + tid; i < ivnum; i += nthreads) {
-                espliter[i] = offset[0] + h_degree[i];
-              }
-            },
-            thrust::raw_pointer_cast(h_degree.data()), ivnum_,
-            ArrayView<nbr_t*>(d_eoffset), ArrayView<nbr_t*>(d_espliters[fid]));
-      }
-    }
-  }
-
   void __initMirrorInfo(const CommSpec& comm_spec) {
     int dev_id = comm_spec.local_id();
     CHECK_CUDA(cudaSetDevice(dev_id));
@@ -490,13 +504,13 @@ class HostFragment
     }
   }
 
-  using base_t::fnum_;
-  using base_t::ivnum_;
-  using base_t::vm_ptr_;
   using base_t::directed_;
   using base_t::fid_;
+  using base_t::fnum_;
   using base_t::id_parser_;
+  using base_t::ivnum_;
   using base_t::ovnum_;
+  using base_t::vm_ptr_;
 
   using base_t::ovg2l_;
   using base_t::ovgid_;
