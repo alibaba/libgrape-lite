@@ -61,8 +61,8 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
     ForEach(inner_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
       ctx.global_degree[v] = frag.GetLocalOutDegree(v);
       if (ctx.global_degree[v] > 1) {
-        messages.SendMsgThroughOEdges<fragment_t, int>(frag, v,
-                                                       ctx.global_degree[v], tid);
+        messages.SendMsgThroughOEdges<fragment_t, int>(
+            frag, v, ctx.global_degree[v], tid);
       }
     });
 
