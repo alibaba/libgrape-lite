@@ -150,6 +150,50 @@ class HostFragment
     stream.Sync();
   }
 
+  using base_t::fid;
+  using base_t::GetOuterVerticesGid;
+  using base_t::GetEdgeNum;
+  using base_t::GetVerticesNum;
+  using base_t::GetTotalVerticesNum;
+  using base_t::Vertices;
+  using base_t::InnerVertices;
+  using base_t::OuterVertices;
+  using base_t::GetVertex;
+  using base_t::GetId;
+  using base_t::GetFragId;
+  using base_t::GetData;
+  using base_t::SetData;
+  using base_t::HasChild;
+  using base_t::HasParent;
+  using base_t::GetLocalOutDegree;
+  using base_t::GetLocalInDegree;
+  using base_t::Gid2Vertex;
+  using base_t::Vertex2Gid;
+  using base_t::GetInnerVerticesNum;
+  using base_t::GetOuterVerticesNum;
+  using base_t::IsInnerVertex;
+  using base_t::IsOuterVertex;
+  using base_t::GetInnerVertex;
+  using base_t::GetInnerVertexId;
+  using base_t::GetOuterVertexId;
+  using base_t::Gid2Oid;
+  using base_t::InnerVertexGid2Vertex;
+  using base_t::OuterVertexGid2Vertex;
+  using base_t::GetInnerVertexGid;
+  using base_t::IsIncomingBorderVertex;
+  using base_t::IsOutgoingBorderVertex;
+  using base_t::IsBorderVertex;
+  using base_t::IEDests;
+  using base_t::OEDests;
+  using base_t::IOEDests;
+  using base_t::GetIncomingAdjList;
+  using base_t::GetOutgoingAdjList;
+  using base_t::GetIncomingInnerVertexAdjList;
+  using base_t::GetIncomingOuterVertexAdjList;
+  using base_t::GetOutgoingInnerVertexAdjList;
+  using base_t::GetOutgoingOuterVertexAdjList;
+  using base_t::MirrorVertices;
+
   inline const vid_t* GetOuterVerticesGid() const { return &ovgid_[0]; }
 
   inline bool GetOuterVertex(const OID_T& oid, vertex_t& v) const {
@@ -391,8 +435,6 @@ class HostFragment
   }
 
  public:
-  using base_t::GetIncomingAdjList;
-  using base_t::GetOutgoingAdjList;
 
   // This is a restriction of the extended device lambda. From CUDA C
   // Programming guide:
