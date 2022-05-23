@@ -154,7 +154,7 @@ class ImmutableEdgecutFragment
 
   template <typename T>
   using vertex_array_t = VertexArray<vertices_t, T>;
-  
+
   ImmutableEdgecutFragment() {}
 
   explicit ImmutableEdgecutFragment(std::shared_ptr<vertex_map_t> vm_ptr)
