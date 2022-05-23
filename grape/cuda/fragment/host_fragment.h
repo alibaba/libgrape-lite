@@ -96,6 +96,8 @@ class HostFragment
   using IsEdgeCut = std::true_type;
   using IsVertexCut = std::false_type;
 
+  using InnerVertices = base_t::InnerVertices;
+
   static constexpr grape::LoadStrategy load_strategy = _load_strategy;
 
   HostFragment() = default;
@@ -407,7 +409,7 @@ class HostFragment
   void __init_edges_splitter__(
       const Stream& stream,
       grape::Array<nbr_t*, grape::Allocator<nbr_t*>> const& eoffset,
-      std::vector<VertexArray<inner_vertices_t, nbr_t*>> const& espliters,
+      std::vector<grape::VertexArray<inner_vertices_t, nbr_t*>> const& espliters,
       thrust::device_vector<nbr_t*>& d_eoffset,
       std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
       thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
@@ -426,7 +428,7 @@ class HostFragment
       if (!e_splitter.empty()) {
         pinned_vector<size_t> h_degree(e_splitter.size());
         int i = 0;
-        for (auto& v : InnerVertices()) {
+        for (auto v : InnerVertices()) {
           h_degree[i++] = e_splitter[v] - eoffset[0];
         }
 
