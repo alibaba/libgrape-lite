@@ -101,7 +101,7 @@ class HostFragment
   HostFragment() = default;
 
   explicit HostFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : base_t(vm_ptr), d_vm_ptr_(std::make_shared<dev_vertex_map_t>(vm_ptr)) {}
+      : base_t(vm_ptr) {}
 
   void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
@@ -266,6 +266,7 @@ class HostFragment
     CHECK_CUDA(cudaSetDevice(dev_id));
     Stream stream;
 
+    d_vm_ptr_ = std::make_shared<dev_vertex_map_t>(vm_ptr_);
     auto offset_size = ivnum_ + ovnum_ + 1;
     auto compute_prefix_sum =
         [offset_size](
