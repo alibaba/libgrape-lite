@@ -165,7 +165,10 @@ class ImmutableEdgecutFragment
   using base_t::IsInnerVertexGid;
   void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
+    std::cout << 1 << std::endl;
+    std::cout << vertices.size() << " " << edges.size() << std::endl;
     init(fid, directed);
+    std::cout << 2 << std::endl;
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
@@ -266,6 +269,7 @@ class ImmutableEdgecutFragment
       memcpy(&ovgid_[0], &outer_vertices[0],
              outer_vertices.size() * sizeof(VID_T));
     }
+    std::cout << 3 << std::endl;
 
     vid_t ovid = ivnum_;
     for (auto gid : ovgid_) {
@@ -296,6 +300,7 @@ class ImmutableEdgecutFragment
         }
       }
     }
+    std::cout << 4 << std::endl;
   }
 
   template <typename IOADAPTOR_T>
