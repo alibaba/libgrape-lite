@@ -216,6 +216,8 @@ class CSREdgecutFragmentBase
 
   using base_t::GetFragId;
   using base_t::GetInnerVerticesNum;
+  using base_t::GetIncomingAdjList;
+  using base_t::GetOutgoingAdjList;
 
  private:
   using csr_t = typename TRAITS_T::csr_t;
