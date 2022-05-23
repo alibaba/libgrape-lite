@@ -1,6 +1,6 @@
 # Performance
 
-We evaluated performance of **libgrape-lite** with [LDBC Graph Analytics Benchmark](http://graphalytics.org/). In addition to the ease of programming, we find that **libgrape-lite** achieves high performance comparably to the state-of-the-art systems. The experiments were conducted on 4 instances of [r6.8xlarge](https://www.alibabacloud.com/help/doc-detail/25378.htm#d12e563) on [AlibabaCloud ECS](https://www.alibabacloud.com/product/ecs), each with 32 threads, over LDBC XL-size datasets. Instances are imaged with [Aliyun Linux (a CentOS-variant)](https://www.alibabacloud.com/help/doc-detail/111881.htm).
+We evaluated performance of **libgrape-lite** with [LDBC Graph Analytics Benchmark](http://graphalytics.org/). In addition to the ease of programming, we find that **libgrape-lite** achieves high performance comparably to the state-of-the-art systems. The experiments were conducted on 4 instances of [r6.8xlarge](https://www.alibabacloud.com/help/doc-detail/25378.htm#d12e563) on [AlibabaCloud ECS](https://www.alibabacloud.com/product/ecs), each with 32 threads, over LDBC XL-size datasets. Instances are imaged with [Aliyun Linux (a CentOS-variant)](https://www.alibabacloud.com/help/doc-detail/111881.htm). The datasets can be downloaded from [here](https://ldbcouncil.org/benchmarks/graphalytics/).
 
 We compared **libgrape-lite** with [PowerGraph](https://github.com/jegonzal/PowerGraph)(commit a038f97
 ) [GeminiGraph](https://github.com/thu-pacman/GeminiGraph)(commit 170e7d3
