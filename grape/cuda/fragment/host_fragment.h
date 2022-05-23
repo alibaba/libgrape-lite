@@ -111,12 +111,12 @@ class HostFragment
 
   template <typename IOADAPTOR_T>
   void Serialize(const std::string& prefix) {
-    base_t::Serialize<IOADAPTOR_T>(prefix);
+    base_t::template Serialize<IOADAPTOR_T>(prefix);
   }
 
   template <typename IOADAPTOR_T>
   void Deserialize(const std::string& prefix, const fid_t fid) {
-    base_t::Deserialize<IOADAPTOR_T>(prefix, fid);
+    base_t::template Deserialize<IOADAPTOR_T>(prefix, fid);
     __allocate_device_fragment__();
   }
 
@@ -151,7 +151,6 @@ class HostFragment
   }
 
   using base_t::fid;
-  using base_t::GetOuterVerticesGid;
   using base_t::GetEdgeNum;
   using base_t::GetVerticesNum;
   using base_t::GetTotalVerticesNum;
