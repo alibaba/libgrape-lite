@@ -366,12 +366,6 @@ class HostFragment
     d_outer_vertices_of_frag_.resize(fnum_);
 
     for (fid_t fid = 0; fid < fnum_; fid++) {
-      d_mirrors_of_frag_holder_[fid] = mirrors_of_frag_[fid];
-      ArrayView<vertex_t> mirror_holder(d_mirrors_of_frag_holder_[fid]);
-      CHECK_CUDA(cudaMemcpyAsync(
-          thrust::raw_pointer_cast(d_mirrors_of_frag_.data()) + fid,
-          &mirror_holder, sizeof(ArrayView<vertex_t>), cudaMemcpyHostToDevice,
-          stream.cuda_stream()));
       d_outer_vertices_of_frag_[fid] = outer_vertices_of_frag_[fid];
     }
 
