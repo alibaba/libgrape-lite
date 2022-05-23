@@ -73,7 +73,6 @@ class HostFragment
  public:
   using base_t = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                           _load_strategy, VERTEX_MAP_T>;
-  using fid_t = typename base_t::fid_t;
   using internal_vertex_t = typename base_t::internal_vertex_t;
   using edge_t = typename base_t::edge_t;
   using nbr_t = typename base_t::nbr_t;
