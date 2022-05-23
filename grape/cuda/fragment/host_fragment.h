@@ -425,8 +425,9 @@ class HostFragment
 
       if (!e_splitter.empty()) {
         pinned_vector<size_t> h_degree(e_splitter.size());
-        for (size_t i = 0; i < e_splitter.size(); i++) {
-          h_degree[i] = e_splitter[VID_T(i)] - eoffset[0];
+        int i = 0;
+        for (auto& v : InnerVertices()) {
+          h_degree[i++] = e_splitter[v] - eoffset[0];
         }
 
         LaunchKernel(
