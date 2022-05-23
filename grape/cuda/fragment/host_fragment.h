@@ -87,6 +87,8 @@ class HostFragment
 
   using vertex_map_t = typename base_t::vertex_map_t;
   using dev_vertex_map_t = cuda::DeviceVertexMap<vertex_map_t>;
+  using inner_vertices_t = typename base_t::inner_vertices_t;
+  using outer_vertices_t = typename base_t::outer_vertices_t;
   using device_t =
       dev::DeviceFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy>;
   using coo_t = COOFragment<oid_t, vid_t, vdata_t, edata_t>;
@@ -99,8 +101,7 @@ class HostFragment
   HostFragment() = default;
 
   explicit HostFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : immutable_edgecut_fragment(vm_ptr),
-        d_vm_ptr_(std::make_shared<dev_vertex_map_t>(vm_ptr)) {}
+      : base_t(vm_ptr), d_vm_ptr_(std::make_shared<dev_vertex_map_t>(vm_ptr)) {}
 
   void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
@@ -406,8 +407,7 @@ class HostFragment
   void __init_edges_splitter__(
       const Stream& stream,
       grape::Array<nbr_t*, grape::Allocator<nbr_t*>> const& eoffset,
-      std::vector<grape::Array<nbr_t*, grape::Allocator<nbr_t*>>> const&
-          espliters,
+      std::vector<VertexArray<inner_vertices_t, nbr_t*>> const& espliters,
       thrust::device_vector<nbr_t*>& d_eoffset,
       std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
       thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
