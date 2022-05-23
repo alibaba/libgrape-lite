@@ -448,10 +448,6 @@ class HostFragment
       thrust::device_vector<nbr_t*>& d_eoffset,
       std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
       thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
-    if (!espliters.empty()) {
-      return;
-    }
-
     d_espliters_holder.resize(fnum_ + 1);
     for (auto& vec : d_espliters_holder) {
       vec.resize(ivnum_);
@@ -509,9 +505,6 @@ class HostFragment
       grape::Array<fid_t*, grape::Allocator<fid_t*>> const& fid_list_offset,
       thrust::device_vector<fid_t>& d_fid_list,
       thrust::device_vector<fid_t*>& d_fid_list_offset) {
-    if (!fid_list_offset.empty()) {
-      return;
-    }
     pinned_vector<size_t> prefix_sum(ivnum_ + 1, 0);
     ArrayView<size_t> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
