@@ -135,10 +135,18 @@ class HostFragment
     }
 
     if (conf.need_split_edges_by_fragment) {
-      __init_edges_splitter__(stream, ie_.get_offsets(), iespliters_,
-                              d_ieoffset_, d_iespliters_holder_, d_iespliters_);
-      __init_edges_splitter__(stream, oe_.get_offsets(), oespliters_,
-                              d_oeoffset_, d_oespliters_holder_, d_oespliters_);
+      if (load_strategy == grape::LoadStrategy::kOnlyIn ||
+          load_strategy == grape::LoadStrategy::kBothOutIn) {
+        __init_edges_splitter__(stream, ie_.get_offsets(), iespliters_,
+                                d_ieoffset_, d_iespliters_holder_,
+                                d_iespliters_);
+      }
+      if (load_strategy == grape::LoadStrategy::kOnlyOut ||
+          load_strategy == grape::LoadStrategy::kBothOutIn) {
+        __init_edges_splitter__(stream, oe_.get_offsets(), oespliters_,
+                                d_oeoffset_, d_oespliters_holder_,
+                                d_oespliters_);
+      }
     }
 
     if (conf.need_mirror_info) {
@@ -152,47 +160,47 @@ class HostFragment
   }
 
   using base_t::fid;
-  using base_t::GetEdgeNum;
-  using base_t::GetVerticesNum;
-  using base_t::GetTotalVerticesNum;
-  using base_t::Vertices;
-  using base_t::InnerVertices;
-  using base_t::OuterVertices;
-  using base_t::GetVertex;
-  using base_t::GetId;
-  using base_t::GetFragId;
   using base_t::GetData;
-  using base_t::SetData;
-  using base_t::HasChild;
-  using base_t::HasParent;
-  using base_t::GetLocalOutDegree;
-  using base_t::GetLocalInDegree;
-  using base_t::Gid2Vertex;
-  using base_t::Vertex2Gid;
-  using base_t::GetInnerVerticesNum;
-  using base_t::GetOuterVerticesNum;
-  using base_t::IsInnerVertex;
-  using base_t::IsOuterVertex;
-  using base_t::GetInnerVertex;
-  using base_t::GetInnerVertexId;
-  using base_t::GetOuterVertexId;
-  using base_t::Gid2Oid;
-  using base_t::InnerVertexGid2Vertex;
-  using base_t::OuterVertexGid2Vertex;
-  using base_t::GetInnerVertexGid;
-  using base_t::IsIncomingBorderVertex;
-  using base_t::IsOutgoingBorderVertex;
-  using base_t::IsBorderVertex;
-  using base_t::IEDests;
-  using base_t::OEDests;
-  using base_t::IOEDests;
+  using base_t::GetEdgeNum;
+  using base_t::GetFragId;
+  using base_t::GetId;
   using base_t::GetIncomingAdjList;
-  using base_t::GetOutgoingAdjList;
   using base_t::GetIncomingInnerVertexAdjList;
   using base_t::GetIncomingOuterVertexAdjList;
+  using base_t::GetInnerVertex;
+  using base_t::GetInnerVertexGid;
+  using base_t::GetInnerVertexId;
+  using base_t::GetInnerVerticesNum;
+  using base_t::GetLocalInDegree;
+  using base_t::GetLocalOutDegree;
+  using base_t::GetOuterVertexId;
+  using base_t::GetOuterVerticesNum;
+  using base_t::GetOutgoingAdjList;
   using base_t::GetOutgoingInnerVertexAdjList;
   using base_t::GetOutgoingOuterVertexAdjList;
+  using base_t::GetTotalVerticesNum;
+  using base_t::GetVertex;
+  using base_t::GetVerticesNum;
+  using base_t::Gid2Oid;
+  using base_t::Gid2Vertex;
+  using base_t::HasChild;
+  using base_t::HasParent;
+  using base_t::IEDests;
+  using base_t::InnerVertexGid2Vertex;
+  using base_t::InnerVertices;
+  using base_t::IOEDests;
+  using base_t::IsBorderVertex;
+  using base_t::IsIncomingBorderVertex;
+  using base_t::IsInnerVertex;
+  using base_t::IsOuterVertex;
+  using base_t::IsOutgoingBorderVertex;
   using base_t::MirrorVertices;
+  using base_t::OEDests;
+  using base_t::OuterVertexGid2Vertex;
+  using base_t::OuterVertices;
+  using base_t::SetData;
+  using base_t::Vertex2Gid;
+  using base_t::Vertices;
 
   inline const vid_t* GetOuterVerticesGid() const { return &ovgid_[0]; }
 
@@ -430,7 +438,6 @@ class HostFragment
   }
 
  public:
-
   // This is a restriction of the extended device lambda. From CUDA C
   // Programming guide:
   // If the enclosing function is a class member, then the following conditions
@@ -444,7 +451,8 @@ class HostFragment
   void __init_edges_splitter__(
       const Stream& stream,
       grape::Array<nbr_t*, grape::Allocator<nbr_t*>> const& eoffset,
-      std::vector<grape::VertexArray<inner_vertices_t, nbr_t*>> const& espliters,
+      std::vector<grape::VertexArray<inner_vertices_t, nbr_t*>> const&
+          espliters,
       thrust::device_vector<nbr_t*>& d_eoffset,
       std::vector<thrust::device_vector<nbr_t*>>& d_espliters_holder,
       thrust::device_vector<ArrayView<nbr_t*>>& d_espliters) {
