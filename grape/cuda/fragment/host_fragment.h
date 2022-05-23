@@ -79,6 +79,7 @@ class HostFragment
   using vertex_t = typename base_t::vertex_t;
   using const_adj_list_t = typename base_t::const_adj_list_t;
   using adj_list_t = typename base_t::adj_list_t;
+  using traits_t = typename base_t::traits_t;
   using vid_t = VID_T;
   using oid_t = OID_T;
   using vdata_t = VDATA_T;
@@ -101,7 +102,7 @@ class HostFragment
   HostFragment() = default;
 
   explicit HostFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : base_t(vm_ptr) {}
+      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
 
   void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {

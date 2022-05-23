@@ -154,6 +154,8 @@ class ImmutableEdgecutFragment
 
   template <typename T>
   using vertex_array_t = VertexArray<vertices_t, T>;
+  
+  ImmutableEdgecutFragment() {}
 
   explicit ImmutableEdgecutFragment(std::shared_ptr<vertex_map_t> vm_ptr)
       : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
