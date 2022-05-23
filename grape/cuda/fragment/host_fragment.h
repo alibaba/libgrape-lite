@@ -68,7 +68,7 @@ template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut,
           typename VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T>>
 class HostFragment
-    : public ImmutableEdgecutFragment<OID_T, VID_T, EDATA_T, _load_strategy,
+    : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy,
                                       VERTEX_MAP_T> {
  public:
   using base_t = ImmutableEdgecutFragment<OID_T, VID_T, EDATA_T, _load_strategy,
@@ -493,10 +493,10 @@ class HostFragment
   using base_t::fnum_;
   using base_t::ivnum_;
   using base_t::vm_ptr_;
-  using bast_t::directed_;
-  using bast_t::fid_;
-  using bast_t::id_parser_;
-  using bast_t::ovnum_;
+  using base_t::directed_;
+  using base_t::fid_;
+  using base_t::id_parser_;
+  using base_t::ovnum_;
 
   using base_t::ovg2l_;
   using base_t::ovgid_;
