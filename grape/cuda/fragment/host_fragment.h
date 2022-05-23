@@ -73,6 +73,7 @@ class HostFragment
  public:
   using base_t = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                           _load_strategy, VERTEX_MAP_T>;
+  using fid_t = typename base_t::fid_t;
   using internal_vertex_t = typename base_t::internal_vertex_t;
   using edge_t = typename base_t::edge_t;
   using nbr_t = typename base_t::nbr_t;
@@ -96,8 +97,6 @@ class HostFragment
   using IsEdgeCut = std::true_type;
   using IsVertexCut = std::false_type;
 
-  using InnerVertices = base_t::InnerVertices;
-
   static constexpr grape::LoadStrategy load_strategy = _load_strategy;
 
   HostFragment() = default;
@@ -113,12 +112,12 @@ class HostFragment
 
   template <typename IOADAPTOR_T>
   void Serialize(const std::string& prefix) {
-    base_t::Serialize(prefix);
+    base_t::Serialize<IOADAPTOR_T>(prefix);
   }
 
   template <typename IOADAPTOR_T>
   void Deserialize(const std::string& prefix, const fid_t fid) {
-    base_t::Deserialize(prefix, fid);
+    base_t::Deserialize<IOADAPTOR_T>(prefix, fid);
     __allocate_device_fragment__();
   }
 
