@@ -32,6 +32,7 @@ class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::vid_t> {
 #else
 class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::oid_t> {
 #endif
+
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
