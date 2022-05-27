@@ -27,7 +27,12 @@ namespace grape {
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
+#ifdef GID_AS_LABEL
+class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::vid_t> {
+#else
 class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::oid_t> {
+#endif
+
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
@@ -38,7 +43,11 @@ class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::oid_t> {
   using label_t = oid_t;
 #endif
   explicit CDLPContext(const FRAG_T& fragment)
+#ifdef GID_AS_LABEL
+      : VertexDataContext<FRAG_T, typename FRAG_T::vid_t>(fragment, true),
+#else
       : VertexDataContext<FRAG_T, typename FRAG_T::oid_t>(fragment, true),
+#endif
         labels(this->data()) {}
 
   void Init(ParallelMessageManager& messages, int max_round) {
