@@ -226,7 +226,7 @@ class HostFragment
 
     dev_frag.ivnum_ = ivnum_;
     dev_frag.ovnum_ = ovnum_;
-    dev_frag.tvnum_ = ivnum_ + ivnum_;
+    dev_frag.tvnum_ = ivnum_ + ovnum_;
     dev_frag.ienum_ = ie_.edge_num();
     dev_frag.oenum_ = oe_.edge_num();
 
