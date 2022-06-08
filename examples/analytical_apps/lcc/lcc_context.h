@@ -38,13 +38,15 @@ class LCCContext : public VertexDataContext<FRAG_T, double> {
   explicit LCCContext(const FRAG_T& fragment)
       : VertexDataContext<FRAG_T, double>(fragment) {}
 
-  void Init(ParallelMessageManager& messages) {
+  void Init(ParallelMessageManager& messages,
+            int degree_threshold = std::numeric_limits<int>::max()) {
     auto& frag = this->fragment();
     auto vertices = frag.Vertices();
 
     global_degree.Init(vertices);
     complete_neighbor.Init(vertices);
     tricnt.Init(vertices, 0);
+    this->degree_threshold = degree_threshold;
   }
 
   void Output(std::ostream& os) override {
@@ -74,7 +76,7 @@ class LCCContext : public VertexDataContext<FRAG_T, double> {
   typename FRAG_T::template vertex_array_t<std::vector<vertex_t>>
       complete_neighbor;
   typename FRAG_T::template vertex_array_t<int> tricnt;
-
+  int degree_threshold = 0;
   int stage = 0;
 
 #ifdef PROFILING

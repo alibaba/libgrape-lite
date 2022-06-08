@@ -19,6 +19,11 @@ limitations under the License.
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>
 #include <glog/logging.h>
+#include <grape/fragment/immutable_edgecut_fragment.h>
+#include <grape/fragment/loader.h>
+#include <grape/grape.h>
+#include <grape/util.h>
+#include <grape/vertex_map/global_vertex_map.h>
 
 #include <algorithm>
 #include <iostream>
@@ -28,12 +33,6 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#include <grape/fragment/immutable_edgecut_fragment.h>
-#include <grape/fragment/loader.h>
-#include <grape/grape.h>
-#include <grape/util.h>
-#include <grape/vertex_map/global_vertex_map.h>
 
 #ifdef GRANULA
 #include "thirdparty/atlarge-research-granula/granula.hpp"
@@ -260,7 +259,8 @@ void Run() {
                      LCCAuto>(comm_spec, out_prefix, fnum, spec);
     } else if (name == "lcc") {
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                     LCC>(comm_spec, out_prefix, fnum, spec);
+                     LCC>(comm_spec, out_prefix, fnum, spec,
+                          FLAGS_degree_threshold);
     } else {
       LOG(FATAL) << "No avaiable application named [" << name << "].";
     }
