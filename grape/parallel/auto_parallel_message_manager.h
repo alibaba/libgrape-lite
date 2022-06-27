@@ -177,6 +177,9 @@ class AutoParallelMessageManager : public DefaultMessageManager {
         } else if (event->buffer->GetTypeId() == typeid(int64_t)) {
           syncOnOuterVertexSend<int64_t>(i_ec_frag, event->buffer,
                                          event->event_id);
+        } else if (event->buffer->GetTypeId() == typeid(uint64_t)) {
+          syncOnOuterVertexSend<uint64_t>(i_ec_frag, event->buffer,
+                                        event->event_id);
         } else {
           LOG(FATAL) << "Unexpected data type for auto parallelization: "
                      << event->buffer->GetTypeId().name();

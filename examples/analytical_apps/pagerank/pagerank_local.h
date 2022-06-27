@@ -197,7 +197,7 @@ class PageRankLocal
       }
 
       if (!last_step) {
-        ForEach(inner_vertices, [&frag, &ctx](int tid, Vertex<uint32_t> u) {
+        ForEach(inner_vertices, [&frag, &ctx](int tid, vertex_t u) {
           int en = frag.GetLocalOutDegree(u);
           if (en > 0) {
             ctx.next_result[u] /= en;
