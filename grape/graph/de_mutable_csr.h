@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef GRAPE_GRAPH_DE_MUTABLE_CSR_H_
 #define GRAPE_GRAPH_DE_MUTABLE_CSR_H_
 
+#include <algorithm>
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/mutable_csr.h"
@@ -267,6 +268,90 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       add_reversed_edges_dense(edges);
     }
   }
+
+  // break the operation of `add_edges` into 3 steps:
+  // (1) `reserve_edges` for reserving space (capacity) of edges
+  // (2) `put_edge` for inserting an edge, which can be parallel
+  // (3) `sort_neighbors` for cleanning up the nerghbors
+
+  void reserve_edges_dense(const std::vector<int>& degree_to_add) {
+    // vid_t head_num = max_head_id_ - min_id_;
+    // vid_t tail_num = max_id_ - min_tail_id_;
+    auto head_begin = degree_to_add.begin() + min_id_;
+    auto head_end = degree_to_add.begin() + max_head_id_;
+    auto tail_begin = degree_to_add.begin() + min_tail_id_;
+    auto tail_end = degree_to_add.begin() + max_id_;
+    std::vector<int> head_degree_to_add(head_begin, head_end);
+    std::vector<int> tail_degree_to_add(max_id_ - min_tail_id_);
+    std::reverse_copy(tail_begin, tail_end, 
+              tail_degree_to_add.begin());
+    assert(tail_degree_to_add.size() == max_id_ - min_tail_id_);
+
+    head_.reserve_edges_dense(head_degree_to_add);
+    tail_.reserve_edges_dense(tail_degree_to_add);
+  }
+
+  void reserve_edges_sparse(const std::map<vid_t, int>& degree_to_add) {
+    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
+
+    for(const auto &pair : degree_to_add) {
+      if (in_head(pair.first)) {
+        head_degree_to_add.insert(head_index(pair.first), pair.second);
+      } else {
+        tail_degree_to_add.insert(tail_index(pair.first), pair.second);
+      }
+    }
+    head_.reserve_edges_dense(head_degree_to_add);
+    tail_.reserve_edges_dense(tail_degree_to_add);
+  }
+
+  nbr_t* put_edge(vid_t src, const nbr_t& value) {
+    if (in_head(src)) {
+      return head_.put_edge(head_index(src), value);
+    } else {
+      return tail_.put_edge(tail_index(src), value);
+    }
+  }
+
+  nbr_t* put_edge(vid_t src, nbr_t&& value) {
+    if (in_head(src)) {
+      return head_.put_edge(head_index(src), value);
+    } else {
+      return tail_.put_edge(tail_index(src), value);
+    }
+  }
+
+  void sort_neighbors_dense(const std::vector<int>& degree_to_add) {
+    // vid_t head_num = max_head_id_ - min_id_;
+    // vid_t tail_num = max_id_ - min_tail_id_;
+    auto head_begin = degree_to_add.begin() + min_id_;
+    auto head_end = degree_to_add.begin() + max_head_id_;
+    auto tail_begin = degree_to_add.begin() + min_tail_id_;
+    auto tail_end = degree_to_add.begin() + max_id_;
+    std::vector<int> head_degree_to_add(head_begin, head_end);
+    std::vector<int> tail_degree_to_add(max_id_ - min_tail_id_);
+    std::reverse_copy(tail_begin, tail_end, 
+              tail_degree_to_add.begin());
+    assert(tail_degree_to_add.size() == max_id_ - min_tail_id_);
+
+    head_.sort_neighbors_dense(head_degree_to_add);
+    tail_.sort_neighbors_dense(tail_degree_to_add);
+  }
+
+  void sort_neighbors_sparse(const std::map<vid_t, int>& degree_to_add) {
+    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
+
+    for(const auto &pair : degree_to_add) {
+      if (in_head(pair.first)) {
+        head_degree_to_add.insert(head_index(pair.first), pair.second);
+      } else {
+        tail_degree_to_add.insert(tail_index(pair.first), pair.second);
+      }
+    }
+    head_.sort_neighbors_sparse(head_degree_to_add);
+    tail_.sort_neighbors_sparse(tail_degree_to_add);
+  }
+
 
   void remove_edges(const std::vector<edge_t>& edges) {
     vid_t head_num = max_head_id_ - min_id_;
