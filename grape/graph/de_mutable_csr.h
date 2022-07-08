@@ -277,11 +277,15 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   void reserve_edges_dense(const std::vector<int>& degree_to_add) {
     // vid_t head_num = max_head_id_ - min_id_;
     // vid_t tail_num = max_id_ - min_tail_id_;
+
     auto head_begin = degree_to_add.begin() + min_id_;
     auto head_end = degree_to_add.begin() + max_head_id_;
+
     auto tail_begin = degree_to_add.begin() + min_tail_id_;
     auto tail_end = degree_to_add.begin() + max_id_;
+
     std::vector<int> head_degree_to_add(head_begin, head_end);
+    
     std::vector<int> tail_degree_to_add(max_id_ - min_tail_id_);
     std::reverse_copy(tail_begin, tail_end, 
               tail_degree_to_add.begin());
@@ -296,13 +300,17 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
 
     for(const auto &pair : degree_to_add) {
       if (in_head(pair.first)) {
-        head_degree_to_add.insert(head_index(pair.first), pair.second);
+        head_degree_to_add.insert(
+          std::make_pair(head_index(pair.first), pair.second)
+        );
       } else {
-        tail_degree_to_add.insert(tail_index(pair.first), pair.second);
+        tail_degree_to_add.insert(
+          std::make_pair(tail_index(pair.first), pair.second)
+        );
       }
     }
-    head_.reserve_edges_dense(head_degree_to_add);
-    tail_.reserve_edges_dense(tail_degree_to_add);
+    head_.reserve_edges_sparse(head_degree_to_add);
+    tail_.reserve_edges_sparse(tail_degree_to_add);
   }
 
   nbr_t* put_edge(vid_t src, const nbr_t& value) {
@@ -324,11 +332,15 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   void sort_neighbors_dense(const std::vector<int>& degree_to_add) {
     // vid_t head_num = max_head_id_ - min_id_;
     // vid_t tail_num = max_id_ - min_tail_id_;
+
     auto head_begin = degree_to_add.begin() + min_id_;
     auto head_end = degree_to_add.begin() + max_head_id_;
+
     auto tail_begin = degree_to_add.begin() + min_tail_id_;
     auto tail_end = degree_to_add.begin() + max_id_;
+
     std::vector<int> head_degree_to_add(head_begin, head_end);
+
     std::vector<int> tail_degree_to_add(max_id_ - min_tail_id_);
     std::reverse_copy(tail_begin, tail_end, 
               tail_degree_to_add.begin());
@@ -343,15 +355,18 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
 
     for(const auto &pair : degree_to_add) {
       if (in_head(pair.first)) {
-        head_degree_to_add.insert(head_index(pair.first), pair.second);
+        head_degree_to_add.insert(
+          std::make_pair(head_index(pair.first), pair.second)
+        );
       } else {
-        tail_degree_to_add.insert(tail_index(pair.first), pair.second);
+        tail_degree_to_add.insert(
+          std::make_pair(tail_index(pair.first), pair.second)
+        );
       }
     }
     head_.sort_neighbors_sparse(head_degree_to_add);
     tail_.sort_neighbors_sparse(tail_degree_to_add);
   }
-
 
   void remove_edges(const std::vector<edge_t>& edges) {
     vid_t head_num = max_head_id_ - min_id_;
