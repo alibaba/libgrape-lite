@@ -16,7 +16,6 @@ int main(int argc, char *argv[]) {
 	DefineMapE(update2) {
 		long long p = set_intersect(s.out, d.out, res);
 		d.count += (s.out.size() - 2) * p + (d.out.size() - 2) * p;
-		//cout<<s.id<<' '<<d.id<<' '<<(s.out.size() -2) * p + (d.out.size() - 2) * p<<endl;
 	};
 	
 	
