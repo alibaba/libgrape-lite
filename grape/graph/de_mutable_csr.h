@@ -269,6 +269,12 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
+  void init_head_and_tail(vid_t min, vid_t max, bool dedup = false) {
+    min_id_ = max_head_id_ = min;
+    max_id_ = min_tail_id_ = max;
+    dedup_ = dedup;
+  }
+
   // break the operation of `add_edges` into 3 steps:
   // (1) `reserve_edges` for reserving space (capacity) of edges
   // (2) `put_edge` for inserting an edge, which can be parallel
