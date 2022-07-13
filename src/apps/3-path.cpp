@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
 	vector<int> res(n_vertex);
 	DefineMapE(update2) {
 		long long p = set_intersect(s.out, d.out, res);
-		d.count += (s.out.size() - 1) * (d.out.size() - 1) - p * p;
+		d.count += (s.out.size() - 1) * (d.out.size() - 1) - p;
 	};
 	
 	
