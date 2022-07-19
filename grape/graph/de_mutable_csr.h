@@ -161,6 +161,10 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
 
   size_t edge_num() const { return head_.edge_num() + tail_.edge_num(); }
 
+  size_t head_edge_num() const { return head_.edge_num(); }
+
+  size_t tail_edge_num() const { return tail_.edge_num(); }
+
   int degree(VID_T i) const {
     return in_head(i) ? head_.degree(head_index(i))
                       : tail_.degree(tail_index(i));
