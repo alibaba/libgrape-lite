@@ -233,14 +233,17 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   }
 
   void add_vertices(vid_t to_head, vid_t to_tail) {
-    max_head_id_ += to_head;
-    min_tail_id_ -= to_tail;
+    if (to_head != 0) {
+      max_head_id_ += to_head;
+      vid_t head_num = max_head_id_ - min_id_;
+      head_.reserve_vertices(head_num);
+    }
 
-    vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = max_id_ - min_tail_id_;
-
-    head_.reserve_vertices(head_num);
-    tail_.reserve_vertices(tail_num);
+    if (to_tail != 0) {
+      min_tail_id_ -= to_tail;
+      vid_t tail_num = max_id_ - min_tail_id_;
+      tail_.reserve_vertices(tail_num);
+    }
   }
 
   void add_edges(const std::vector<edge_t>& edges) {
