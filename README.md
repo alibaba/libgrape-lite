@@ -27,13 +27,13 @@ make -j
 
 **GUM** support BFS, SSSP, PR, WCC, LCC, CDLP algorithms and it accepts market format graph. Suppose your data is under `~/dataset`, to run bfs application with:
 
-`mpirun --allow-run-as-root -n 8 ./build/run_app -application bfs --partitioner seg --rebalance=false --lb=none -bfs_source=6 -efile ~/dataset/road_usa/road_usa.mtx`
+`mpirun --allow-run-as-root -n 8 ./build/run_app -application bfs --partitioner seg --lb=none -bfs_source=6 -efile ~/dataset/road_usa/road_usa.mtx`
 
 - `application` : Optional parameter to indicate the algorithm.
-- `vfile` : Path to the input vertex file.
 - `efile` :Path to the input edge file.
-- `nEdges` : Number of edge operations to be processed in a given update batch.
-- `outputFile` : Optional parameter to print the output of a given algorithms.
+- `partitioner` : Optional parameter to set the partitioner.
+- `lb`: Optional parameter to set the warp scheduling policy.
+- `serialization_prefix` : Optional parameter to cache the input graph.
 
 ## License
 GUM is distributed under Apache License 2.0. Please note that third-party libraries may not have the same license as GUM.
