@@ -12,8 +12,10 @@ $(GRAPH_NAME).mtx: $(GRAPH_TAR)
 	../associate_weights.py $(GRAPH_NAME).mtx
 
 clean:
-	rm -f $(GRAPH_NAME).mtx
+	#rm -f $(GRAPH_NAME).mtx
+	rm -f *.mtx
 
 realclean: clean
-	rm -f $(GRAPH_TAR)
+	#rm -f $(GRAPH_TAR)
+	rm -f *.tar.gz
 

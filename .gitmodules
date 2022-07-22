@@ -10,3 +10,6 @@
 [submodule "thirdparty/variadic_table"]
 	path = thirdparty/variadic_table
 	url = https://github.com/friedmud/variadic_table.git
+[submodule "thirdparty/moderngpu"]
+	path = thirdparty/moderngpu
+	url = https://github.com/moderngpu/moderngpu.git

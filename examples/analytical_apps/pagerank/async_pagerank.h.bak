@@ -1,0 +1,561 @@
+#ifndef EXAMPLES_ANALYTICAL_APPS_ASYNCPAGERANK_ASYNCPAGERANK_H_
+#define EXAMPLES_ANALYTICAL_APPS_ASYNCPAGERANK_ASYNCPAGERANK_H_
+#include "app_config.h"
+#include "grape_gpu/grape_gpu.h"
+
+namespace grape_gpu {
+
+// to simulate the async behavior
+template <typename FRAG_T>
+class AsyncPagerankContext : public grape::VoidContext<FRAG_T> {
+ public:
+  using vid_t = typename FRAG_T::vid_t;
+  using vertex_t = typename FRAG_T::vertex_t;
+  using rank_t = float;
+
+  explicit AsyncPagerankContext(const FRAG_T& frag)
+      : grape::VoidContext<FRAG_T>(frag) {}
+
+  ~AsyncPagerankContext() {
+    VLOG(1) << "Get msg time: " << get_msg_time * 1000;
+    VLOG(1) << "AsyncPagerank kernel time: " << traversal_kernel_time * 1000;
+    VLOG(1) << "Send msg time: " << send_msg_time * 1000;
+    int dev;
+    CHECK_CUDA(cudaGetDevice(&dev));
+    LOG(INFO) << "GPU " << dev << " Compute time: " << compute_time * 1000
+              << " ms Comm time: " << mm->GetAccumulatedCommTime() * 1000
+              << " ms Ratio: " << compute_time / mm->GetAccumulatedCommTime();
+    auto& frag = this->fragment();
+    auto iv = frag.InnerVertices();
+    rank_t total_rank = 0;
+
+    if (switched) {
+      thrust::host_vector<rank_t> value = global_value;
+      for (auto val : value) {
+        total_rank += val;
+      }
+    } else {
+      value.D2H();
+
+      rank_t rank = 0;
+
+      for (auto v : iv) {
+        rank += value[v];
+      }
+      MPI_Reduce(&rank, &total_rank, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+    }
+    if (frag.fid() == 0) {
+      LOG(INFO) << "Total rank: " << total_rank / frag.GetTotalVerticesNum()
+                << " total rounds: " << round;
+    }
+  }
+
+  void Init(GPUMessageManager& messages, AppConfig app_config,
+            float damping_factor, double epslion, int switch_round) {
+    auto& frag = this->fragment();
+    auto vertices = frag.Vertices();
+    auto iv = frag.InnerVertices();
+    auto ov = frag.OuterVertices();
+    auto total_vertices_num = frag.GetTotalVerticesNum();
+
+    this->damping_factor = damping_factor;
+    this->lb = app_config.lb;
+    this->epslion = epslion;  // tunable
+    this->switch_round = switch_round;
+
+    value.Init(vertices, 0);
+    value.H2D();
+
+    delta.Init(vertices);
+    delta.SetValue(iv, 1 - damping_factor);
+    delta.SetValue(ov, 0);
+    delta.H2D();
+
+    auto capacity = frag.GetEdgeNum() * 0.5;
+
+    in_q.Init(vertices);
+    out_q.Init(vertices);
+    tmp_q.Init(vertices.size());
+
+    auto comm_vol_in_bytes = capacity * (sizeof(vid_t) + sizeof(rank_t)) * 1.1;
+
+    messages.InitBuffer(comm_vol_in_bytes, comm_vol_in_bytes);
+    mm = &messages;
+
+    // Switch
+    local_frontier.Init(iv.size());
+    if (frag.fid() == 0) {
+      auto total_nv = frag.GetTotalVerticesNum();
+      global_delta.resize(total_nv, 0);
+      global_value.resize(total_nv, 0);
+      global_frontier.resize(total_nv);
+      global_frontier_in.Init(total_nv);
+      global_frontier_out.Init(total_nv);
+      bitset.Init(total_nv);
+    }
+  }
+
+  void Output(std::ostream& os) override {
+    auto& frag = this->fragment();
+    auto iv = frag.InnerVertices();
+
+    value.D2H();
+
+    for (auto v : iv) {
+      os << frag.GetId(v) << " " << value[v] / frag.GetTotalVerticesNum()
+         << std::endl;
+    }
+
+    //    for (auto& line : active_info) {
+    //      os << line << std::endl;
+    //    }
+  }
+
+  rank_t damping_factor{};
+  float epslion;
+  LoadBalancing lb{};
+  Queue<vertex_t> tmp_q;
+  VertexArray<rank_t, vid_t> value;
+  VertexArray<rank_t, vid_t> delta;
+  DenseVertexSet<vid_t> in_q, out_q;
+  int round{};
+  int switch_round{};
+  double get_msg_time{};
+  double traversal_kernel_time{};
+  double send_msg_time{};
+  double compute_time{};
+  GPUMessageManager* mm;
+  std::vector<std::string> active_info;
+  // Switch
+  thrust::device_vector<rank_t> global_value;
+  thrust::device_vector<rank_t> global_delta;
+  Queue<vid_t> local_frontier;
+  thrust::device_vector<vid_t> global_frontier;
+  Queue<vid_t> global_frontier_in, global_frontier_out;
+  Bitset<vid_t> bitset;
+  bool switched{};
+};
+template <class T1, class T2>
+struct pair {
+  pair() = default;
+  DEV_HOST pair(T1 t1, T2 t2) : first(t1), second(t2) {}
+  T1 first;
+  T2 second;
+};
+
+template <typename FRAG_T>
+class AsyncPagerank : public GPUAppBase<FRAG_T, AsyncPagerankContext<FRAG_T>>,
+                      public ParallelEngine,
+                      public Communicator {
+ public:
+  INSTALL_GPU_WORKER(AsyncPagerank<FRAG_T>, AsyncPagerankContext<FRAG_T>,
+                     FRAG_T)
+  using rank_t = typename context_t::rank_t;
+  using device_t = typename fragment_t::device_t;
+  using vid_t = typename fragment_t::vid_t;
+  using edata_t = typename fragment_t::edata_t;
+  using vertex_t = typename device_t::vertex_t;
+  using nbr_t = typename device_t::nbr_t;
+
+  void PEval(const fragment_t& frag, context_t& ctx,
+             message_manager_t& messages) {
+    auto& stream = messages.stream();
+    auto iv = frag.InnerVertices();
+    auto& in_q = ctx.in_q;
+    auto d_in_q = in_q.DeviceObject();
+    WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+
+    in_q.Clear(stream);
+    ForEach(stream, ws_in,
+            [=] __device__(vertex_t v) mutable { d_in_q.Insert(v); });
+    messages.ForceContinue();
+  }
+
+  void IncEval(const fragment_t& frag, context_t& ctx,
+               message_manager_t& messages) {
+    auto d_frag = frag.DeviceObject();
+    auto d_value = ctx.value.DeviceObject();
+    auto d_delta = ctx.delta.DeviceObject();
+    auto d_mm = messages.DeviceObject();
+    auto& in_q = ctx.in_q;
+    auto& out_q = ctx.out_q;
+    auto& tmp_q = ctx.tmp_q;
+    auto d_in_q = in_q.DeviceObject();
+    auto d_out_q = out_q.DeviceObject();
+    auto d_tmp_q = tmp_q.DeviceObject();
+    auto& stream = messages.stream();
+    auto iv = frag.InnerVertices();
+    auto ov = frag.OuterVertices();
+    auto damping_factor = ctx.damping_factor;
+    auto epslion = ctx.epslion;
+    auto& round = ctx.round;
+
+    ctx.get_msg_time -= grape::GetCurrentTime();
+    messages.template ParallelProcess<device_t, rank_t>(
+        d_frag, [=] __device__(vertex_t v, rank_t msg) mutable {
+          assert(d_frag.IsInnerVertex(v));
+          if (atomicAdd(&d_delta[v], msg) + msg > epslion) {
+            d_in_q.Insert(v);
+          }
+        });
+    ctx.get_msg_time += grape::GetCurrentTime();
+
+    auto traversal_kernel_time = grape::GetCurrentTime();
+
+    stream.Sync();
+
+    if (ctx.round > ctx.switch_round) {
+      auto d_remote_frag = frag.DeviceObject();
+      WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+
+      ctx.local_frontier.Clear(stream);
+
+      ForEach(
+          stream, ws_in,
+          [=] __device__(vertex_t v,
+                         dev::Queue<vid_t, uint32_t> frontier) mutable {
+            if (d_in_q.Exist(v)) {
+              frontier.AppendWarp(d_remote_frag.Vertex2Gid(v));
+            }
+          },
+          ctx.local_frontier.DeviceObject());
+
+      // Send value, delta and frontier to worker0
+      Switch(frag, ctx, messages);
+      return;
+    }
+    ctx.compute_time -= grape::GetCurrentTime();
+
+    // Bitmap to queue
+    {
+      WorkSourceRange<vertex_t> ws_in(iv.begin(), iv.size());
+
+      tmp_q.Clear(stream);
+      ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
+        if (d_in_q.Exist(v)) {
+          d_tmp_q.AppendWarp(v);
+        }
+      });
+    }
+
+    round++;
+    if (false) {
+      thrust::host_vector<vertex_t> h_vec(tmp_q.size(stream));
+      CHECK_CUDA(cudaMemcpyAsync(h_vec.data(), tmp_q.data(),
+                                 sizeof(vertex_t) * h_vec.size(),
+                                 cudaMemcpyDeviceToHost, stream.cuda_stream()));
+      stream.Sync();
+      std::stringstream ss;
+      ss << "Iter: " << round << ",";
+
+      for (auto v : h_vec) {
+        if (frag.IsInnerVertex(v)) {
+          ss << frag.GetId(v) << "i,";
+        } else {
+          ss << frag.GetId(v) << "o,";
+        }
+      }
+      ctx.active_info.push_back(ss.str());
+    }
+
+    WorkSourceArray<vertex_t> ws_in(tmp_q.data(), tmp_q.size(stream));
+
+    CHECK(ctx.lb != LoadBalancing::kStrict);
+
+    // Expand
+    ForEachOutgoingEdge(
+        stream, d_frag, ws_in,
+        [=] __device__(vertex_t u) mutable -> rank_t {
+          float delta = atomicExch(&d_delta[u], 0.0f);
+
+          d_value[u] += delta;
+
+          return damping_factor * delta / d_frag.GetLocalOutDegree(u);
+        },
+        [=] __device__(const VertexMetadata<vid_t, rank_t>& u_and_rank,
+                       const nbr_t& nbr) mutable {
+          vertex_t v = nbr.get_neighbor();
+          rank_t rank_to_send = u_and_rank.metadata;
+
+          if (atomicAdd(&d_delta[v], rank_to_send) + rank_to_send > epslion) {
+            d_out_q.Insert(v);
+          }
+        },
+        ctx.lb);
+
+    stream.Sync();
+    ctx.compute_time += grape::GetCurrentTime();
+
+    RangeMarker marker(true, "Range1");
+    // Send message
+    for (fid_t fid = 0; fid < frag.fnum(); fid++) {
+      ov = frag.OuterVertices(fid);
+      WorkSourceRange<vertex_t> ws_in(ov.begin(), ov.size());
+
+      ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
+        if (d_out_q.Exist(v) && d_delta[v] > 0) {
+          d_mm.template SyncStateOnOuterVertexWarpOpt(d_frag, v, d_delta[v]);
+          d_delta[v] = 0;
+        }
+      });
+    }
+
+    auto out_count = out_q.Count(stream);
+    VLOG(1) << "Frag: " << frag.fid() << " Round: " << round
+            << " In: " << ws_in.size() << " Out: " << out_count;
+
+    if (out_count > 0) {
+      messages.ForceContinue();
+    }
+
+    in_q.Clear(stream);
+    in_q.Swap(out_q);
+
+    traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
+    ctx.traversal_kernel_time += traversal_kernel_time;
+
+    VLOG(1) << "Frag " << frag.fid()
+            << " Kernel time: " << traversal_kernel_time * 1000;
+    marker.Stop();
+  }
+
+  template <typename T>
+  void GatherArray(const grape::CommSpec& comm_spec, ncclComm_t nccl_comm,
+                   Stream& stream, ArrayView<T> data_in,
+                   thrust::device_vector<T>& data_out) {
+    CHECK_NCCL(ncclGroupStart());
+    uint64_t send_size = data_in.size();
+    int root = 0;
+
+    if (comm_spec.worker_id() == root) {
+      std::vector<uint64_t> size_vec(comm_spec.worker_num());
+      uint64_t offset = 0, recv_size;
+
+      MPI_Gather(&send_size, 1, MPI_UINT64_T, size_vec.data(), 1, MPI_UINT64_T,
+                 root, comm_spec.comm());
+
+      size_t total_size = 0;
+      for (auto size : size_vec) {
+        total_size += size;
+      }
+
+      data_out.resize(total_size);
+
+      for (int r = 0; r < comm_spec.worker_num(); r++) {
+        recv_size = size_vec[r];
+        if (r != root) {
+          auto ptr = thrust::raw_pointer_cast(data_out.data()) + offset;
+
+          CHECK_NCCL(ncclRecv(ptr, recv_size * sizeof(T), ncclChar, r,
+                              nccl_comm, stream.cuda_stream()));
+        } else {
+          CHECK_CUDA(cudaMemcpyAsync(
+              thrust::raw_pointer_cast(data_out.data()) + offset,
+              data_in.data(), data_in.size() * sizeof(T),
+              cudaMemcpyDeviceToDevice, stream.cuda_stream()));
+        }
+        offset += recv_size;
+      }
+    } else {
+      MPI_Gather(&send_size, 1, MPI_UINT64_T, nullptr, 0, MPI_UINT64_T, root,
+                 comm_spec.comm());
+      CHECK_NCCL(ncclSend(data_in.data(), data_in.size() * sizeof(T), ncclChar,
+                          root, nccl_comm, stream.cuda_stream()));
+    }
+    CHECK_NCCL(ncclGroupEnd());
+  }
+
+  void Switch(const fragment_t& frag, context_t& ctx,
+              message_manager_t& messages) {
+    auto iv = frag.InnerVertices();
+    auto& stream = messages.stream();
+    auto& comm_spec = messages.comm_spec();
+    auto nccl_comm = messages.nccl_comm();
+
+    {
+      auto begin = grape::GetCurrentTime();
+      RangeMarker marker(true, "Gather vertex status");
+      auto d_value = ctx.value.DeviceObject();
+      auto d_delta = ctx.delta.DeviceObject();
+      auto local_frontier_size = ctx.local_frontier.size(stream);
+
+      GatherArray(comm_spec, nccl_comm, stream,
+                  ArrayView<rank_t>(d_value.data(), iv.size()),
+                  ctx.global_value);
+      GatherArray(comm_spec, nccl_comm, stream,
+                  ArrayView<rank_t>(d_delta.data(), iv.size()),
+                  ctx.global_delta);
+      GatherArray(
+          comm_spec, nccl_comm, stream,
+          ArrayView<vid_t>(ctx.local_frontier.data(), local_frontier_size),
+          ctx.global_frontier);
+
+      if (frag.fid() == 0) {
+        ctx.global_frontier_in.Clear(stream);
+        LaunchKernel(
+            stream, ctx.global_frontier.size(),
+            [] __device__(ArrayView<vid_t> global_frontier,
+                          dev::Queue<vid_t, uint32_t> frontier_in) {
+              for (size_t i = TID_1D; i < global_frontier.size();
+                   i += TOTAL_THREADS_1D) {
+                frontier_in.AppendWarp(global_frontier[i]);
+              }
+            },
+            ArrayView<vid_t>(ctx.global_frontier),
+            ctx.global_frontier_in.DeviceObject());
+
+        VLOG(1) << "Global frontier size: "
+                << ctx.global_frontier_in.size(stream)
+                << " Time of getting vertex status: "
+                << (grape::GetCurrentTime() - begin) * 1000 << " ms";
+      }
+    }
+
+    if (comm_spec.fid() == 0) {
+      auto damping_factor = ctx.damping_factor;
+      auto epslion = ctx.epslion;
+      auto d_remote_frag = frag.DeviceObjectRemote();
+      auto begin = grape::GetCurrentTime();
+      auto d_frag = frag.DeviceObject();
+      auto d_value = ArrayView<rank_t>(ctx.global_value);
+      auto d_delta = ArrayView<rank_t>(ctx.global_delta);
+      auto bs = ctx.bitset.DeviceObject();
+      dev::Queue<vid_t, uint32_t> q_in = ctx.global_frontier_in.DeviceObject();
+      dev::Queue<vid_t, uint32_t> q_out =
+          ctx.global_frontier_out.DeviceObject();
+
+      if (fLB::FLAGS_fuse) {
+        LaunchCooperativeKernel(stream, [=] __device__() mutable {
+          auto grid = cooperative_groups::this_grid();
+          size_t size;
+
+          while ((size = q_in.size()) > 0) {
+            auto size_rup = round_up(size, blockDim.x) * blockDim.x;
+
+            for (size_t i = TID_1D; i < size_rup; i += TOTAL_THREADS_1D) {
+              dev::np_local<vid_t, edata_t, pair<fid_t, rank_t>> np_local;
+
+              if (i < size) {
+                auto gid = q_in[i];
+                auto u_sid = d_remote_frag.Gid2Sid(gid);
+                auto fid = d_remote_frag.GetFid(gid);
+                auto oes = d_remote_frag.GetOutgoingAdjList(gid);
+                rank_t old_delta = atomicExch(&d_delta[u_sid], 0.0f);
+
+                if (old_delta > 0) {
+                  d_value[u_sid] += old_delta;
+                  rank_t rank_to_send = damping_factor * old_delta / oes.Size();
+
+                  np_local = dev::np_local<vid_t, edata_t, pair<fid_t, rank_t>>(
+                      oes, pair<fid_t, rank_t>(fid, rank_to_send));
+                }
+              }
+
+              dev::CTAWorkScheduler<vid_t, edata_t, pair<fid_t, rank_t>,
+                                    dev::LBMode::LB_FINE_GRAINED>::
+                  schedule(np_local,
+                           [=](const Nbr<vid_t, edata_t>& nbr,
+                               const pair<fid_t, rank_t>& data) mutable {
+                             fid_t fid = data.first;
+                             auto rank_to_send = data.second;
+                             vertex_t v = nbr.get_neighbor();
+                             vid_t v_gid = d_remote_frag.Vertex2Gid(fid, v);
+                             vid_t v_sid = d_remote_frag.Gid2Sid(v_gid);
+
+                             if (atomicAdd(&d_delta[v_sid], rank_to_send) +
+                                     rank_to_send >
+                                 epslion) {
+                               if (bs.set_bit_atomic(v_sid)) {
+                                 q_out.AppendWarp(v_gid);
+                               }
+                             }
+                           });
+            }
+            /*
+            grid.sync();
+            if (TID_1D == 0) {
+              printf("%u %u\n", q_in.size(), q_out.size());
+            }
+             */
+            grid.sync();
+            if (TID_1D == 0) {
+              q_in.Clear();
+            }
+            q_in.Swap(q_out);
+            bs.clear();
+            grid.sync();
+          }
+        });
+      } else {
+        while (ctx.global_frontier_in.size(stream)) {
+          ctx.bitset.Clear(stream);
+          LaunchKernel(
+              stream,
+              [=] __device__(dev::Queue<vid_t, uint32_t> q_in,
+                             dev::Queue<vid_t, uint32_t> q_out,
+                             ArrayView<rank_t> value,
+                             ArrayView<rank_t> delta) mutable {
+                auto size = q_in.size();
+                auto size_rup = round_up(size, blockDim.x) * blockDim.x;
+
+                for (size_t i = TID_1D; i < size_rup; i += TOTAL_THREADS_1D) {
+                  dev::np_local<vid_t, edata_t, pair<fid_t, rank_t>> np_local;
+
+                  if (i < size) {
+                    auto gid = q_in[i];
+                    auto u_sid = d_remote_frag.Gid2Sid(gid);
+                    auto fid = d_remote_frag.GetFid(gid);
+                    auto oes = d_remote_frag.GetOutgoingAdjList(gid);
+                    rank_t old_delta = atomicExch(&delta[u_sid], 0.0f);
+
+                    if (old_delta > 0) {
+                      value[u_sid] += old_delta;
+                      rank_t rank_to_send =
+                          damping_factor * old_delta / oes.Size();
+
+                      np_local =
+                          dev::np_local<vid_t, edata_t, pair<fid_t, rank_t>>(
+                              oes, pair<fid_t, rank_t>(fid, rank_to_send));
+                    }
+                  }
+
+                  dev::CTAWorkScheduler<vid_t, edata_t, pair<fid_t, rank_t>,
+                                        dev::LBMode::LB_FINE_GRAINED>::
+                      schedule(np_local,
+                               [=](const Nbr<vid_t, edata_t>& nbr,
+                                   const pair<fid_t, rank_t>& data) mutable {
+                                 fid_t fid = data.first;
+                                 auto rank_to_send = data.second;
+                                 vertex_t v = nbr.get_neighbor();
+                                 vid_t v_gid = d_remote_frag.Vertex2Gid(fid, v);
+                                 vid_t v_sid = d_remote_frag.Gid2Sid(v_gid);
+
+                                 if (atomicAdd(&delta[v_sid], rank_to_send) +
+                                         rank_to_send >
+                                     epslion) {
+                                   if (bs.set_bit_atomic(v_sid)) {
+                                     q_out.AppendWarp(v_gid);
+                                   }
+                                 }
+                               });
+                }
+              },
+              ctx.global_frontier_in.DeviceObject(),
+              ctx.global_frontier_out.DeviceObject(),
+              ArrayView<rank_t>(ctx.global_value),
+              ArrayView<rank_t>(ctx.global_delta));
+          VLOG(1) << "In: " << ctx.global_frontier_in.size(stream)
+                  << " Out: " << ctx.global_frontier_out.size(stream);
+          ctx.global_frontier_in.Clear(stream);
+          ctx.global_frontier_in.Swap(ctx.global_frontier_out);
+          ctx.round++;
+        }
+      }
+      stream.Sync();
+      LOG(INFO) << (grape::GetCurrentTime() - begin) * 1000;
+    }
+    ctx.switched = true;
+  }
+};
+}  // namespace grape_gpu
+#endif

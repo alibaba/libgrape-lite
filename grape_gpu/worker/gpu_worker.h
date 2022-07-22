@@ -55,7 +55,7 @@ class GPUWorker {
     auto& graph = context_->fragment();
 
     messages_.Start();
-    
+
     begin = grape::GetCurrentTime();
     messages_.StartARound();
     messages_.RecordStarARoundTime(grape::GetCurrentTime() - begin);

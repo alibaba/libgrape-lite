@@ -205,6 +205,7 @@ class GPUMessageManager {
    */
   void StartARound() {
     force_continue_ = false;
+    to_rerun_ = false;
     sent_size_ = 0;
 
     computation_finished_ = Event::Create();
@@ -216,6 +217,11 @@ class GPUMessageManager {
    * applications.
    */
   void FinishARound() {
+    if(to_rerun_) {
+      //time_sync_len_.push_back(0.0);
+      //time_memcpy.push_back(0.0);
+      return;
+    }
     double syncLengths_time = grape::GetCurrentTime();
     to_terminate_ = syncLengths();
 
@@ -294,6 +300,7 @@ class GPUMessageManager {
    * @brief This function will be called after the evaluation of applications.
    */
   void Finalize() {
+#ifdef PROFILING
     {
       TimeTable<double> tt(comm_spec_);
 
@@ -317,6 +324,7 @@ class GPUMessageManager {
         tt.Print();
       }
     }
+#endif
   }
 
   /**
@@ -343,6 +351,7 @@ class GPUMessageManager {
    * This function can be called by applications.
    */
   void ForceContinue() { force_continue_ = true; }
+  void ForceRerun() { to_rerun_ = true; }
 
   double GetAccumulatedCommTime() const { return total_memcpy_time_; }
   double GetSyncTime() const { return syncLengths_time_; }
@@ -553,6 +562,7 @@ class GPUMessageManager {
   double StartARound_time_{};
   double barrier_time_{};
 
+  bool to_rerun_{};
   bool to_terminate_{};
   bool force_continue_{};
 };

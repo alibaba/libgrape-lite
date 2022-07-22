@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-dataset_prefix=/disk4/liang/new_dataset
-gunrock_prefix=/disk4/liang/gunrock/build/bin
-groute_prefix=/disk4/liang/groute/build
-grape_prefix=/disk4/liang/benchmark/libgrape-lite/8d1cba903fcaf054774835ff6624952ca7b8866b
-grape_ser_prefix=/disk4/liang/ser
+dataset_prefix=
+gunrock_prefix=
+groute_prefix=
+gum_prefix=
+gum_ser_prefix=
 dataset_source_node=('soc-LiveJournal1' '1'
   'soc-twitter-2010' '1'
   'uk-2002' '1'

@@ -9,8 +9,8 @@ function run_app() {
   partitioner=$5
   prio=$6
   source=$7
-  echo "Evaluating grape - $app with $efile"
-  OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 mpirun -np $np ${grape_prefix}/run_app \
+  echo "Evaluating gum - $app with $efile"
+  OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 mpirun -np $np ${gum_prefix}/run_app \
     -efile ${efile} \
     -mtx \
     -application=$app \
@@ -18,14 +18,14 @@ function run_app() {
     -partitioner=$partitioner \
     -directed=false \
     -rm_self_cycle=true \
-    -serialization_prefix=${grape_ser_prefix} \
+    -serialization_prefix=${gum_ser_prefix} \
     -lb=$lb \
     -bfs_source=$source \
     -sssp_source=$source \
-    -sssp_prio=$prio 2>&1 | tee grape-gpu.running.log
-  runtime=$(perl -nle 'print "$1" if /run algorithm: (.*?) sec/' <grape-gpu.running.log)
+    -sssp_prio=$prio 2>&1 | tee gum.running.log
+  runtime=$(perl -nle 'print "$1" if /run algorithm: (.*?) sec/' <gum.running.log)
 
-  echo "$(date),$app,$efile,$lb,$partitioner,$np,$runtime" >>"grape_${app}".csv
+  echo "$(date),$app,$efile,$lb,$partitioner,$np,$runtime" >>"gum_${app}".csv
 }
 
 sssp_prio=64
@@ -34,7 +34,7 @@ sssp_prio=64
 app=$1
 num_gpus=$2
 
-echo "date,app,efile,lb,partitioner,np,time" >>grape_${app}.csv
+echo "date,app,efile,lb,partitioner,np,time" >>gum_${app}.csv
 
 for ((idx = 0; idx < ${#dataset_source_node[@]}; idx += 2)); do
   dataset=${dataset_source_node[idx]}

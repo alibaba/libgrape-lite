@@ -5,7 +5,8 @@
 #include <thrust/thrust/transform_scan.h>
 
 #include "grape/worker/comm_spec.h"
-#include "grape_gpu/utils/EK_solver.h"
+#include "solver.h"
+//#include "grape_gpu/utils/EK_solver.h"
 #include "grape_gpu/utils/array_view.h"
 #include "grape_gpu/utils/device_buffer.h"
 #include "grape_gpu/utils/perf_metrics.h"
@@ -78,6 +79,47 @@ class WorkStealingScheduler {
         }
       }
 
+      // bw_ = {{0.0346171, 0.0572349, 0.0477931, 0.028054, 5.79673, 6.485,
+      // 0.0270496, 8.10164},
+      //      {0.0899805, 0.00902432, 0.0704107,
+      //      0.0738412, 4.77748, 4.33356, 4.63986, 0.0239403}, {0.100076,
+      //      0.0815215, 0.0553258, 0.0674163, 0.0743594, 5.90119, 0.171545,
+      //      0.171645}, {0.141987, 0.113185, 0.0823987, 0.116528, 6.00978,
+      //      0.0851168, 0.169577, 0.181772}, {6.66895, 4.06951, 0.13155,
+      //      0.291168, 0.10935, 0.153151, 0.119405, 0.132983}, {3.752, 6.03014,
+      //      0.189163, 0.0679018, 0.0501424, 0.0140574, 0.0248829, 0.0472434},
+      //      {0.0240749, 0.158113, 0.304401, 3.04175, 0.0470724, 0.0405471,
+      //      0.0231202, 0.0752376}, {0.179203, 0.022751, 2.98151, 0.191753,
+      //      0.0236064, 0.0432746, 0.0424776, 0.0101041}};
+      // bw_ = {{0.080071, 0.159303, 0.217628,
+      // 0.10964, 5.79673, 6.485, 5.25637, 8.10164},
+      //       {0.0639178, 0.0340539, 0.425463,
+      //       0.0843792, 4.77748, 4.33356, 4.63986, 0.0365441},
+      //       {2.83209, 2.94328, 0.0364054, 7.62514,
+      //       0.0701377, 5.90119, 3.84762, 2.45916}, {0.629574,
+      //       0.0779262, 1.46163, 0.0780942, 6.00978,
+      //       0.571463, 1.37778, 2.2121}, {6.66895, 4.06951, 0.864767, 5.07799,
+      //       0.0818875, 0.168069, 2.12054, 0.18754}, {3.752, 6.03014,
+      //       0.189163, 0.234292, 0.049672, 0.0391134, 0.0678795, 0.0884038},
+      //       {0.117185, 0.158113, 0.304401, 3.04175, 0.0630654, 0.0712455,
+      //       0.0176548, 0.0752376}, {0.488815, 0.181425, 2.98151, 0.191753,
+      //       0.222956, 0.0855683, 0.0946173, 0.0310146}};
+      bw_ = {{0.580838, 0.377893, 0.211331, 1.70082, 5.79673, 6.485, 5.25637,
+              8.10164},
+             {0.195213, 0.432238, 0.730506, 0.387815, 4.77748, 4.33356, 4.63986,
+              0.26787},
+             {2.83209, 0.0906153, 0.452241, 7.62514, 0.563145, 5.90119, 3.84762,
+              2.45916},
+             {0.629574, 0.087776, 1.46163, 0.0465433, 6.00978, 0.571463,
+              1.37778, 2.2121},
+             {1.1967, 5.34721, 0.0898737, 1.33851, 0.0289932, 0.0774284,
+              0.749606, 0.113304},
+             {0.701231, 1.957, 3.08438, 0.16476, 0.083763, 0.0377196, 0.0793776,
+              0.0711535},
+             {3.68492, 0.234176, 0.39492, 3.04175, 0.0765214, 0.0677774,
+              0.0313908, 0.0752376},
+             {10.644, 0.0603501, 2.98151, 0.411692, 0.222956, 0.210441, 0.22742,
+              0.0403559}};
       std::stringstream ss;
       ss << "Bandwidth matrix: " << std::endl;
       for (int src_id = 0; src_id < local_num; src_id++) {
@@ -103,6 +145,18 @@ class WorkStealingScheduler {
     if (supportsCoopLaunch != 1)
       LOG(FATAL) << "Cooperative Launch is not supported on this machine "
                     "configuration.";
+  }
+  void ShowHint() {
+    std::stringstream ss;
+    ss << std::endl << "bw: " << std::endl;
+    int n = bw_.size();
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        ss << bw_[i][j] << " ";
+      }
+      ss << std::endl;
+    }
+    LOG(INFO) << ss.str();
   }
 
   const pinned_vector<thrust::pair<size_t, size_t>>& CalculateBounds(
@@ -150,7 +204,12 @@ class WorkStealingScheduler {
       MPI_Gather(&total_degree, 1, my_MPI_SIZE_T, n_workload.data(), 1,
                  my_MPI_SIZE_T, 0, comm_spec_.local_comm());
 
-      auto tr_ = EK_solver(bw_, n_workload, k);
+      // auto tr_ = EK_solver(bw_, n_workload, k);
+      double solver_time = grape::GetCurrentTime();
+      auto tr_ = ILP_solver(bw_, n_workload);
+      // tr_ = control_solver(bw_, n_workload);
+      solver_time = grape::GetCurrentTime() - solver_time;
+      std::cout << "solver_time" << solver_time * 1000 << "\n";
       std::vector<size_t> one_d_tr;
 
       for (int local_id = 0; local_id < local_num; local_id++) {
@@ -161,12 +220,12 @@ class WorkStealingScheduler {
       MPI_Scatter(one_d_tr.data(), local_num, my_MPI_SIZE_T,
                   extra_workload_.data(), local_num, my_MPI_SIZE_T, 0,
                   comm_spec_.local_comm());
-#if 0
+#if 1
       std::stringstream ss;
-      ss << "workload: " << std::endl;
-      for (auto n : n_workload_) {
-        ss << n << " ";
-      }
+      // ss << "workload: " << std::endl;
+      // for (auto n : n_workload_) {
+      //  ss << n << " ";
+      //}
       ss << std::endl << "tr: " << std::endl;
       for (int i = 0; i < local_num; i++) {
         for (int j = 0; j < local_num; j++) {
@@ -233,6 +292,35 @@ class WorkStealingScheduler {
     stream.Sync();
     range_calc_bounds.Stop();
     return cut_bounds_;
+  }
+
+  void Updatebw(const std::vector<std::vector<double>>& real_times) {
+    if (tr_.size() == 0) {  // init
+      // for(int i=0; i<bw_.size(); ++i) {
+      //  for(int j=0; j<bw_.size(); ++j) {
+      //    bw_[i][j] = 1;
+      //  }
+      //}
+      return;
+    }
+    int n = real_times.size();
+    for (int i = 0; i < n; ++i) {
+      for (int j = 0; j < n; ++j) {
+        if (tr_[i][j] > 5000)
+          bw_[i][j] = real_times[i][j] / tr_[i][j] * 1e8;
+      }
+    }
+#if 0
+    std::stringstream ss;
+    ss << std::endl << "bw: " << std::endl;
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        ss << bw_[i][j] << " ";
+      }
+      ss << std::endl;
+    }
+    LOG(INFO) << ss.str();
+#endif
   }
 
   void ReportWork(const Stream& stream, ArrayView<vertex_t> frontier,
@@ -342,6 +430,7 @@ class WorkStealingScheduler {
   std::shared_ptr<ncclComm_t> nccl_comm_;
   PerfMetrics metrics_;
   std::vector<std::vector<double>> bw_;
+  std::vector<std::vector<size_t>> tr_;
   DeviceBuffer<size_t> ps_degree_;  // prefix sum for degree
 
   pinned_vector<size_t> extra_workload_;
