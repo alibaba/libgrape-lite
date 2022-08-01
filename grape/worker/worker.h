@@ -29,8 +29,8 @@ limitations under the License.
 #include "grape/parallel/auto_parallel_message_manager.h"
 #include "grape/parallel/batch_shuffle_message_manager.h"
 #include "grape/parallel/parallel_message_manager.h"
-
 #include "grape/parallel/parallel_engine.h"
+#include "grape/util.h"
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
@@ -85,6 +85,8 @@ class Worker {
 
   template <class... Args>
   void Query(Args&&... args) {
+    double t = GetCurrentTime();
+
     MPI_Barrier(comm_spec_.comm());
 
     context_->Init(messages_, std::forward<Args>(args)...);
@@ -102,12 +104,14 @@ class Worker {
     messages_.FinishARound();
 
     if (comm_spec_.worker_id() == kCoordinatorRank) {
-      VLOG(1) << "[Coordinator]: Finished PEval";
+      VLOG(1) << "[Coordinator]: Finished PEval, time: " << GetCurrentTime() - t
+              << " sec";
     }
 
     int step = 1;
 
     while (!messages_.ToTerminate()) {
+      t = GetCurrentTime();
       round++;
       messages_.StartARound();
 
@@ -117,7 +121,8 @@ class Worker {
       messages_.FinishARound();
 
       if (comm_spec_.worker_id() == kCoordinatorRank) {
-        VLOG(1) << "[Coordinator]: Finished IncEval - " << step;
+        VLOG(1) << "[Coordinator]: Finished IncEval - " << step << ", time: "
+                << GetCurrentTime() - t << " sec";
       }
       ++step;
     }
