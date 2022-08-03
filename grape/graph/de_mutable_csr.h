@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef GRAPE_GRAPH_DE_MUTABLE_CSR_H_
 #define GRAPE_GRAPH_DE_MUTABLE_CSR_H_
 
+#include <algorithm>
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/mutable_csr.h"
@@ -160,6 +161,10 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
 
   size_t edge_num() const { return head_.edge_num() + tail_.edge_num(); }
 
+  size_t head_edge_num() const { return head_.edge_num(); }
+
+  size_t tail_edge_num() const { return tail_.edge_num(); }
+
   int degree(VID_T i) const {
     return in_head(i) ? head_.degree(head_index(i))
                       : tail_.degree(tail_index(i));
@@ -208,15 +213,37 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
                       : tail_.get_end(tail_index(i));
   }
 
+  nbr_t* find(VID_T i, VID_T nbr) {
+    return in_head(i) ? head_.find(head_index(i), nbr)
+                      : tail_.find(tail_index(i), nbr);
+  }
+
+  const nbr_t* find(VID_T i, VID_T nbr) const {
+    return in_head(i) ? head_.find(head_index(i), nbr)
+                      : tail_.find(tail_index(i), nbr);
+  }
+
+  nbr_t* binary_find(VID_T i, VID_T nbr) {
+    return in_head(i) ? head_.binary_find(head_index(i), nbr)
+                      : tail_.binary_find(tail_index(i), nbr);
+  }
+  const nbr_t* binary_find(VID_T i, VID_T nbr) const {
+    return in_head(i) ? head_.binary_find(head_index(i), nbr)
+                      : tail_.binary_find(tail_index(i), nbr);
+  }
+
   void add_vertices(vid_t to_head, vid_t to_tail) {
-    max_head_id_ += to_head;
-    min_tail_id_ -= to_tail;
+    if (to_head != 0) {
+      max_head_id_ += to_head;
+      vid_t head_num = max_head_id_ - min_id_;
+      head_.reserve_vertices(head_num);
+    }
 
-    vid_t head_num = max_head_id_ - min_id_;
-    vid_t tail_num = max_id_ - min_tail_id_;
-
-    head_.reserve_vertices(head_num);
-    tail_.reserve_vertices(tail_num);
+    if (to_tail != 0) {
+      min_tail_id_ -= to_tail;
+      vid_t tail_num = max_id_ - min_tail_id_;
+      tail_.reserve_vertices(tail_num);
+    }
   }
 
   void add_edges(const std::vector<edge_t>& edges) {
@@ -247,6 +274,81 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
     } else {
       add_reversed_edges_dense(edges);
     }
+  }
+
+  void init_head_and_tail(vid_t min, vid_t max, bool dedup = false) {
+    min_id_ = max_head_id_ = min;
+    max_id_ = min_tail_id_ = max;
+    dedup_ = dedup;
+  }
+
+  // break the operation of `add_edges` into 3 steps:
+  // (1) `reserve_edges` for reserving space (capacity) of edges
+  // (2) `put_edge` for inserting an edge, which can be parallel
+  // (3) `sort_neighbors` for cleanning up the nerghbors
+
+  // `degree_to_add` is indexed by the real index,
+  // and the caller is responsible for conversion
+  void reserve_edges_dense(const std::vector<int>& head_degree_to_add,
+                           const std::vector<int>& tail_degree_to_add) {
+    head_.reserve_edges_dense(head_degree_to_add);
+    tail_.reserve_edges_dense(tail_degree_to_add);
+  }
+
+  void reserve_edges_sparse(const std::map<vid_t, int>& degree_to_add) {
+    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
+
+    for (const auto &pair : degree_to_add) {
+      if (in_head(pair.first)) {
+        head_degree_to_add.insert(
+          std::make_pair(head_index(pair.first), pair.second));
+      } else {
+        tail_degree_to_add.insert(
+          std::make_pair(tail_index(pair.first), pair.second));
+      }
+    }
+    head_.reserve_edges_sparse(head_degree_to_add);
+    tail_.reserve_edges_sparse(tail_degree_to_add);
+  }
+
+  nbr_t* put_edge(vid_t src, const nbr_t& value) {
+    if (in_head(src)) {
+      return head_.put_edge(head_index(src), value);
+    } else {
+      return tail_.put_edge(tail_index(src), value);
+    }
+  }
+
+  nbr_t* put_edge(vid_t src, nbr_t&& value) {
+    if (in_head(src)) {
+      return head_.put_edge(head_index(src), value);
+    } else {
+      return tail_.put_edge(tail_index(src), value);
+    }
+  }
+
+  // `degree_to_add` is indexed by the real index,
+  // and the caller is responsible for conversion
+  void sort_neighbors_dense(const std::vector<int>& head_degree_to_add,
+                            const std::vector<int>& tail_degree_to_add) {
+    head_.sort_neighbors_dense(head_degree_to_add);
+    tail_.sort_neighbors_dense(tail_degree_to_add);
+  }
+
+  void sort_neighbors_sparse(const std::map<vid_t, int>& degree_to_add) {
+    std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
+
+    for (const auto &pair : degree_to_add) {
+      if (in_head(pair.first)) {
+        head_degree_to_add.insert(
+          std::make_pair(head_index(pair.first), pair.second));
+      } else {
+        tail_degree_to_add.insert(
+          std::make_pair(tail_index(pair.first), pair.second));
+      }
+    }
+    head_.sort_neighbors_sparse(head_degree_to_add);
+    tail_.sort_neighbors_sparse(tail_degree_to_add);
   }
 
   void remove_edges(const std::vector<edge_t>& edges) {
@@ -458,6 +560,11 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
         }
       }
     }
+  }
+
+  void clear_edges() {
+    head_.clear_edges();
+    tail_.clear_edges();
   }
 
   template <typename IOADAPTOR_T>
