@@ -133,7 +133,7 @@ struct InternalOID<std::string> {
     return nonstd::string_view(val.data(), val.size());
   }
 
-  static std::string FromInternal(const type& val) { return val.to_string(); }
+  static std::string FromInternal(const type& val) { return std::string(val); }
 };
 
 }  // namespace grape
