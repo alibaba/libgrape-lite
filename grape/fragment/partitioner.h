@@ -220,13 +220,13 @@ class SegmentedPartitioner<std::string> {
   inline fid_t GetPartitionId(const oid_t& oid) const { return o2f_.at(oid); }
 
   inline fid_t GetPartitionId(const internal_oid_t& oid) const {
-    return o2f_.at(oid.to_string());
+    return o2f_.at(std::string(oid));
   }
 
   void SetPartitionId(const oid_t& oid, fid_t fid) { o2f_[oid] = fid; }
 
   void SetPartitionId(const internal_oid_t& oid, fid_t fid) {
-    o2f_[oid.to_string()] = fid;
+    o2f_[std::string(oid)] = fid;
   }
 
   SegmentedPartitioner& operator=(const SegmentedPartitioner& other) {
