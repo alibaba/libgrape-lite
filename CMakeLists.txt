@@ -15,6 +15,7 @@ option(BUILD_SHARED_LIBS "Whether to build libgrape-lite as shared library" ON)
 option(PROFILING "Whether to enable profiling" OFF)
 option(WITH_ASAN "Build with Address Sanitizer" OFF)
 option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
+option(WCC_USE_GID "Use global id as wcc component id" OFF)
 
 if (USE_HUGEPAGES AND LINUX)
   add_definitions(-DUSE_HUGEPAGES)
@@ -23,6 +24,10 @@ endif ()
 if (PROFILING)
   message(STATUS "Enable profiling")
   add_definitions(-DPROFILING)
+endif ()
+
+if (WCC_USE_GID)
+  add_definitions(-DWCC_USE_GID)
 endif ()
 
 include_directories(SYSTEM thirdparty)
