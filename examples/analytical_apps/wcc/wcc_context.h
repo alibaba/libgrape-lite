@@ -19,19 +19,29 @@ limitations under the License.
 #include <grape/grape.h>
 
 namespace grape {
+
+#ifdef WCC_USE_GID
+template <typename FRAG_T>
+using WCCContextType = VertexDataContext<FRAG_T, typename FRAG_T::vid_t>;
+#else
+template <typename FRAG_T>
+using WCCContextType = VertexDataContext<FRAG_T, typename FRAG_T::oid_t>;
+#endif
+
 /**
  * @brief Context for the parallel version of WCC.
  *
  * @tparam FRAG_T
  */
 template <typename FRAG_T>
-class WCCContext : public VertexDataContext<FRAG_T, typename FRAG_T::vid_t> {
+class WCCContext : public WCCContextType<FRAG_T> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
+  using cid_t = typename WCCContextType<FRAG_T>::data_t;
 
   explicit WCCContext(const FRAG_T& fragment)
-      : VertexDataContext<FRAG_T, typename FRAG_T::vid_t>(fragment, true),
+      : WCCContextType<FRAG_T>(fragment, true),
         comp_id(this->data()) {}
 
   void Init(ParallelMessageManager& messages) {
@@ -54,7 +64,7 @@ class WCCContext : public VertexDataContext<FRAG_T, typename FRAG_T::vid_t> {
 #endif
   }
 
-  typename FRAG_T::template vertex_array_t<vid_t>& comp_id;
+  typename FRAG_T::template vertex_array_t<cid_t>& comp_id;
 
   DenseVertexSet<typename FRAG_T::vertices_t> curr_modified, next_modified;
 

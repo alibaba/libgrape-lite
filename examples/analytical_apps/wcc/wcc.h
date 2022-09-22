@@ -39,6 +39,7 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
             public ParallelEngine {
   INSTALL_PARALLEL_WORKER(WCC<FRAG_T>, WCCContext<FRAG_T>, FRAG_T)
   using vertex_t = typename fragment_t::vertex_t;
+  using oid_t = typename fragment_t::oid_t;
   using vid_t = typename fragment_t::vid_t;
 
   static constexpr bool need_split_edges = true;
@@ -78,8 +79,13 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
       ctx.comp_id[v] = new_cid;
       if (new_cid < old_cid) {
         ctx.next_modified.Insert(v);
+#ifdef WCC_USE_GID
         channels[tid].SyncStateOnOuterVertex<fragment_t, vid_t>(frag, v,
                                                                 new_cid);
+#else
+        channels[tid].SyncStateOnOuterVertex<fragment_t, oid_t>(frag, v,
+                                                                new_cid);
+#endif
       }
     });
   }
@@ -107,8 +113,13 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 
     ForEach(outer_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
       if (ctx.next_modified.Exist(v)) {
+#ifdef WCC_USE_GID
         messages.SyncStateOnOuterVertex<fragment_t, vid_t>(frag, v,
                                                            ctx.comp_id[v], tid);
+#else
+        messages.SyncStateOnOuterVertex<fragment_t, oid_t>(frag, v,
+                                                           ctx.comp_id[v], tid);
+#endif
       }
     });
   }
@@ -127,10 +138,18 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 
     // assign initial component id with global id
     ForEach(inner_vertices, [&frag, &ctx](int tid, vertex_t v) {
+#ifdef WCC_USE_GID
       ctx.comp_id[v] = frag.GetInnerVertexGid(v);
+#else
+      ctx.comp_id[v] = frag.GetInnerVertexId(v);
+#endif
     });
     ForEach(outer_vertices, [&frag, &ctx](int tid, vertex_t v) {
+#ifdef WCC_USE_GID
       ctx.comp_id[v] = frag.GetOuterVertexGid(v);
+#else
+      ctx.comp_id[v] = frag.GetOuterVertexId(v);
+#endif
     });
 
     // In the first round, all vertices are active, pulling is more efficient.
@@ -156,8 +175,13 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
     ctx.preprocess_time -= GetCurrentTime();
 #endif
     // aggregate messages
+#ifdef WCC_USE_GID
     messages.ParallelProcess<fragment_t, vid_t>(
         thread_num(), frag, [&ctx](int tid, vertex_t u, vid_t msg) {
+#else
+    messages.ParallelProcess<fragment_t, oid_t>(
+        thread_num(), frag, [&ctx](int tid, vertex_t u, oid_t msg) {
+#endif
           if (ctx.comp_id[u] > msg) {
             atomic_min(ctx.comp_id[u], msg);
             ctx.curr_modified.Insert(u);
