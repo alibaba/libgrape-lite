@@ -155,7 +155,9 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
     // In the first round, all vertices are active, pulling is more efficient.
     PropagateLabelPull(frag, ctx, messages);
 
-    if (!ctx.next_modified.PartialEmpty(0, frag.GetInnerVerticesNum())) {
+    if (!ctx.next_modified.PartialEmpty(
+          frag.Vertices().begin_value(),
+          frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 
@@ -195,7 +197,9 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 
     vid_t ivnum = frag.GetInnerVerticesNum();
     double rate = static_cast<double>(ctx.curr_modified.ParallelPartialCount(
-                      GetThreadPool(), 0, ivnum)) /
+                      GetThreadPool(),
+                      frag.Vertices().begin_value(),
+                      frag.Vertices().begin_value() + ivnum)) /
                   static_cast<double>(ivnum);
     // If active vertices are few, pushing will be used.
     if (rate > 0.1) {
@@ -209,7 +213,9 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
     ctx.postprocess_time -= GetCurrentTime();
 #endif
 
-    if (!ctx.next_modified.PartialEmpty(0, frag.GetInnerVerticesNum())) {
+    if (!ctx.next_modified.PartialEmpty(
+          frag.Vertices().begin_value(),
+          frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 

@@ -322,6 +322,10 @@ class DualVertexRange {
     return VertexRange<VID_T>(tail_begin_, tail_end_);
   }
 
+  const VID_T begin_value() const { return head_begin_; }
+
+  const VID_T end_value() const { return tail_end_; }
+
   bool Contain(const Vertex<VID_T>& v) const {
     return (head_begin_ <= v.GetValue() && v.GetValue() < head_end_) ||
            (tail_begin_ <= v.GetValue() && v.GetValue() < tail_end_);
