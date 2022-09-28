@@ -131,6 +131,10 @@ class DefaultMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   void Finalize() override {
+    if (finalized_.exchange(true)) {
+      return;
+    }
+
     if (!reqs_.empty()) {
       MPI_Waitall(reqs_.size(), &reqs_[0], MPI_STATUSES_IGNORE);
       reqs_.clear();

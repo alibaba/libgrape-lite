@@ -28,8 +28,8 @@ limitations under the License.
 #include "grape/config.h"
 #include "grape/parallel/auto_parallel_message_manager.h"
 #include "grape/parallel/batch_shuffle_message_manager.h"
-#include "grape/parallel/parallel_message_manager.h"
 #include "grape/parallel/parallel_engine.h"
+#include "grape/parallel/parallel_message_manager.h"
 #include "grape/util.h"
 #include "grape/worker/comm_spec.h"
 
@@ -81,7 +81,11 @@ class Worker {
     InitCommunicator(app_, comm_spec_.comm());
   }
 
-  void Finalize() {}
+  void Finalize() {
+    // make sure the message manager's "Finalize()" been called even there's
+    // exception during "Query()".
+    messages_.Finalize();
+  }
 
   template <class... Args>
   void Query(Args&&... args) {

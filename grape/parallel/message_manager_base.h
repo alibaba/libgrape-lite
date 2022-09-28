@@ -18,6 +18,8 @@ limitations under the License.
 
 #include <mpi.h>
 
+#include <atomic>
+
 #include "grape/config.h"
 
 namespace grape {
@@ -42,7 +44,7 @@ struct TerminateInfo {
  */
 class MessageManagerBase {
  public:
-  MessageManagerBase() {}
+  MessageManagerBase() { finalized_.store(false); }
   virtual ~MessageManagerBase() {}
 
   /**
@@ -114,6 +116,9 @@ class MessageManagerBase {
    * @return Termination info.
    */
   virtual const TerminateInfo& GetTerminateInfo() const = 0;
+
+ protected:
+  std::atomic_bool finalized_;
 };
 
 }  // namespace grape

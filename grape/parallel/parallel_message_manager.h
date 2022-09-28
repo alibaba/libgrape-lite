@@ -141,6 +141,14 @@ class ParallelMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   void Finalize() override {
+    if (finalized_.exchange(true)) {
+      return;
+    }
+
+    // ensure the send thread to join
+    sending_queue_.DecProducerNum();
+
+    // stop (join) the send and recv thread
     waitSend();
     MPI_Barrier(comm_);
     stopRecvThread();
