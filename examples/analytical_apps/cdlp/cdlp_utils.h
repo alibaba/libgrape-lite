@@ -35,7 +35,7 @@ inline LABEL_T update_label_fast(const ADJ_LIST_T& edges,
 
   LABEL_T curr_label = local_labels[0];
   int curr_count = 1;
-  LABEL_T best_label = 0;
+  LABEL_T best_label = LABEL_T{};
   int best_count = 0;
   int label_num = local_labels.size();
 
