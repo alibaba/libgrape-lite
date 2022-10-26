@@ -16,6 +16,8 @@ limitations under the License.
 #ifndef GRAPE_PARALLEL_PARALLEL_ENGINE_SPEC_H_
 #define GRAPE_PARALLEL_PARALLEL_ENGINE_SPEC_H_
 
+#include "grape/worker/comm_spec.h"
+
 namespace grape {
 
 struct ParallelEngineSpec {
