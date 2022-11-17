@@ -262,7 +262,7 @@ class FilterAdjList {
   using NbrT = Nbr<VID_T, EDATA_T>;
 
  public:
-  FilterAdjList(NbrT* b, NbrT* e, const PRED_T& pred)
+  FilterAdjList(NbrT* b, NbrT* e, PRED_T pred)
       : begin_(b), end_(e), pred_(pred) {
     while (begin_ != end_ && !pred_(*begin_)) {
       ++begin_;
@@ -363,7 +363,7 @@ class FilterAdjList {
  private:
   NbrT* begin_;
   NbrT* end_;
-  const PRED_T& pred_;
+  PRED_T pred_;
 };
 
 template <typename VID_T, typename EDATA_T, typename PRED_T>
@@ -371,7 +371,7 @@ class FilterConstAdjList {
   using NbrT = Nbr<VID_T, EDATA_T>;
 
  public:
-  FilterConstAdjList(const NbrT* b, const NbrT* e, const PRED_T& pred)
+  FilterConstAdjList(const NbrT* b, const NbrT* e, PRED_T pred)
       : begin_(b), end_(e), pred_(pred) {
     while (begin_ != end_ && !pred_(*begin_)) {
       ++begin_;
@@ -430,7 +430,7 @@ class FilterConstAdjList {
  private:
   const NbrT* begin_;
   const NbrT* end_;
-  const PRED_T& pred_;
+  PRED_T pred_;
 };
 
 /**
