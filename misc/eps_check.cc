@@ -14,9 +14,9 @@ limitations under the License.
 */
 
 #include <algorithm>
-#include <string>
-
 #include <cmath>
+#include <limits>
+#include <string>
 
 const double MIN_NEAR_INFINITY = std::numeric_limits<double>::max() * 0.999;
 const double MAX_NEAR_ZERO = std::numeric_limits<double>::min() * 10;
