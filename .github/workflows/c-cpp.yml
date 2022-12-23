@@ -22,14 +22,15 @@ jobs:
       - name: Install Dependencies for Linux
         if: runner.os == 'Linux'
         run: |
-          # microsoft repo in 18.04 is broken
-          # sudo apt update -y
           ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ''
           cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
           chmod og-wx ~/.ssh/authorized_keys
           chmod 750 $HOME
           echo "StrictHostKeyChecking no" >> ~/.ssh/config
-          sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev
+
+          sudo apt update -y
+          sudo apt install -y libunwind-dev
+          sudo apt install -y --no-install-recommends libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev
       - name: Install Dependencies for macOS
         if: runner.os == 'macOS'
         run: |
