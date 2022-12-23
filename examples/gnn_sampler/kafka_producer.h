@@ -79,6 +79,7 @@ class KafkaProducer {
     pending_count_ += 1;
     if (pending_count_ == 1024 * 128) {
       producer_->flush(1000 * 60);  // 60s
+      pending_count_ = 0;
     }
   }
 

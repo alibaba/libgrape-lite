@@ -14,9 +14,9 @@ jobs:
           submodules: true
       - name: Install Dependencies
         run: |
-          # microsoft repo in 18.04 is broken
-          # sudo apt update -y
-          sudo apt install -y libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev doxygen
+          sudo apt update -y
+          sudo apt install -y libunwind-dev
+          sudo apt install -y --no-install-recommends libmpich-dev libgoogle-glog-dev libgflags-dev librdkafka-dev doxygen
       - name: Build Doc
         run: |
           mkdir build
