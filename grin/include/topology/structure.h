@@ -18,7 +18,7 @@ limitations under the License.
 #ifndef GRIN_TOPOLOGY_STRUCTURE_H_
 #define GRIN_TOPOLOGY_STRUCTURE_H_
 
-#include "grin/predefine.h"
+#include "../predefine.h"
 
 Direction get_edge_direction(const Graph, const Edge);
 

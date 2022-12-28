@@ -18,7 +18,7 @@ limitations under the License.
 #ifndef GRIN_PREDICATE_PREDICATE_H_
 #define GRIN_PREDICATE_PREDICATE_H_
 
-#include "grin/predefine.h"
+#include "../predefine.h"
 
 #ifdef ENABLE_PREDICATE
 

@@ -44,7 +44,7 @@ typedef enum {
 #define WITH_EDGE_WEIGHT               // There is weight for edge.
 #define ENABLE_VERTEX_LIST             // Enable the vertex list structure.
 #define ENABLE_EDGE_LIST               // Enable the edge list structure.
-#define PARTITION_STRATEGY VERTEX_CUT  // The partition strategy.
+#define PARTITION_STRATEGY EDGE_CUT  // The partition strategy.
 // There are all/part edges on local vertices.
 #define EDGES_ON_LOCAL_VERTEX ALL
 // There are all/part/none edges on non-local vertices.
@@ -70,11 +70,15 @@ typedef enum {
 
 // TODO: define these data types:
 // modify void* to data types in immutable_edgecut_fragment.
+#define VID_T long
+#define EID_T long
+#define VDATA_T int
+#define EDATA_T double
 
 /* The following data types shall be defined through typedef. */
 typedef void* Graph;       // This is a handle for accessing a local graph.
-typedef void* Vertex;      // This is a handle for accessing a single vertex.
-typedef void* Edge;        // This is a handle for accessing a single edge.
+typedef VID_T* Vertex;      // This is a handle for accessing a single vertex.
+typedef EID_T* Edge;        // This is a handle for accessing a single edge.
 typedef void* DataType;    // The enum type for data types.
 typedef void* VertexList;  // The type for respresenting a list of vertices.
 typedef void* VertexListIterator;
