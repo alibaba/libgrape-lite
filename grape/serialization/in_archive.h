@@ -29,8 +29,8 @@ limitations under the License.
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
+#include "grape/types.h"
 #include "grape/utils/gcontainer.h"
-#include "string_view/string_view.hpp"
 
 namespace grape {
 

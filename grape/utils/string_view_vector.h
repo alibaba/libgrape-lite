@@ -21,7 +21,7 @@ limitations under the License.
 
 #include <vector>
 
-#include "string_view/string_view.hpp"
+#include "grape/types.h"
 
 namespace grape {
 
