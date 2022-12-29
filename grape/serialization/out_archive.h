@@ -28,8 +28,8 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "grape/serialization/in_archive.h"
+#include "grape/types.h"
 #include "grape/utils/gcontainer.h"
-#include "string_view/string_view.hpp"
 
 namespace grape {
 

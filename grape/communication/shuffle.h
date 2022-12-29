@@ -23,8 +23,8 @@ limitations under the License.
 #include <vector>
 
 #include "grape/communication/sync_comm.h"
+#include "grape/types.h"
 #include "grape/utils/string_view_vector.h"
-#include "string_view/string_view.hpp"
 
 namespace grape {
 

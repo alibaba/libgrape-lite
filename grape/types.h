@@ -20,6 +20,8 @@ limitations under the License.
 #include <ostream>
 #include <type_traits>
 
+// Use the same setting with apache-arrow to avoid possible conflicts
+#define nssv_CONFIG_SELECT_STRING_VIEW nssv_STRING_VIEW_NONSTD
 #include "string_view/string_view.hpp"
 
 namespace grape {
