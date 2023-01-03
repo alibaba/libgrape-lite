@@ -13,6 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "grape/fragment/immutable_edgecut_fragment.h"
+#include "grape/graph/adj_list.h"
+#include "grape/graph/edge.h"
+#include "grape/graph/vertex.h"
+#include "grape/utils/vertex_array.h"
+
 #ifndef GRIN_PRE_DEFINE_H_
 #define GRIN_PRE_DEFINE_H_
 
@@ -36,6 +42,13 @@ typedef enum {
   PART = 1,
   NONE = 2,
 } ReplicateEdgeStrategy;
+
+typedef enum {
+  INT = 0,
+  UNSIGNED = 1,
+  FLOAT = 2,
+  DOUBLE = 3,
+} DataType;
 
 /* The following macros are defined as the features of the storage. */
 #define WITH_VERTEX_DATA               // There is data on vertex.
@@ -70,31 +83,44 @@ typedef enum {
 
 // TODO: define these data types:
 // modify void* to data types in immutable_edgecut_fragment.
+#define OID_T long
 #define VID_T long
-#define EID_T long
+
 #define VDATA_T int
+#define VDATA_DT DataType::INT
+
 #define EDATA_T double
+#define EDATA_DT DataType::DOUBLE
 
 /* The following data types shall be defined through typedef. */
-typedef void* Graph;       // This is a handle for accessing a local graph.
-typedef VID_T* Vertex;      // This is a handle for accessing a single vertex.
-typedef EID_T* Edge;        // This is a handle for accessing a single edge.
-typedef void* DataType;    // The enum type for data types.
-typedef void* VertexList;  // The type for respresenting a list of vertices.
-typedef void* VertexListIterator;
+typedef grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T>* Graph;       // This is a handle for accessing a local graph.
+typedef grape::Vertex<VID_T> Vertex;      // This is a handle for accessing a single vertex.
+typedef grape::Edge<VID_T, EDATA_T> Edge;        // This is a handle for accessing a single edge.
+//typedef DataType DataType;    // The enum type for data types.
+typedef grape::VertexRange<VID_T> VertexList;  // The type for respresenting a list of vertices.
+typedef grape::VertexRange<VID_T>::iterator VertexListIterator;
 // The iterator for accessing items in VertexList.
-typedef void* EdgeList;  // The type for respresenting a list of edges.
-typedef void* EdgeListIterator;
-// The iterator for accessing items in EdgeList.
-
-typedef void* PartitionedGraph;  // This is a handle for a partitoned graph.
-typedef void* Partition;  // This is a handle for accessing a local partition.
-typedef void* PartitionList;    // The type for a list of local partitions.
-typedef void* RemotePartition;  // This is a handle for a remote partiton.
-typedef void* RemoteVertex;  // This is a handle for accessing a remote vertex.
-typedef void* RemoteEdge;    // This is a handle for  a remote edge.
-typedef void* RemotePartitionList;  // The type for a list of remote partitions.
-typedef void* RemoteVertexList;     // The type for a list of remote vertices.
+struct EdgeListHandler {
+  Graph g;
+  Direction d;
+  size_t size;
+  grape::VertexRange<VID_T> vlist;
+};
+struct EdgeListIteratorHandler {
+  Direction d;
+  grape::VertexRange<VID_T>::iterator viter;
+  grape::Nbr<VID_T, EDATA_T>* ptr;
+};
+typedef EdgeListHandler* EdgeList;  // The type for respresenting a list of edges.
+typedef EdgeListIteratorHandler* EdgeListIterator; // The iterator for accessing items in EdgeList.
+typedef grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T>* PartitionedGraph;  // This is a handle for a partitoned graph.
+typedef unsigned Partition;  // This is a handle for accessing a local partition.
+typedef unsigned* PartitionList;    // The type for a list of local partitions.
+typedef Partition RemotePartition;  // This is a handle for a remote partiton.
+typedef Vertex RemoteVertex;  // This is a handle for accessing a remote vertex.
+typedef Edge RemoteEdge;    // This is a handle for  a remote edge.
+typedef PartitionList RemotePartitionList;  // The type for a list of remote partitions.
+typedef Vertex* RemoteVertexList;     // The type for a list of remote vertices.
 
 /* The followings macros are not required in libgrape-lite. */
 /*
