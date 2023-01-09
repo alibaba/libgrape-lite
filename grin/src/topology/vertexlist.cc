@@ -13,39 +13,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO: implement vertexlist.cc
-
-#ifndef GRIN_TOPOLOGY_VERTEX_LIST_H_
-#define GRIN_TOPOLOGY_VERTEX_LIST_H_
-
-#include "grin/src/predefine.h"
-#include "grape/utils/vertex_array.h"
+#include "grin/include/predefine.h"
+#include "grin/include/topology/vertexlist.h"
 
 #ifdef ENABLE_VERTEX_LIST
 
-VertexList get_vertex_list(const Graph g) {
-    grape::VertexRange<VID_T> vr = g->InnerVertices();
-    return vr;
+VertexList get_vertex_list(const Graph gh) {
+    Graph_T* g = static_cast<Graph_T*>(gh);
+    VertexList vl = new VertexList_T(g->Vertices());
+    return vl;
 }
 
-size_t get_vertex_list_size(const VertexList vlist) {
-    return vlist.size();
+size_t get_vertex_list_size(const VertexList vlh) {
+    VertexList_T* vl = static_cast<VertexList_T*>(vlh);
+    return vl->size();
 }
 
-VertexListIterator get_vertex_list_begin(const VertexList vlist) {
-    return vlist.begin();
+VertexListIterator get_vertex_list_begin(const VertexList vlh) {
+    VertexList_T* vl = static_cast<VertexList_T*>(vlh);
+    return vl->begin_value();
 }
 
-VertexListIterator get_next_vertex_iter(const VertexList vlist, VertexListIterator viter) {
-    return viter++;
+VertexListIterator get_next_vertex_iter(const VertexList vlh, VertexListIterator vlih) {
+    return vlih++;
 }
 
-bool has_next_vertex_iter(const VertexList vlist, VertexListIterator viter) {
-    return viter < vlist.end();
+bool has_next_vertex_iter(const VertexList vlh, VertexListIterator vlih) {
+    VertexList_T* vl = static_cast<VertexList_T*>(vlh);
+    return vlih < vl->end_value();
 }
 
-Vertex get_vertex_from_iter(const VertexList vlist, VertexListIterator viter) {
-    return *viter;
+Vertex get_vertex_from_iter(const VertexList vlh, VertexListIterator vlih) {
+    return vlih;
 }
 
 //VertexList create_vertex_list();
@@ -55,5 +54,3 @@ Vertex get_vertex_from_iter(const VertexList vlist, VertexListIterator viter) {
 //bool insert_vertex_to_list(VertexList, const Vertex);
 
 #endif
-
-#endif  // GRIN_TOPOLOGY_VERTEX_LIST_H_

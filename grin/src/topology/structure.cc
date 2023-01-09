@@ -13,50 +13,50 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO: implement structure.cc
-
 #ifndef GRIN_TOPOLOGY_STRUCTURE_H_
 #define GRIN_TOPOLOGY_STRUCTURE_H_
 
-#include "grin/src/predefine.h"
+#include "grin/include/predefine.h"
+#include "grin/include/topology/structure.h"
 
-
-Direction get_edge_direction(const Graph g, const Edge e) {
-    if (g->directed()) {
-        return Direction::OUT;
-    }
-    return Direction::BOTH;
+bool is_directed(const Graph gh) {
+    Graph_T* g = static_cast<Graph_T*>(gh);
+    return g->directed();
 }
 
 #ifdef WITH_EDGE_SRC
-Vertex get_edge_src(const Graph g, const Edge e) {
-    return grape::Vertex(e.src);
+Vertex get_edge_src(const Graph gh, const Edge eh) {
+    Edge_T* e = static_cast<Edge_T*>(eh);
+    return e->src;
 }
 #endif
 
 #ifdef WITH_EDGE_DST
-Vertex get_edge_dst(const Graph g, const Edge e) {
-    return grape::Vertex(e.dst);
+Vertex get_edge_dst(const Graph gh, const Edge eh) {
+    Edge_T* e = static_cast<Edge_T*>(eh);
+    return e->dst;
 }
 #endif
 
 #ifdef WITH_EDGE_WEIGHT
-DataType get_edge_weight_type(const Graph g, const Edge e) {
-    return EDATA_DT;
+DataType get_edge_weight_type(const Graph g) {
+    return G_EDATA_DT;
 }
 
-EDATA_T get_edge_weight_value(const Graph g, const Edge e) {
-    return e.edata;
+G_EDATA_T get_edge_weight_value(const Graph gh, const Edge eh) {
+    Edge_T* e = static_cast<Edge_T*>(eh);
+    return e->edata;
 }
 #endif
 
 #ifdef WITH_VERTEX_DATA
-DataType get_vertex_data_type(const Graph, const Vertex) {
-    return VDATA_DT;    
+DataType get_vertex_data_type(const Graph g) {
+    return G_VDATA_DT;    
 }
 
-VDATA_T get_vertex_data_value(const Graph g, const Vertex v) {    
-    return g->GetData(v);
+G_VDATA_T get_vertex_data_value(const Graph gh, const Vertex v) {
+    Graph_T* g = static_cast<Graph_T*>(gh);
+    return g->GetData(Vertex_G(v));
 }
 
 //void set_vertex_data_value(const Graph g, Vertex, const void*);

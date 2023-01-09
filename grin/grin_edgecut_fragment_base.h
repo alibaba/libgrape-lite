@@ -13,12 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_FRAGMENT_EDGECUT_FRAGMENT_BASE_H_
-#define GRAPE_FRAGMENT_EDGECUT_FRAGMENT_BASE_H_
+#ifndef GRIN_GRIN_EDGECUT_FRAGMENT_BASE_H_
+#define GRIN_GRIN_EDGECUT_FRAGMENT_BASE_H_
 
 #include "grape/fragment/fragment_base.h"
 #include "grape/graph/adj_list.h"
 #include "grape/utils/vertex_array.h"
+
+#include "grin/include/partition/partition.h"
+#include "grin/include/topology/vertexlist.h"
+
+#include "grin/grin_fragment_base.h"
 
 namespace grape {
 
@@ -41,28 +46,36 @@ namespace grape {
  */
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           typename TRAITS_T>
-class EdgecutFragmentBase
-    : virtual public FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T> {
+class GRIN_EdgecutFragmentBase
+    : virtual public GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T> {
  public:
-  using base_t = FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
+  using base_t = GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
   using vid_t = VID_T;
   using vertex_t = Vertex<VID_T>;
+  using base_t::fid_;
+  using base_t::pg_;
 
-  EdgecutFragmentBase() {}
+  GRIN_EdgecutFragmentBase() {}
 
   /**
    * @brief Returns the number of inner vertices in this fragment.
    *
    * @return The number of inner vertices in this fragment.
    */
-  VID_T GetInnerVerticesNum() const { return inner_vertices_.size(); }
+  VID_T GetInnerVerticesNum() const {
+    auto vl = get_local_vertices(pg_, fid_);
+    return get_vertex_list_size(vl);
+  }
 
   /**
    * @brief Returns the number of outer vertices in this fragment.
    *
    * @return The number of outer vertices in this fragment.
    */
-  VID_T GetOuterVerticesNum() const { return outer_vertices_.size(); }
+  VID_T GetOuterVerticesNum() const { 
+    auto vl = get_remote_vertices(pg_, fid_);
+    return get_vertex_list_size(vl);
+  }
 
   using inner_vertices_t = typename TRAITS_T::inner_vertices_t;
   /**
@@ -70,7 +83,12 @@ class EdgecutFragmentBase
    *
    * @return The vertex range of inner vertices in this fragment.
    */
-  const inner_vertices_t& InnerVertices() const { return inner_vertices_; }
+  const inner_vertices_t InnerVertices() const {
+    auto vl = get_local_vertices(pg_, fid_);
+    auto viter = get_vertex_list_begin(vl);
+    size_t size = get_vertex_list_size(vl);
+    return inner_vertices_t(viter, viter+size);
+  }
 
   using outer_vertices_t = typename TRAITS_T::outer_vertices_t;
   /**
@@ -78,15 +96,23 @@ class EdgecutFragmentBase
    *
    * @return The vertex range of outer vertices in this fragment.
    */
-  const outer_vertices_t& OuterVertices() const { return outer_vertices_; }
+  const outer_vertices_t OuterVertices() const { 
+    auto vl = get_remote_vertices(pg_, fid_);
+    auto viter = get_vertex_list_begin(vl);
+    size_t size = get_vertex_list_size(vl);
+    return outer_vertices_t(viter, viter+size);
+  }
 
   using sub_vertices_t = typename TRAITS_T::sub_vertices_t;
-  const sub_vertices_t& OuterVertices(fid_t fid) const {
-    return outer_vertices_of_frag_[fid];
+  const sub_vertices_t OuterVertices(fid_t fid) const {
+    auto vl = get_remote_vertices_by_partition(pg_, fid_);
+    auto viter = get_vertex_list_begin(vl);
+    size_t size = get_vertex_list_size(vl);
+    return sub_vertices_t(viter, viter+size);
   }
 
   using mirror_vertices_t = typename TRAITS_T::mirror_vertices_t;
-  const mirror_vertices_t& MirrorVertices(fid_t fid) const {
+  const mirror_vertices_t MirrorVertices(fid_t fid) const {
     return mirrors_of_frag_[fid];
   }
 
@@ -98,7 +124,7 @@ class EdgecutFragmentBase
    * @return True if vertex v is an inner vertex, false otherwise.
    */
   bool IsInnerVertex(const Vertex<VID_T>& v) const {
-    return inner_vertices_.Contain(v);
+    return is_local_vertex(pg_, fid_, v.GetValue());
   }
 
   /**
@@ -109,7 +135,7 @@ class EdgecutFragmentBase
    * @return True if vertex v is outer vertex, false otherwise.
    */
   bool IsOuterVertex(const Vertex<VID_T>& v) const {
-    return outer_vertices_.Contain(v);
+    return !is_local_vertex(pg_, fid_, v.GetValue());
   }
 
   /**
@@ -165,9 +191,7 @@ class EdgecutFragmentBase
    * gid, false otherwise.
    */
   inline bool InnerVertexGid2Vertex(VID_T gid, Vertex<VID_T>& v) const {
-    VID_T lid = id_parser_.get_local_id(gid);
-    v.SetValue(lid);
-    return true;
+    return Gid2Vertex(gid, v);
   }
 
   /**
@@ -180,12 +204,7 @@ class EdgecutFragmentBase
    * gid, false otherwise.
    */
   inline bool OuterVertexGid2Vertex(VID_T gid, Vertex<VID_T>& v) const {
-    VID_T lid;
-    if (OuterVertexGid2Lid(gid, lid)) {
-      v.SetValue(lid);
-      return true;
-    }
-    return false;
+    return Gid2Vertex(gid, v);
   }
 
   /**
@@ -205,7 +224,10 @@ class EdgecutFragmentBase
    * @return Global id of the vertex.
    */
   VID_T GetInnerVertexGid(vertex_t v) const {
-    return id_parser_.generate_global_id(fid(), v.GetValue());
+    std::stringstream ss(serialize_remote_vertex(pg_, v.GetValue()));
+    VID_T gid;
+    ss >> gid;
+    return gid;
   }
 
   /**
@@ -336,8 +358,14 @@ class EdgecutFragmentBase
   using base_t::fnum;
 
   bool Gid2Vertex(const vid_t& gid, vertex_t& v) const override {
-    return IsInnerVertexGid(gid) ? InnerVertexGid2Vertex(gid, v)
-                                 : OuterVertexGid2Vertex(gid, v);
+    std::stringstream ss;
+    ss << gid;
+    auto vh = get_vertex_from_deserialization(pg_, fid_, ss.str().c_str());
+    if (vh == NULL_VERTEX) {
+      return false;
+    }
+    v.SetValue(vh);
+    return true;
   }
 
   vid_t Vertex2Gid(const vertex_t& v) const override {
@@ -345,24 +373,6 @@ class EdgecutFragmentBase
   }
 
  protected:
-  inline bool IsInnerVertexGid(VID_T gid) const {
-    return id_parser_.get_fragment_id(gid) == fid();
-  }
-
-  inline bool IsInnerVertexLid(VID_T lid) const {
-    return inner_vertices_.Contain(vertex_t(lid));
-  }
-
-  inline bool Gid2Lid(VID_T gid, VID_T& lid) const {
-    return IsInnerVertexGid(gid) ? InnerVertexGid2Lid(gid, lid)
-                                 : OuterVertexGid2Lid(gid, lid);
-  }
-
-  inline bool InnerVertexGid2Lid(VID_T gid, VID_T& lid) const {
-    lid = id_parser_.get_local_id(gid);
-    return true;
-  }
-
   virtual bool OuterVertexGid2Lid(VID_T gid, VID_T& lid) const = 0;
 
   void initMirrorInfo(const CommSpec& comm_spec) {
@@ -379,7 +389,7 @@ class EdgecutFragmentBase
         gid_list.clear();
         gid_list.reserve(range.size());
         for (auto& v : range) {
-          gid_list.emplace_back(id_parser_.get_local_id(Vertex2Gid(v)));
+          gid_list.emplace_back(get_master_partition_for_vertex(pg_, fid_, v.GetValue()));
         }
         sync_comm::Send<std::vector<vertex_t>>(gid_list, dst_worker_id, 0,
                                                comm_spec.comm());
@@ -400,30 +410,10 @@ class EdgecutFragmentBase
     send_thread.join();
   }
 
-  template <typename IOADAPTOR_T>
-  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
-    base_t::serialize(writer);
-    InArchive arc;
-    arc << inner_vertices_ << outer_vertices_;
-    CHECK(writer->WriteArchive(arc));
-  }
-
-  template <typename IOADAPTOR_T>
-  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
-    base_t::deserialize(reader);
-    OutArchive arc;
-    CHECK(reader->ReadArchive(arc));
-    arc >> inner_vertices_ >> outer_vertices_;
-  }
-
-  inner_vertices_t inner_vertices_;
-  outer_vertices_t outer_vertices_;
-  std::vector<sub_vertices_t> outer_vertices_of_frag_;
   std::vector<mirror_vertices_t> mirrors_of_frag_;
-  using base_t::id_parser_;
   using base_t::vm_ptr_;
 };
 
 }  // namespace grape
 
-#endif  // GRAPE_FRAGMENT_EDGECUT_FRAGMENT_BASE_H_
+#endif  // GRIN_GRIN_EDGECUT_FRAGMENT_BASE_H_

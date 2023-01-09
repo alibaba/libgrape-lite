@@ -13,8 +13,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO: implement edgelist.cc
-
 #ifndef GRIN_TOPOLOGY_EDGE_LIST_H_
 #define GRIN_TOPOLOGY_EDGE_LIST_H_
 
@@ -22,29 +20,23 @@ limitations under the License.
 
 #ifdef ENABLE_EDGE_LIST
 
-EdgeList get_edge_list(const Graph);
+EdgeList get_edge_list(const Graph, const Direction);
 
 size_t get_edge_list_size(const EdgeList);
 
-EdgeListIterator get_edge_list_begin(EdgeList);
+EdgeListIterator get_edge_list_begin(const EdgeList);
 
-EdgeListIterator get_next_edge_iter(EdgeList, const EdgeListIterator);
+EdgeListIterator get_next_edge_iter(const EdgeList, EdgeListIterator);
 
-bool has_next_edge_iter(EdgeList, const EdgeListIterator);
+bool has_next_edge_iter(const EdgeList, const EdgeListIterator);
 
-Edge get_edge_from_iter(EdgeList, const EdgeListIterator);
+Edge get_edge_from_iter(const EdgeList, const EdgeListIterator);
 
-EdgeListIterator get_first_adjacent_edge_iter(const Graph, EdgeList,
-                                              const Vertex, const Direction);
+//EdgeList create_edge_list();
 
-bool get_next_adjacent_edge_iter(const Graph, EdgeList, EdgeListIterator*,
-                                 const Direction);
+//void destroy_edge_list(EdgeList);
 
-EdgeList create_edge_list();
-
-void destroy_edge_list(EdgeList);
-
-bool insert_edge_to_list(EdgeList, const Edge);
+//bool insert_edge_to_list(EdgeList, const Edge);
 
 #endif
 

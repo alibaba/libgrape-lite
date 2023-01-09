@@ -13,114 +13,115 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO: implement edgelist.cc
-
-#ifndef GRIN_TOPOLOGY_EDGE_LIST_H_
-#define GRIN_TOPOLOGY_EDGE_LIST_H_
-
-#include "grin/src/predefine.h"
+#include "grin/include/predefine.h"
+#include "grin/include/topology/vertexlist.h"
+#include "grin/include/topology/edgelist.h"
 
 #ifdef ENABLE_EDGE_LIST
 
-EdgeList get_edge_list(const Graph g, const Direction d) {
-    EdgeListHandler eh;
-    eh.g = g;
-    eh.size = 0;
-    eh.d = d;
-    eh.vlist = g->InnerVertices();
-
+EdgeList get_edge_list(const Graph gh, const Direction d) {
+    EdgeList_T* el = new EdgeList_T();
+    el->g = static_cast<Graph_T*>(gh);
+    el->size = 0;
+    el->d = d;
+    el->vl = (VertexList_T*)(&el->g->InnerVertices());
+    
+    Vertex begin = el->vl->begin_value(), end = el->vl->end_value() - 1;
     if (d == Direction::IN || d == Direction::BOTH) {
-        grape::AdjList<VID_T, EDATA_T> in_adj_list = grape::AdjList<VID_T, EDATA_T>(g->GetIncomingAdjList(*eh.vlist.begin()).begin_pointer(), g->GetIncomingAdjList(*eh.vlist.end()).end_pointer());
-        eh.size += in_adj_list.Size();
+        AdjacentList_T in_adj_list = AdjacentList_T(el->g->GetIncomingAdjList(Vertex_G(begin)).begin_pointer(), 
+                                                    el->g->GetIncomingAdjList(Vertex_G(end)).end_pointer());
+        el->size += in_adj_list.Size();
     }
     if (d == Direction::OUT || d == Direction::BOTH) {
-        grape::AdjList<VID_T, EDATA_T> out_adj_list = grape::AdjList<VID_T, EDATA_T>(g->GetOutgoingAdjList(*eh.vlist.begin()).begin_pointer(), g->GetOutgoingAdjList(*eh.vlist.end()).end_pointer());
-        eh.size += out_adj_list.Size();
+        AdjacentList_T out_adj_list = AdjacentList_T(el->g->GetOutgoingAdjList(Vertex_G(begin)).begin_pointer(),
+                                                     el->g->GetOutgoingAdjList(Vertex_G(end)).end_pointer());
+        el->size += out_adj_list.Size();
     }
-    return &eh;
+    return el;
 }
 
-size_t get_edge_list_size(const EdgeList eh) {
-    return eh->size;
+size_t get_edge_list_size(const EdgeList elh) {
+    EdgeList_T* el = static_cast<EdgeList_T*>(elh);
+    return el->size;
 }
 
-void adjust_edgelist_iter(const EdgeList eh, EdgeListIterator eiter) {
+void adjust_edgelist_iter(const EdgeList elh, EdgeListIterator elih) {
+    EdgeList_T* el = static_cast<EdgeList_T*>(elh);
+    EdgeListIterator_T* eli = static_cast<EdgeListIterator_T*>(elih);
     bool flag = true;
-    while (eiter->viter != eh->vlist.end()) {
+    while (has_next_vertex_iter(el->vl, eli->vli)) {
         flag = true;
-        if (eh->g->GetOutgoingAdjList(*(eiter->viter)).end_pointer() == eiter->ptr) {
-            assert(eh->d != Direction::IN);
+        Vertex_G gv = Vertex_G(get_vertex_from_iter(el->vl, eli->vli));
+        if (el->g->GetOutgoingAdjList(gv).end_pointer() == eli->ptr) {
+            assert(el->d != Direction::IN);
             flag = false;
-            if (eh->d == Direction::BOTH) {
-                eiter->ptr = eh->g->GetIncomingAdjList(*eiter->viter).begin_pointer();
-                eiter->d = Direction::IN;
+            if (el->d == Direction::BOTH) {
+                eli->ptr = el->g->GetIncomingAdjList(gv).begin_pointer();
+                eli->d = Direction::IN;
             } else {
-                eiter->viter++;
-                eiter->ptr = eh->g->GetOutgoingAdjList(*eiter->viter).begin_pointer();
+                eli->vli++;
+                eli->ptr = el->g->GetOutgoingAdjList(gv).begin_pointer();
             }
         }
-        if (eh->g->GetIncomingAdjList(*(eiter->viter)).end_pointer() == eiter->ptr) {
-            assert(eh->d != Direction::OUT);
+        if (el->g->GetIncomingAdjList(gv).end_pointer() == eli->ptr) {
+            assert(el->d != Direction::OUT);
             flag = false;
-            eiter->viter++;
-            if (eh->d == Direction::BOTH) {
-                eiter->ptr = eh->g->GetOutgoingAdjList(*eiter->viter).begin_pointer();
-                eiter->d = Direction::OUT;
+            eli->vli++;
+            if (el->d == Direction::BOTH) {
+                eli->ptr = el->g->GetOutgoingAdjList(gv).begin_pointer();
+                eli->d = Direction::OUT;
             } else {
-                eiter->ptr = eh->g->GetIncomingAdjList(*eiter->viter).begin_pointer();
+                eli->ptr = el->g->GetIncomingAdjList(gv).begin_pointer();
             }
         }
         if (flag) break;
     }
 }
 
-EdgeListIterator get_edge_list_begin(const EdgeList eh) {
-    EdgeListIteratorHandler eih;
-    eih.viter = eh->vlist.begin();
-    if (eh->d == Direction::IN) {
-        eih.ptr = eh->g->GetIncomingAdjList(*eih.viter).begin_pointer();
-        eih.d = Direction::IN;
+EdgeListIterator get_edge_list_begin(const EdgeList elh) {
+    EdgeList_T* el = static_cast<EdgeList_T*>(elh);
+    EdgeListIterator_T* eli = new EdgeListIterator_T();
+
+    eli->vli = el->vl->begin_value();
+    Vertex_G gv = Vertex_G(get_vertex_from_iter(el->vl, eli->vli));
+
+    if (el->d == Direction::IN) {
+        eli->ptr = el->g->GetIncomingAdjList(gv).begin_pointer();
+        eli->d = Direction::IN;
     } else {
-        eih.ptr = eh->g->GetOutgoingAdjList(*eih.viter).begin_pointer();
-        eih.d = Direction::OUT;
+        eli->ptr = el->g->GetOutgoingAdjList(gv).begin_pointer();
+        eli->d = Direction::OUT;
     }
-    adjust_edgelist_iter(eh, &eih);
-    return &eih;
+    adjust_edgelist_iter(el, eli);
+    return eli;
 }
 
-EdgeListIterator get_next_edge_iter(const EdgeList eh, const EdgeListIterator eiter) {
-    EdgeListIterator niter = eiter;
-    niter->ptr++;
-    adjust_edgelist_iter(eh, niter);
-    return niter;
+EdgeListIterator get_next_edge_iter(const EdgeList elh, EdgeListIterator elih) {
+    EdgeList_T* el = static_cast<EdgeList_T*>(elh);
+    EdgeListIterator_T* eli = static_cast<EdgeListIterator_T*>(elih);
+    eli->ptr++;
+    adjust_edgelist_iter(el, eli);
+    return eli;
 }
 
-bool has_next_edge_iter(const EdgeList eh, const EdgeListIterator eiter) {
-    return eiter->viter != eh->vlist.end();
+bool has_next_edge_iter(const EdgeList elh, const EdgeListIterator elih) {
+    EdgeList_T* el = static_cast<EdgeList_T*>(elh);
+    EdgeListIterator_T* eli = static_cast<EdgeListIterator_T*>(elih);
+    return eli->vli != el->vl->end_value();
 }
 
-Edge get_edge_from_iter(const EdgeList eh, const EdgeListIterator eiter) {
-    if (eiter->d == Direction::IN) {
-        return Edge(eiter->ptr->get_neighbor().GetValue(), (*eiter->viter).GetValue(), eiter->ptr->get_data());
+Edge get_edge_from_iter(const EdgeList elh, const EdgeListIterator elih) {
+    EdgeList_T* el = static_cast<EdgeList_T*>(elh);
+    EdgeListIterator_T* eli = static_cast<EdgeListIterator_T*>(elih);
+    Vertex v = get_vertex_from_iter(el->vl, eli->vli);
+
+    if (eli->d == Direction::IN) {
+        Edge_T* e = new Edge_T(eli->ptr->get_neighbor().GetValue(), v, eli->ptr->get_data());
+        return e;
     } else {
-        return Edge((*eiter->viter).GetValue(), eiter->ptr->get_neighbor().GetValue(), eiter->ptr->get_data());
+        Edge e = new Edge_T(v, eli->ptr->get_neighbor().GetValue(), eli->ptr->get_data());
+        return e;
     }
-}
-
-EdgeList get_adjacent_list(const Graph g, const Direction d, const Vertex v) {
-    EdgeListHandler eh;
-    eh.g = g;
-    eh.size = 0;
-    eh.d = d;
-    eh.vlist = VertexList(v.GetValue(), v.GetValue());
-
-    if (d == Direction::IN || d == Direction::BOTH) {
-        eh.size += g->GetIncomingAdjList(v).Size();
-    }
-    if (d == Direction::OUT || d == Direction::BOTH) {
-        eh.size += g->GetOutgoingAdjList(v).Size();
-    }
-    return &eh;
 }
 
 //EdgeList create_edge_list();
@@ -130,5 +131,3 @@ EdgeList get_adjacent_list(const Graph g, const Direction d, const Vertex v) {
 //bool insert_edge_to_list(EdgeList, const Edge);
 
 #endif
-
-#endif  // GRIN_TOPOLOGY_EDGE_LIST_H_

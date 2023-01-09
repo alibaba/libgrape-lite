@@ -16,6 +16,7 @@ option(PROFILING "Whether to enable profiling" OFF)
 option(WITH_ASAN "Build with Address Sanitizer" OFF)
 option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
 option(WCC_USE_GID "Use global id as wcc component id" OFF)
+option(WITH_GRIN "Use GRIN based fragments" ON)
 
 if (USE_HUGEPAGES AND LINUX)
   add_definitions(-DUSE_HUGEPAGES)
@@ -61,7 +62,7 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -ferror-limit=5")
 
 
 if (APPLE)
@@ -195,6 +196,8 @@ endmacro()
 # generate libgrape-lite
 # ------------------------------------------------------------------------------
 file(GLOB_RECURSE CORE_SRC_FILES "grape/*.cc")
+file(GLOB_RECURSE GRIN_SRC_FILES "grin/*.cc")
+
 add_library(grape-lite ${CORE_SRC_FILES})
 install_libgrapelite_target(grape-lite)
 
@@ -236,6 +239,14 @@ else ()
     set_target_properties(gpu_analytical_apps PROPERTIES OUTPUT_NAME run_cuda_app)
     target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})
     install_libgrapelite_target(gpu_analytical_apps)
+  endif ()
+
+  if (WITH_GRIN)
+    add_executable(grin_analytical_apps examples/analytical_apps/flags.cc examples/analytical_apps/run_grin_app.cc ${GRIN_SRC_FILES})
+    target_include_directories(grin_analytical_apps PRIVATE examples/analytical_apps)
+    set_target_properties(grin_analytical_apps PROPERTIES OUTPUT_NAME run_grin_app)
+    target_link_libraries(grin_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})
+    install_libgrapelite_target(grin_analytical_apps)
   endif ()
 endif ()
 

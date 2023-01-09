@@ -13,8 +13,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO: implement vertexlist.cc
-
 #ifndef GRIN_TOPOLOGY_VERTEX_LIST_H_
 #define GRIN_TOPOLOGY_VERTEX_LIST_H_
 
@@ -26,19 +24,19 @@ VertexList get_vertex_list(const Graph);
 
 size_t get_vertex_list_size(const VertexList);
 
-VertexListIterator get_vertex_list_begin(VertexList);
+VertexListIterator get_vertex_list_begin(const VertexList);
 
-VertexListIterator get_next_vertex_iter(VertexList, const VertexListIterator);
+VertexListIterator get_next_vertex_iter(const VertexList, VertexListIterator);
 
-bool has_next_vertex_iter(VertexList, const VertexListIterator);
+bool has_next_vertex_iter(const VertexList, const VertexListIterator);
 
-Vertex get_vertex_from_iter(VertexList, const VertexListIterator);
+Vertex get_vertex_from_iter(const VertexList, const VertexListIterator);
 
-VertexList create_vertex_list();
+//VertexList create_vertex_list();
 
-void destroy_vertex_list(VertexList);
+//void destroy_vertex_list(VertexList);
 
-bool insert_vertex_to_list(VertexList, const Vertex);
+//bool insert_vertex_to_list(VertexList, const Vertex);
 
 #endif
 

@@ -12,6 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#include <climits>
 
 #include "grape/fragment/immutable_edgecut_fragment.h"
 #include "grape/graph/adj_list.h"
@@ -48,6 +49,7 @@ typedef enum {
   UNSIGNED = 1,
   FLOAT = 2,
   DOUBLE = 3,
+  EMPTY = 4,
 } DataType;
 
 /* The following macros are defined as the features of the storage. */
@@ -57,6 +59,7 @@ typedef enum {
 #define WITH_EDGE_WEIGHT               // There is weight for edge.
 #define ENABLE_VERTEX_LIST             // Enable the vertex list structure.
 #define ENABLE_EDGE_LIST               // Enable the edge list structure.
+#define ENABLE_ADJACENT_LIST           // Enable the adjacent list structure.
 #define PARTITION_STRATEGY EDGE_CUT  // The partition strategy.
 // There are all/part edges on local vertices.
 #define EDGES_ON_LOCAL_VERTEX ALL
@@ -65,62 +68,86 @@ typedef enum {
 // The direction of edges on local vertices.
 #define EDGES_ON_LOCAL_VERTEX_DIRECTION BOTH
 
-// TODO: define these values according to the data types defined:
-// modify NULL to invalid values in immutable_edgecut_fragment.
+
+#define G_OID_T long long
+#define G_VID_T unsigned int
+#define G_VDATA_T grape::EmptyType
+#define G_VDATA_DT DataType::EMPTY
+#define G_EDATA_T double
+#define G_EDATA_DT DataType::DOUBLE
 
 /* The followings macros are defined as invalid value. */
-#define NULL_TYPE NULL       // Null type (null data type).
-#define NULL_GRAPH NULL      // Null graph handle (invalid return value).
-#define NULL_VERTEX NULL     // Null vertex handle (invalid return value).
-#define NULL_EDGE NULL       // Null edge handle (invalid return value).
-#define NULL_PARTITION NULL  // Null partition handle (invalid return value).
-#define NULL_REMOTE_PARTITION NULL
-// Null remote partition handle (invalid return value).
-#define NULL_REMOTE_VERTEX NULL
-// Null remote vertex handle (invalid return value).
-#define NULL_REMOTE_EDGE NULL
-// Null remote edge handle (invalid return value).
+#define NULL_TYPE NULL                  // Null type (null data type).
+#define NULL_GRAPH NULL                 // Null graph handle (invalid return value).
+#define NULL_VERTEX UINT_MAX            // Null vertex handle (invalid return value).
+#define NULL_EDGE NULL                  // Null edge handle (invalid return value).
+#define NULL_PARTITION UINT_MAX         // Null partition handle (invalid return value).
+#define NULL_REMOTE_PARTITION UINT_MAX  // Null remote partition handle (invalid return value).
+#define NULL_REMOTE_VERTEX UINT_MAX     // Null remote vertex handle (invalid return value).
+#define NULL_REMOTE_EDGE NULL           // Null remote edge handle (invalid return value).
+#define NULL_LIST NULL                  // Null list of any kind handler
 
-// TODO: define these data types:
-// modify void* to data types in immutable_edgecut_fragment.
-#define OID_T long
-#define VID_T long
-
-#define VDATA_T int
-#define VDATA_DT DataType::INT
-
-#define EDATA_T double
-#define EDATA_DT DataType::DOUBLE
 
 /* The following data types shall be defined through typedef. */
-typedef grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T>* Graph;       // This is a handle for accessing a local graph.
-typedef grape::Vertex<VID_T> Vertex;      // This is a handle for accessing a single vertex.
-typedef grape::Edge<VID_T, EDATA_T> Edge;        // This is a handle for accessing a single edge.
-//typedef DataType DataType;    // The enum type for data types.
-typedef grape::VertexRange<VID_T> VertexList;  // The type for respresenting a list of vertices.
-typedef grape::VertexRange<VID_T>::iterator VertexListIterator;
-// The iterator for accessing items in VertexList.
-struct EdgeListHandler {
-  Graph g;
+
+// local graph
+typedef grape::ImmutableEdgecutFragment<G_OID_T, G_VID_T, G_VDATA_T, G_EDATA_T> Graph_T;
+typedef void* Graph;
+
+// vertex
+typedef G_VID_T Vertex;
+typedef grape::Vertex<G_VID_T> Vertex_G;
+
+// vertex list
+typedef grape::VertexRange<G_VID_T> VertexList_T;  
+typedef void* VertexList;
+typedef G_VID_T VertexListIterator;
+
+// adjacent list
+typedef grape::AdjList<G_VID_T, G_EDATA_T> AdjacentList_T;
+typedef void* AdjacentList;
+typedef grape::Nbr<G_VID_T, G_EDATA_T> AdjacentListIterator_T;
+typedef void* AdjacentListIterator;
+
+// edge
+typedef grape::Edge<G_VID_T, G_EDATA_T> Edge_T;        
+typedef void* Edge;
+
+// edge list
+struct EdgeList_T {
+  Graph_T* g;
   Direction d;
   size_t size;
-  grape::VertexRange<VID_T> vlist;
+  VertexList_T* vl;
 };
-struct EdgeListIteratorHandler {
+typedef void* EdgeList;
+struct EdgeListIterator_T {
   Direction d;
-  grape::VertexRange<VID_T>::iterator viter;
-  grape::Nbr<VID_T, EDATA_T>* ptr;
+  VertexListIterator vli;
+  AdjacentListIterator_T* ptr;
 };
-typedef EdgeListHandler* EdgeList;  // The type for respresenting a list of edges.
-typedef EdgeListIteratorHandler* EdgeListIterator; // The iterator for accessing items in EdgeList.
-typedef grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T>* PartitionedGraph;  // This is a handle for a partitoned graph.
-typedef unsigned Partition;  // This is a handle for accessing a local partition.
-typedef unsigned* PartitionList;    // The type for a list of local partitions.
-typedef Partition RemotePartition;  // This is a handle for a remote partiton.
-typedef Vertex RemoteVertex;  // This is a handle for accessing a remote vertex.
-typedef Edge RemoteEdge;    // This is a handle for  a remote edge.
-typedef PartitionList RemotePartitionList;  // The type for a list of remote partitions.
-typedef Vertex* RemoteVertexList;     // The type for a list of remote vertices.
+typedef void* EdgeListIterator;
+
+// partitioned graph
+typedef grape::ImmutableEdgecutFragment<G_OID_T, G_VID_T, G_VDATA_T, G_EDATA_T> PartitionedGraph_T;
+typedef void* PartitionedGraph;
+
+// partition and partition list
+typedef unsigned Partition;
+typedef Partition* PartitionList;
+
+// remote partition and remote partition list
+typedef Partition RemotePartition;
+typedef PartitionList RemotePartitionList;
+
+// remote vertex and remote vertex list
+typedef Vertex RemoteVertex;
+typedef RemoteVertex* RemoteVertexList;
+
+// remote edge
+typedef Edge_T RemoteEdge_T;
+typedef Edge RemoteEdge;
+
 
 /* The followings macros are not required in libgrape-lite. */
 /*

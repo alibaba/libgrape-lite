@@ -13,14 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO: implement structure.cc
-
 #ifndef GRIN_TOPOLOGY_STRUCTURE_H_
 #define GRIN_TOPOLOGY_STRUCTURE_H_
 
 #include "../predefine.h"
 
-Direction get_edge_direction(const Graph, const Edge);
+bool is_directed(const Graph);
 
 #ifdef WITH_EDGE_SRC
 Vertex get_edge_src(const Graph, const Edge);
@@ -39,9 +37,9 @@ void* get_edge_weight_value(const Graph, Edge);
 #ifdef WITH_VERTEX_DATA
 DataType get_vertex_data_type(const Graph, const Vertex);
 
-void* get_vertex_data_value(const Graph, Vertex);
+G_VDATA_T get_vertex_data_value(const Graph, const Vertex);
 
-void set_vertex_data_value(const Graph, Vertex, const void*);
+//void set_vertex_data_value(const Graph, Vertex, const void*);
 #endif
 
 #endif  // GRIN_TOPOLOGY_STRUCTURE_H_
