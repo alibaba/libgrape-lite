@@ -60,8 +60,9 @@ limitations under the License.
 #define __AFFINITY__ false
 #endif
 
-#define GRIN
+#ifdef GRIN
 #include "grin/grin_immutable_edgecut_fragment.h"
+#endif
 
 namespace grape {
 

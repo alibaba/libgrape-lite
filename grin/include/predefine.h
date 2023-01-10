@@ -50,7 +50,58 @@ typedef enum {
   FLOAT = 2,
   DOUBLE = 3,
   EMPTY = 4,
+  OTHER = 5,
 } DataType;
+
+template <typename T>
+struct DataTypeName
+{
+    static DataType Get()
+    {
+        return DataType::OTHER;
+    }
+};
+template <>
+struct DataTypeName<int>
+{
+    static DataType Get()
+    {
+        return DataType::INT;
+    }
+};
+template <>
+struct DataTypeName<unsigned>
+{
+    static DataType Get()
+    {
+        return DataType::UNSIGNED;
+    }
+};
+template <>
+struct DataTypeName<float>
+{
+    static DataType Get()
+    {
+        return DataType::FLOAT;
+    }
+};
+template <>
+struct DataTypeName<double>
+{
+    static DataType Get()
+    {
+        return DataType::DOUBLE;
+    }
+};
+template <>
+struct DataTypeName<grape::EmptyType>
+{
+    static DataType Get()
+    {
+        return DataType::EMPTY;
+    }
+};
+
 
 /* The following macros are defined as the features of the storage. */
 #define WITH_VERTEX_DATA               // There is data on vertex.
@@ -69,13 +120,6 @@ typedef enum {
 #define EDGES_ON_LOCAL_VERTEX_DIRECTION BOTH
 
 
-#define G_OID_T long long
-#define G_VID_T unsigned int
-#define G_VDATA_T grape::EmptyType
-#define G_VDATA_DT DataType::EMPTY
-#define G_EDATA_T double
-#define G_EDATA_DT DataType::DOUBLE
-
 /* The followings macros are defined as invalid value. */
 #define NULL_TYPE NULL                  // Null type (null data type).
 #define NULL_GRAPH NULL                 // Null graph handle (invalid return value).
@@ -86,7 +130,6 @@ typedef enum {
 #define NULL_REMOTE_VERTEX UINT_MAX     // Null remote vertex handle (invalid return value).
 #define NULL_REMOTE_EDGE NULL           // Null remote edge handle (invalid return value).
 #define NULL_LIST NULL                  // Null list of any kind handler
-
 
 /* The following data types shall be defined through typedef. */
 

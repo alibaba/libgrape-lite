@@ -6,6 +6,11 @@ set(LIBGRAPELITE_MINOR_VERSION 2)
 set(LIBGRAPELITE_PATCH_VERSION 2)
 set(LIBGRAPELITE_VERSION ${LIBGRAPELITE_MAJOR_VERSION}.${LIBGRAPELITE_MINOR_VERSION}.${LIBGRAPELITE_PATCH_VERSION})
 
+set(OID_T int CACHE STRING "Default OID_T")
+set(VID_T int CACHE STRING "Default VID_T")
+set(VDATA_T int CACHE STRING "Default VDATA_T")
+set(EDATA_T int CACHE STRING "Default EDATA_T")
+
 # ------------------------------------------------------------------------------
 # cmake options
 # ------------------------------------------------------------------------------
@@ -29,6 +34,10 @@ endif ()
 
 if (WCC_USE_GID)
   add_definitions(-DWCC_USE_GID)
+endif ()
+
+if (WITH_GRIN)
+  add_definitions(-DGRIN)
 endif ()
 
 include_directories(SYSTEM thirdparty)
@@ -62,7 +71,7 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -ferror-limit=5")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 
 
 if (APPLE)
@@ -243,6 +252,8 @@ else ()
 
   if (WITH_GRIN)
     add_executable(grin_analytical_apps examples/analytical_apps/flags.cc examples/analytical_apps/run_grin_app.cc ${GRIN_SRC_FILES})
+    message(STATUS "OID_T - " ${OID_T} "\tVID_T - " ${VID_T} "\tVDATA_T - " ${VDATA_T} "\tEDATA_T - " ${EDATA_T})
+    add_compile_definitions(grin_analytical_apps PRIVATE G_OID_T=${OID_T} G_VID_T=${VID_T} G_VDATA_T=${VDATA_T} G_EDATA_T=${EDATA_T})
     target_include_directories(grin_analytical_apps PRIVATE examples/analytical_apps)
     set_target_properties(grin_analytical_apps PROPERTIES OUTPUT_NAME run_grin_app)
     target_link_libraries(grin_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})

@@ -37,7 +37,7 @@ Vertex get_edge_dst(const Graph gh, const Edge eh) {
 
 #ifdef WITH_EDGE_WEIGHT
 DataType get_edge_weight_type(const Graph g) {
-    return G_EDATA_DT;
+    return DataTypeName<G_EDATA_T>::Get();
 }
 
 G_EDATA_T get_edge_weight_value(const Graph gh, const Edge eh) {
@@ -48,7 +48,7 @@ G_EDATA_T get_edge_weight_value(const Graph gh, const Edge eh) {
 
 #ifdef WITH_VERTEX_DATA
 DataType get_vertex_data_type(const Graph g) {
-    return G_VDATA_DT;    
+    return DataTypeName<G_VDATA_T>::Get(); 
 }
 
 G_VDATA_T get_vertex_data_value(const Graph gh, const Vertex v) {

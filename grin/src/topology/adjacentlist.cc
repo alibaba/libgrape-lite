@@ -60,7 +60,7 @@ Vertex get_neighbor_from_iter(const AdjacentList alh, const AdjacentListIterator
 
 #ifdef WITH_EDGE_WEIGHT
 DataType get_adjacent_edge_weight_type(const Graph g) {
-    return G_EDATA_DT;
+    return DataTypeName<G_EDATA_T>::Get();
 }
 
 G_EDATA_T get_adjacent_edge_weight_value(const AdjacentList alh, const AdjacentListIterator alih) {
