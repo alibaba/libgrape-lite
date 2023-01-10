@@ -13,9 +13,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRIN_TOPOLOGY_STRUCTURE_H_
-#define GRIN_TOPOLOGY_STRUCTURE_H_
-
 #include "grin/include/predefine.h"
 #include "grin/include/topology/structure.h"
 
