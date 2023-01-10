@@ -58,5 +58,3 @@ G_VDATA_T get_vertex_data_value(const Graph gh, const Vertex v) {
 
 //void set_vertex_data_value(const Graph g, Vertex, const void*);
 #endif
-
-#endif  // GRIN_TOPOLOGY_STRUCTURE_H_

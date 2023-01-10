@@ -31,7 +31,7 @@ Vertex get_edge_dst(const Graph, const Edge);
 #ifdef WITH_EDGE_WEIGHT
 DataType get_edge_weight_type(const Graph, const Edge);
 
-void* get_edge_weight_value(const Graph, Edge);
+G_EDATA_T get_edge_weight_value(const Graph, const Edge);
 #endif
 
 #ifdef WITH_VERTEX_DATA
