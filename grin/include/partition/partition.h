@@ -46,6 +46,8 @@ char* serialize_remote_partition(const PartitionedGraph, const RemotePartition);
 
 char* serialize_remote_vertex(const PartitionedGraph, const RemoteVertex);
 
+char* serialize_remote_vertex_with_data(const PartitionedGraph, const RemoteVertex, const G_VDATA_T);
+
 char* serialize_remote_edge(const PartitionedGraph, const RemoteEdge);
 
 Partition get_partition_from_deserialization(const PartitionedGraph,
@@ -53,6 +55,9 @@ Partition get_partition_from_deserialization(const PartitionedGraph,
 
 Vertex get_vertex_from_deserialization(const PartitionedGraph, const Partition,
                                        const char*);
+
+Vertex get_vertex_from_deserialization_with_data(const PartitionedGraph, const Partition,
+                                                 const char*, G_VDATA_T&);
 
 Edge get_edge_from_deserialization(const PartitionedGraph, const Partition,
                                    const char*);

@@ -64,18 +64,37 @@ Graph get_local_graph_from_partition(const PartitionedGraph pgh, const Partition
 
 // serialization & deserialization
 char* serialize_remote_partition(const PartitionedGraph pgh, const RemotePartition rp) {
-    char* out = new char[12];
-    snprintf(out, 12, "%s", std::to_string(rp).c_str());
+    std::stringstream ss;
+    ss << rp;
+    int len = ss.str().length()+1;
+    char* out = new char[len];
+    snprintf(out, len, "%s", ss.str().c_str());
     return out;
 }
 
 char* serialize_remote_vertex(const PartitionedGraph pgh, const RemoteVertex rv) {
     PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
     G_VID_T gid = pg->Vertex2Gid(Vertex_G(rv));
-    char* out = new char[12];
-    snprintf(out, 12, "%s", std::to_string(gid).c_str());
+    std::stringstream ss;
+    ss << gid;
+    int len = ss.str().length()+1;
+    char* out = new char[len];
+    snprintf(out, len, "%s", ss.str().c_str());
     return out;
 }
+
+char* serialize_remote_vertex_with_data(const PartitionedGraph pgh, const RemoteVertex rv, const G_VDATA_T data) {
+    PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
+    G_VID_T gid = pg->Vertex2Gid(Vertex_G(rv));
+    std::stringstream ss;
+    ss << gid;
+    ss << data;
+    int len = ss.str().length()+1;
+    char* out = new char[len];
+    snprintf(out, len, "%s", ss.str().c_str());
+    return out;
+}
+
 
 char* serialize_remote_edge(const PartitionedGraph pgh, const RemoteEdge reh) {
     PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
@@ -88,8 +107,8 @@ char* serialize_remote_edge(const PartitionedGraph pgh, const RemoteEdge reh) {
     } else {
         ss << src << dst << re->edata;
     }
-    char* out = new char[38];
-    snprintf(out, 38, "%s", ss.str().c_str());
+    char* out = new char[40];
+    snprintf(out, 40, "%s", ss.str().c_str());
     return out;
 }
 
@@ -112,6 +131,21 @@ Vertex get_vertex_from_deserialization(const PartitionedGraph pgh,
     G_VID_T gv;
     std::stringstream ss(msg);
     ss >> gv;
+    Vertex_G v;
+    if (!pg->Gid2Vertex(gv, v)) {
+        return NULL_VERTEX;
+    }
+    return v.GetValue();
+}
+
+Vertex get_vertex_from_deserialization_with_data(const PartitionedGraph pgh,
+                                                 const Partition p,
+                                                 const char* msg,
+                                                 G_VDATA_T& data) {
+    PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
+    G_VID_T gv;
+    std::stringstream ss(msg);
+    ss >> gv >> data;
     Vertex_G v;
     if (!pg->Gid2Vertex(gv, v)) {
         return NULL_VERTEX;
