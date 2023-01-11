@@ -14,8 +14,10 @@ limitations under the License.
 */
 
 #include "grin/include/predefine.h"
+extern "C" {
 #include "grin/include/topology/vertexlist.h"
 #include "grin/include/topology/edgelist.h"
+}
 
 #ifdef ENABLE_EDGE_LIST
 

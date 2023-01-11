@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef GRIN_TOPOLOGY_VERTEX_LIST_H_
 #define GRIN_TOPOLOGY_VERTEX_LIST_H_
 
-#include "../predefine.h"
+//#include "../predefine.h"
 
 #ifdef ENABLE_VERTEX_LIST
 

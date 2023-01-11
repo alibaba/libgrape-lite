@@ -20,8 +20,10 @@ limitations under the License.
 #include "grape/graph/adj_list.h"
 #include "grape/utils/vertex_array.h"
 
+extern "C" {
 #include "grin/include/partition/partition.h"
 #include "grin/include/topology/vertexlist.h"
+}
 
 #include "grin/grin_fragment_base.h"
 

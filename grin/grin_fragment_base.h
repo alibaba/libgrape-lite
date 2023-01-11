@@ -24,8 +24,10 @@ limitations under the License.
 #include "grape/worker/comm_spec.h"
 
 #include "grin/include/predefine.h"
+extern "C" {
 #include "grin/include/topology/vertexlist.h"
 #include "grin/include/partition/partition.h"
+}
 
 namespace grape {
 

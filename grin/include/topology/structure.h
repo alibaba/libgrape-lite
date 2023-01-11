@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef GRIN_TOPOLOGY_STRUCTURE_H_
 #define GRIN_TOPOLOGY_STRUCTURE_H_
 
-#include "../predefine.h"
+//#include "../predefine.h"
 
 bool is_directed(const Graph);
 

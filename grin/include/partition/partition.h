@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef GRIN_PARTITION_PARTITION_H_
 #define GRIN_PARTITION_PARTITION_H_
 
-#include "grin/include/predefine.h"
+//#include "../predefine.h"
 
 #ifdef PARTITION_STRATEGY
 // basic partition informations

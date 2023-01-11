@@ -14,8 +14,9 @@ limitations under the License.
 */
 
 #include "grin/include/predefine.h"
+extern "C" {
 #include "grin/include/partition/partition.h"
-
+}
 #include <string>
 #include <cstdlib>
 

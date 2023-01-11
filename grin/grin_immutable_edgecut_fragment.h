@@ -40,8 +40,10 @@ limitations under the License.
 #include "grape/worker/comm_spec.h"
 
 #include "grin/include/predefine.h"
+extern "C" {
 #include "grin/include/topology/structure.h"
 #include "grin/include/partition/partition.h"
+}
 #include "grin/grin_csr_edgecut_fragment_base.h"
 
 namespace grape {

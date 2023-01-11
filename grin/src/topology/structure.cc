@@ -14,7 +14,9 @@ limitations under the License.
 */
 
 #include "grin/include/predefine.h"
+extern "C" {
 #include "grin/include/topology/structure.h"
+}
 
 bool is_directed(const Graph gh) {
     Graph_T* g = static_cast<Graph_T*>(gh);
