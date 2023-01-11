@@ -82,8 +82,14 @@ char* serialize_remote_edge(const PartitionedGraph pgh, const RemoteEdge reh) {
     RemoteEdge_T* re = static_cast<RemoteEdge_T*>(reh);
     G_VID_T src = pg->Vertex2Gid(Vertex_G(re->src));
     G_VID_T dst = pg->Vertex2Gid(Vertex_G(re->dst));
+    std::stringstream ss;
+    if (DataTypeName<G_EDATA_T>::Get() == DataType::EMPTY) {
+        ss << src << dst;
+    } else {
+        ss << src << dst << re->edata;
+    }
     char* out = new char[38];
-    snprintf(out, 38, "%s %s %s", std::to_string(src).c_str(), std::to_string(dst).c_str(), std::to_string(re->edata).c_str());
+    snprintf(out, 38, "%s", ss.str().c_str());
     return out;
 }
 
@@ -120,7 +126,11 @@ Edge get_edge_from_deserialization(const PartitionedGraph pgh,
     G_VID_T src, dst;
     G_EDATA_T data;
     std::stringstream ss(msg);
-    ss >> src >> dst >> data;
+    if (DataTypeName<G_EDATA_T>::Get() == DataType::EMPTY) {
+        ss >> src >> dst;
+    } else {
+        ss >> src >> dst >> data;
+    }
     Vertex_G v1, v2;
     if (!pg->Gid2Vertex(src, v1) || !pg->Gid2Vertex(dst, v2)) {
         return NULL_EDGE;

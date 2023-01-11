@@ -39,6 +39,8 @@ int main(int argc, char* argv[]) {
   std::string name = FLAGS_application;
   if (name.find("sssp") != std::string::npos) {
     grape::Run<int64_t, uint32_t, grape::EmptyType, double>();
+  } else {
+    grape::Run<int64_t, uint32_t, grape::EmptyType, grape::EmptyType>();
   }
 
   grape::Finalize();

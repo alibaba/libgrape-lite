@@ -6,10 +6,10 @@ set(LIBGRAPELITE_MINOR_VERSION 2)
 set(LIBGRAPELITE_PATCH_VERSION 2)
 set(LIBGRAPELITE_VERSION ${LIBGRAPELITE_MAJOR_VERSION}.${LIBGRAPELITE_MINOR_VERSION}.${LIBGRAPELITE_PATCH_VERSION})
 
-set(OID_T int CACHE STRING "Default OID_T")
-set(VID_T int CACHE STRING "Default VID_T")
-set(VDATA_T int CACHE STRING "Default VDATA_T")
-set(EDATA_T int CACHE STRING "Default EDATA_T")
+set(OID_T "long long" CACHE STRING "Default OID_T")
+set(VID_T "unsigned int" CACHE STRING "Default VID_T")
+set(VDATA_T "grape::EmptyType" CACHE STRING "Default VDATA_T")
+set(EDATA_T "double" CACHE STRING "Default EDATA_T")
 
 # ------------------------------------------------------------------------------
 # cmake options
