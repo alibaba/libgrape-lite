@@ -60,9 +60,7 @@ limitations under the License.
 #define __AFFINITY__ false
 #endif
 
-#ifdef GRIN
 #include "grin/grin_immutable_edgecut_fragment.h"
-#endif
 
 namespace grape {
 
@@ -145,7 +143,6 @@ void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
                                       out_prefix, args...);
   } else {
     graph_spec.set_rebalance(false, 0);
-#ifdef GRIN
     using O_FRAG_T =
         ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
     std::shared_ptr<O_FRAG_T> o_fragment =
@@ -158,93 +155,7 @@ void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
     auto app = std::make_shared<AppType>();
     DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
                                       out_prefix, args...);
-#else
-    using FRAG_T =
-        ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using AppType = APP_T<FRAG_T>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                      out_prefix, args...);
-#endif
   }
-}
-
-
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          typename std::enable_if<std::is_floating_point<G_EDATA_T>::value, EDATA_T>::type* = nullptr>
-void runApps(std::string name, CommSpec comm_spec, std::string out_prefix, int fnum, grape::ParallelEngineSpec spec) {
-  if (name.find("sssp") != std::string::npos) {
-        if (name == "sssp_auto") {
-          CreateAndQuery<OID_T, VID_T, VDATA_T, double, LoadStrategy::kOnlyOut,
-                        SSSPAuto, OID_T>(comm_spec, out_prefix, fnum, spec,
-                                          FLAGS_sssp_source);
-        } else if (name == "sssp") {
-          CreateAndQuery<OID_T, VID_T, VDATA_T, double, LoadStrategy::kOnlyOut,
-                        SSSP, OID_T>(comm_spec, out_prefix, fnum, spec,
-                                      FLAGS_sssp_source);
-        } else {
-          LOG(FATAL) << "No avaiable application named [" << name << "].";
-        }
-  }
-}
-
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          typename std::enable_if<!std::is_floating_point<G_EDATA_T>::value, EDATA_T>::type* = nullptr>
-void runApps(std::string name, CommSpec comm_spec, std::string out_prefix, int fnum, grape::ParallelEngineSpec spec) {
-    if (name == "bfs_auto") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    BFSAuto, OID_T>(comm_spec, out_prefix, fnum, spec,
-                                    FLAGS_bfs_source);
-    } else if (name == "bfs") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    BFS, OID_T>(comm_spec, out_prefix, fnum, spec,
-                                FLAGS_bfs_source);
-    } else if (name == "pagerank_local") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    PageRankLocal, double, int>(comm_spec, out_prefix, fnum,
-                                                spec, FLAGS_pr_d, FLAGS_pr_mr);
-    } else if (name == "pagerank_local_parallel") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
-                    PageRankLocalParallel, double, int>(
-          comm_spec, out_prefix, fnum, spec, FLAGS_pr_d, FLAGS_pr_mr);
-    } else if (name == "pagerank_auto") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
-                    PageRankAuto, double, int>(comm_spec, out_prefix, fnum,
-                                                spec, FLAGS_pr_d, FLAGS_pr_mr);
-    } else if (name == "pagerank") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    PageRank, double, int>(comm_spec, out_prefix, fnum, spec,
-                                            FLAGS_pr_d, FLAGS_pr_mr);
-    } else if (name == "pagerank_parallel") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
-                    PageRankParallel, double, int>(
-          comm_spec, out_prefix, fnum, spec, FLAGS_pr_d, FLAGS_pr_mr);
-    } else if (name == "cdlp_auto") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
-                    CDLPAuto, int>(comm_spec, out_prefix, fnum, spec,
-                                    FLAGS_cdlp_mr);
-    } else if (name == "cdlp") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    CDLP, int>(comm_spec, out_prefix, fnum, spec,
-                                FLAGS_cdlp_mr);
-    } else if (name == "wcc_auto") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    WCCAuto>(comm_spec, out_prefix, fnum, spec);
-    } else if (name == "wcc") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    WCC>(comm_spec, out_prefix, fnum, spec);
-    } else if (name == "lcc_auto") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    LCCAuto>(comm_spec, out_prefix, fnum, spec);
-    } else if (name == "lcc") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                    LCC>(comm_spec, out_prefix, fnum, spec,
-                          FLAGS_degree_threshold);
-    } else {
-      LOG(FATAL) << "No avaiable application named [" << name << "].";
-    }
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
@@ -293,8 +204,79 @@ void Run() {
     }
   }
   int fnum = comm_spec.fnum();
-  std::string name = FLAGS_application;
-  runApps<OID_T, VID_T, VDATA_T, EDATA_T>(name, comm_spec, out_prefix, fnum, spec);
+
+#ifdef APP_BFS_AUTO
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T, LoadStrategy::kOnlyOut,
+                BFSAuto, OID_T>(comm_spec, out_prefix, fnum, spec,
+                                FLAGS_bfs_source);
+#endif
+#ifdef APP_BFS
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                BFS, OID_T>(comm_spec, out_prefix, fnum, spec,
+                            FLAGS_bfs_source);
+#endif
+#ifdef APP_PAGERANK_LOCAL
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                PageRankLocal, double, int>(comm_spec, out_prefix, fnum,
+                                            spec, FLAGS_pr_d, FLAGS_pr_mr);
+#endif
+#ifdef APP_PAGERANK_LOCAL_PARALLEL
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+                PageRankLocalParallel, double, int>(
+      comm_spec, out_prefix, fnum, spec, FLAGS_pr_d, FLAGS_pr_mr);
+#endif
+#ifdef APP_PAGERANK_AUTO
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+                PageRankAuto, double, int>(comm_spec, out_prefix, fnum,
+                                            spec, FLAGS_pr_d, FLAGS_pr_mr);
+#endif
+#ifdef APP_PAGERANK
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                PageRank, double, int>(comm_spec, out_prefix, fnum, spec,
+                                        FLAGS_pr_d, FLAGS_pr_mr);
+#endif
+#ifdef APP_PAGERANK_PARALLEL
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+                PageRankParallel, double, int>(
+      comm_spec, out_prefix, fnum, spec, FLAGS_pr_d, FLAGS_pr_mr);
+#endif
+#ifdef APP_CDLP_AUTO
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+                CDLPAuto, int>(comm_spec, out_prefix, fnum, spec,
+                                FLAGS_cdlp_mr);
+#endif
+#ifdef APP_CDLP
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                CDLP, int>(comm_spec, out_prefix, fnum, spec,
+                            FLAGS_cdlp_mr);
+#endif
+#ifdef APP_WCC_AUTO
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                WCCAuto>(comm_spec, out_prefix, fnum, spec);
+#endif
+#ifdef APP_WCC
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                WCC>(comm_spec, out_prefix, fnum, spec);
+#endif
+#ifdef APP_LCC_AUTO
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                LCCAuto>(comm_spec, out_prefix, fnum, spec);
+#endif
+#ifdef APP_LCC
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                LCC>(comm_spec, out_prefix, fnum, spec,
+                      FLAGS_degree_threshold);
+#endif
+#ifdef APP_SSSP_AUTO
+  CreateAndQuery<OID_T, VID_T, VDATA_T, double, LoadStrategy::kOnlyOut,
+                SSSPAuto, OID_T>(comm_spec, out_prefix, fnum, spec,
+                                  FLAGS_sssp_source);
+#endif
+#ifdef APP_SSSP
+  CreateAndQuery<OID_T, VID_T, VDATA_T, double, LoadStrategy::kOnlyOut,
+                SSSP, OID_T>(comm_spec, out_prefix, fnum, spec,
+                              FLAGS_sssp_source);
+#endif
   
 #ifdef GRANULA
   granula::operation offloadGraph("grape", "Id.Unique", "OffloadGraph",

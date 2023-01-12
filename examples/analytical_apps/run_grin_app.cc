@@ -14,6 +14,7 @@ limitations under the License.
 */
 
 #include "run_grin_app.h"
+#include "grin/include/predefine.h"
 
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>
@@ -36,12 +37,7 @@ int main(int argc, char* argv[]) {
 
   grape::Init();
 
-  std::string name = FLAGS_application;
-  if (name.find("sssp") != std::string::npos) {
-    grape::Run<int64_t, uint32_t, grape::EmptyType, double>();
-  } else {
-    grape::Run<int64_t, uint32_t, grape::EmptyType, grape::EmptyType>();
-  }
+  grape::Run<Graph_T::oid_t, Graph_T::vid_t, Graph_T::vdata_t, Graph_T::edata_t>();
 
   grape::Finalize();
 
