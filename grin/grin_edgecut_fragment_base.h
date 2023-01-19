@@ -20,17 +20,18 @@ limitations under the License.
 #include "grape/graph/adj_list.h"
 #include "grape/utils/vertex_array.h"
 
+#include "grin/grin_fragment_base.h"
+
 extern "C" {
 #include "grin/include/partition/partition.h"
 #include "grin/include/topology/vertexlist.h"
 }
 
-#include "grin/grin_fragment_base.h"
-
 namespace grape {
 
 /**
- * @brief IEdgecutFragment defines the interfaces of fragments with edgecut.
+ * @brief GRIN_EdgecutFragment is the GRIN version of IEdgecutFragment in grape,
+ * which defines the interfaces of fragments with edgecut.
  * To learn more about edge-cut and vertex-cut, please refers to
  * https://spark.apache.org/docs/1.6.2/graphx-programming-guide.html#optimized-representation
  *
@@ -49,7 +50,8 @@ namespace grape {
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           typename TRAITS_T>
 class GRIN_EdgecutFragmentBase
-    : virtual public GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T> {
+    : virtual public GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T,
+                                       TRAITS_T> {
  public:
   using base_t = GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
   using vid_t = VID_T;
@@ -74,7 +76,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The number of outer vertices in this fragment.
    */
-  VID_T GetOuterVerticesNum() const { 
+  VID_T GetOuterVerticesNum() const {
     auto vl = get_remote_vertices(pg_, fid_);
     return get_vertex_list_size(vl);
   }
@@ -89,7 +91,7 @@ class GRIN_EdgecutFragmentBase
     auto vl = get_local_vertices(pg_, fid_);
     auto viter = get_vertex_list_begin(vl);
     size_t size = get_vertex_list_size(vl);
-    return inner_vertices_t(viter, viter+size);
+    return inner_vertices_t(viter, viter + size);
   }
 
   using outer_vertices_t = typename TRAITS_T::outer_vertices_t;
@@ -98,11 +100,11 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The vertex range of outer vertices in this fragment.
    */
-  const outer_vertices_t OuterVertices() const { 
+  const outer_vertices_t OuterVertices() const {
     auto vl = get_remote_vertices(pg_, fid_);
     auto viter = get_vertex_list_begin(vl);
     size_t size = get_vertex_list_size(vl);
-    return outer_vertices_t(viter, viter+size);
+    return outer_vertices_t(viter, viter + size);
   }
 
   using sub_vertices_t = typename TRAITS_T::sub_vertices_t;
@@ -110,7 +112,7 @@ class GRIN_EdgecutFragmentBase
     auto vl = get_remote_vertices_by_partition(pg_, fid_);
     auto viter = get_vertex_list_begin(vl);
     size_t size = get_vertex_list_size(vl);
-    return sub_vertices_t(viter, viter+size);
+    return sub_vertices_t(viter, viter + size);
   }
 
   using mirror_vertices_t = typename TRAITS_T::mirror_vertices_t;
@@ -391,7 +393,8 @@ class GRIN_EdgecutFragmentBase
         gid_list.clear();
         gid_list.reserve(range.size());
         for (auto& v : range) {
-          gid_list.emplace_back(get_master_partition_for_vertex(pg_, fid_, v.GetValue()));
+          gid_list.emplace_back(
+              get_master_partition_for_vertex(pg_, fid_, v.GetValue()));
         }
         sync_comm::Send<std::vector<vertex_t>>(gid_list, dst_worker_id, 0,
                                                comm_spec.comm());

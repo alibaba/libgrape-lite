@@ -22,25 +22,19 @@ limitations under the License.
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
 #include "grape/worker/comm_spec.h"
-
 #include "grin/include/predefine.h"
+
 extern "C" {
-#include "grin/include/topology/vertexlist.h"
 #include "grin/include/partition/partition.h"
+#include "grin/include/topology/structure.h"
+#include "grin/include/topology/vertexlist.h"
 }
 
 namespace grape {
 
-// struct PrepareConf {
-//   MessageStrategy message_strategy;
-//   bool need_split_edges;
-//   bool need_split_edges_by_fragment;
-//   bool need_mirror_info;
-//   bool need_build_device_vm;
-// };
-
 /**
- * @brief GRIN_FragmentBase is the base class for fragments.
+ * @brief GRIN_FragmentBase is the GRIN version of FragmentBase in grape,
+ * which is the base class for fragments.
  *
  * @note: The pure virtual functions in the class work as interfaces,
  * instructing sub-classes to implement. The override functions in the
@@ -61,7 +55,7 @@ class GRIN_FragmentBase {
   using fragment_const_adj_list_t =
       typename TRAITS_T::fragment_const_adj_list_t;
 
-  GRIN_FragmentBase(): pg_(nullptr) {}
+  GRIN_FragmentBase() : pg_(nullptr) {}
 
   explicit GRIN_FragmentBase(std::shared_ptr<vertex_map_t> vm_ptr)
       : vm_ptr_(vm_ptr) {}
@@ -126,7 +120,7 @@ class GRIN_FragmentBase {
    *
    * @return The number of vertices in this fragment.
    */
-  VID_T GetVerticesNum() const { 
+  VID_T GetVerticesNum() const {
     auto vl = get_vertex_list(g_);
     return get_vertex_list_size(vl);
   }
@@ -144,10 +138,10 @@ class GRIN_FragmentBase {
    *
    * @return A vertex set can be iterate on.
    */
-  const vertices_t Vertices() const { 
-    auto vl = get_vertex_list(g_); 
+  const vertices_t Vertices() const {
+    auto vl = get_vertex_list(g_);
     auto viter = get_vertex_list_begin(vl);
-    return vertices_t(viter, viter+get_vertex_list_size(vl));
+    return vertices_t(viter, viter + get_vertex_list_size(vl));
   }
 
   /**
@@ -217,16 +211,6 @@ class GRIN_FragmentBase {
    * @return Data on it.
    */
   virtual const VDATA_T GetData(const Vertex<VID_T>& v) const = 0;
-
-  /**
-   * @brief Set the data of a vertex.
-   *
-   * @param v Input vertex.
-   * @param val Data to write.
-   * @attention This will only be applied locally, won't sync on other mirrors
-   * globally.
-   */
-  //virtual void SetData(const Vertex<VID_T>& v, const VDATA_T& val) = 0;
 
   /**
    * @brief Check if vertex v has a child, that is, existing an edge v->u.

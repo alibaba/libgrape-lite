@@ -13,10 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRIN_TOPOLOGY_ADJACENT_LIST_H_
-#define GRIN_TOPOLOGY_ADJACENT_LIST_H_
-
-//#include "../predefine.h"
+#ifndef GRIN_INCLUDE_TOPOLOGY_ADJACENTLIST_H_
+#define GRIN_INCLUDE_TOPOLOGY_ADJACENTLIST_H_
 
 #ifdef ENABLE_ADJACENT_LIST
 
@@ -24,7 +22,8 @@ AdjacentList get_adjacent_list(const Graph, const Direction, const Vertex);
 
 AdjacentListIterator get_adjacent_list_begin(const AdjacentList);
 
-AdjacentListIterator get_next_adjacent_iter(const AdjacentList, AdjacentListIterator);
+AdjacentListIterator get_next_adjacent_iter(const AdjacentList,
+                                            AdjacentListIterator);
 
 size_t get_adjacent_list_size(const AdjacentList);
 
@@ -35,9 +34,10 @@ Vertex get_neighbor_from_iter(const AdjacentList, const AdjacentListIterator);
 #ifdef WITH_EDGE_WEIGHT
 DataType get_adjacent_edge_weight_type(const Graph);
 
-G_EDATA_T get_adjacent_edge_weight_value(const AdjacentList, const AdjacentListIterator);
+EdgeData get_adjacent_edge_weight_value(const AdjacentList,
+                                        const AdjacentListIterator);
 #endif
 
 #endif
 
-#endif // GRIN_TOPOLOGY_ADJACENT_LIST_H_
+#endif  // GRIN_INCLUDE_TOPOLOGY_ADJACENTLIST_H_

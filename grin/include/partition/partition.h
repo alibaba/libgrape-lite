@@ -13,14 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRIN_PARTITION_PARTITION_H_
-#define GRIN_PARTITION_PARTITION_H_
-
-//#include "../predefine.h"
+#ifndef GRIN_INCLUDE_PARTITION_PARTITION_H_
+#define GRIN_INCLUDE_PARTITION_PARTITION_H_
 
 #ifdef PARTITION_STRATEGY
-// basic partition informations
 
+// basic partition informations
 size_t get_total_partitions_number(const PartitionedGraph);
 
 size_t get_total_vertices_number(const PartitionedGraph);
@@ -31,11 +29,10 @@ size_t get_partition_list_size(const PartitionList);
 
 Partition get_partition_from_list(const PartitionList, const size_t);
 
-//PartitionList create_partition_list();
-
-//void destroy_partition_list(PartitionList);
-
-//bool insert_partition_to_list(PartitionList, const Partition);
+// TODO(andydiwenzhu): mutable functions
+// PartitionList create_partition_list();
+// void destroy_partition_list(PartitionList);
+// bool insert_partition_to_list(PartitionList, const Partition);
 
 void* get_partition_info(const Partition);
 
@@ -46,7 +43,8 @@ char* serialize_remote_partition(const PartitionedGraph, const RemotePartition);
 
 char* serialize_remote_vertex(const PartitionedGraph, const RemoteVertex);
 
-char* serialize_remote_vertex_with_data(const PartitionedGraph, const RemoteVertex, const G_VDATA_T);
+char* serialize_remote_vertex_with_data(const PartitionedGraph,
+                                        const RemoteVertex, const VertexData);
 
 char* serialize_remote_edge(const PartitionedGraph, const RemoteEdge);
 
@@ -56,8 +54,9 @@ Partition get_partition_from_deserialization(const PartitionedGraph,
 Vertex get_vertex_from_deserialization(const PartitionedGraph, const Partition,
                                        const char*);
 
-Vertex get_vertex_from_deserialization_with_data(const PartitionedGraph, const Partition,
-                                                 const char*, G_VDATA_T&);
+Vertex get_vertex_from_deserialization_with_data(const PartitionedGraph,
+                                                 const Partition, const char*,
+                                                 VertexData&);
 
 Edge get_edge_from_deserialization(const PartitionedGraph, const Partition,
                                    const char*);
@@ -65,7 +64,8 @@ Edge get_edge_from_deserialization(const PartitionedGraph, const Partition,
 // For local vertex: could get its properties locally, but not sure to have all
 // its edges locally, which depends on the partition strategy; every vertex
 // could be local in 1~n partitions.
-bool is_local_vertex(const PartitionedGraph g, const Partition p, const Vertex v);
+bool is_local_vertex(const PartitionedGraph g, const Partition p,
+                     const Vertex v);
 
 // For local edge: could get its properties locally;
 // every edge could be local in 1/2/n partitions
@@ -96,12 +96,11 @@ size_t get_remote_partition_list_size(const RemotePartitionList);
 RemotePartition get_remote_partition_from_list(const RemotePartitionList,
                                                const size_t);
 
-//RemotePartitionList create_remote_partition_list();
-
-//void destroy_remote_partition_list(RemotePartitionList);
-
-//bool insert_remote_partition_to_list(RemotePartitionList,
-//                                     const RemotePartition);
+// TODO(andydiwenzhu): mutable functions
+// RemotePartitionList create_remote_partition_list();
+// void destroy_remote_partition_list(RemotePartitionList);
+// bool insert_remote_partition_to_list(RemotePartitionList,
+//                                      const RemotePartition);
 
 // get the replicas of a vertex
 RemoteVertexList get_all_replicas_for_vertex(const PartitionedGraph,
@@ -111,11 +110,10 @@ size_t get_remote_vertex_list_size(const RemoteVertexList);
 
 RemoteVertex get_remote_vertex_from_list(const RemoteVertexList, const size_t);
 
-//RemoteVertexList create_remote_vertex_list();
-
-//void destroy_remote_vertex_list(RemoteVertexList);
-
-//bool insert_remote_vertex_to_list(RemoteVertexList, const RemoteVertex);
+// TODO(andydiwenzhu): mutable functions
+// RemoteVertexList create_remote_vertex_list();
+// void destroy_remote_vertex_list(RemoteVertexList);
+// bool insert_remote_vertex_to_list(RemoteVertexList, const RemoteVertex);
 #endif
 
 #if defined(PARTITION_STRATEGY) && defined(ENABLE_VERTEX_LIST)
@@ -123,15 +121,21 @@ VertexList get_local_vertices(const PartitionedGraph, const Partition);
 
 VertexList get_remote_vertices(const PartitionedGraph, const Partition);
 
-VertexList get_remote_vertices_by_partition(const PartitionedGraph, const RemotePartition);
+VertexList get_remote_vertices_by_partition(const PartitionedGraph,
+                                            const RemotePartition);
 #endif
 
 #if defined(PARTITION_STRATEGY) && defined(ENABLE_ADJACENT_LIST)
-AdjacentList get_local_adjacent_list(const PartitionedGraph, const Direction, const Partition, const Vertex);
+AdjacentList get_local_adjacent_list(const PartitionedGraph, const Direction,
+                                     const Partition, const Vertex);
 
-AdjacentList get_remote_adjacent_list(const PartitionedGraph, const Direction, const Partition, const Vertex);
+AdjacentList get_remote_adjacent_list(const PartitionedGraph, const Direction,
+                                      const Partition, const Vertex);
 
-AdjacentList get_remote_adjacent_list_by_partition(const PartitionedGraph, const Direction, const Partition, const Vertex);
+AdjacentList get_remote_adjacent_list_by_partition(const PartitionedGraph,
+                                                   const Direction,
+                                                   const Partition,
+                                                   const Vertex);
 #endif
 
-#endif  // GRIN_PARTITION_PARTITION_H_
+#endif  // GRIN_INCLUDE_PARTITION_PARTITION_H_

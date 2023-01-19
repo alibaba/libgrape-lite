@@ -14,44 +14,41 @@ limitations under the License.
 */
 
 #include "grin/include/predefine.h"
+
 extern "C" {
 #include "grin/include/topology/vertexlist.h"
 }
+
 #ifdef ENABLE_VERTEX_LIST
 
 VertexList get_vertex_list(const Graph gh) {
-    Graph_T* g = static_cast<Graph_T*>(gh);
-    VertexList vl = new VertexList_T(g->Vertices());
-    return vl;
+  Graph_T* g = static_cast<Graph_T*>(gh);
+  VertexList vl = new VertexList_T(g->Vertices());
+  return vl;
 }
 
 size_t get_vertex_list_size(const VertexList vlh) {
-    VertexList_T* vl = static_cast<VertexList_T*>(vlh);
-    return vl->size();
+  VertexList_T* vl = static_cast<VertexList_T*>(vlh);
+  return vl->size();
 }
 
 VertexListIterator get_vertex_list_begin(const VertexList vlh) {
-    VertexList_T* vl = static_cast<VertexList_T*>(vlh);
-    return vl->begin_value();
+  VertexList_T* vl = static_cast<VertexList_T*>(vlh);
+  return vl->begin_value();
 }
 
-VertexListIterator get_next_vertex_iter(const VertexList vlh, VertexListIterator vlih) {
-    return vlih++;
+VertexListIterator get_next_vertex_iter(const VertexList vlh,
+                                        VertexListIterator vlih) {
+  return vlih++;
 }
 
 bool has_next_vertex_iter(const VertexList vlh, VertexListIterator vlih) {
-    VertexList_T* vl = static_cast<VertexList_T*>(vlh);
-    return vlih < vl->end_value();
+  VertexList_T* vl = static_cast<VertexList_T*>(vlh);
+  return vlih < vl->end_value();
 }
 
 Vertex get_vertex_from_iter(const VertexList vlh, VertexListIterator vlih) {
-    return vlih;
+  return vlih;
 }
-
-//VertexList create_vertex_list();
-
-//void destroy_vertex_list(VertexList);
-
-//bool insert_vertex_to_list(VertexList, const Vertex);
 
 #endif

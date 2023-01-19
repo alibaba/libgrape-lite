@@ -13,10 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRIN_TOPOLOGY_STRUCTURE_H_
-#define GRIN_TOPOLOGY_STRUCTURE_H_
-
-//#include "../predefine.h"
+#ifndef GRIN_INCLUDE_TOPOLOGY_STRUCTURE_H_
+#define GRIN_INCLUDE_TOPOLOGY_STRUCTURE_H_
 
 bool is_directed(const Graph);
 
@@ -31,15 +29,16 @@ Vertex get_edge_dst(const Graph, const Edge);
 #ifdef WITH_EDGE_WEIGHT
 DataType get_edge_weight_type(const Graph, const Edge);
 
-G_EDATA_T get_edge_weight_value(const Graph, const Edge);
+EdgeData get_edge_weight_value(const Graph, const Edge);
 #endif
 
 #ifdef WITH_VERTEX_DATA
 DataType get_vertex_data_type(const Graph, const Vertex);
 
-G_VDATA_T get_vertex_data_value(const Graph, const Vertex);
+VertexData get_vertex_data_value(const Graph, const Vertex);
 
-//void set_vertex_data_value(const Graph, Vertex, const void*);
+// TODO(andydiwenzhu): mutable functions
+// void set_vertex_data_value(const Graph, Vertex, const void*);
 #endif
 
-#endif  // GRIN_TOPOLOGY_STRUCTURE_H_
+#endif  // GRIN_INCLUDE_TOPOLOGY_STRUCTURE_H_

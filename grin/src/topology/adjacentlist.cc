@@ -14,59 +14,66 @@ limitations under the License.
 */
 
 #include "grin/include/predefine.h"
+
 extern "C" {
 #include "grin/include/topology/adjacentlist.h"
 }
+
 #ifdef ENABLE_ADJACENT_LIST
 
-AdjacentList get_adjacent_list(const Graph gh, const Direction d, const Vertex v) {
-    Graph_T* g = static_cast<Graph_T*>(gh);
+AdjacentList get_adjacent_list(const Graph gh, const Direction d,
+                               const Vertex v) {
+  Graph_T* g = static_cast<Graph_T*>(gh);
 
-    if (d == Direction::OUT) {
-        AdjacentList al = new AdjacentList_T(g->GetOutgoingAdjList(Vertex_G(v)));
-        return al;
-    } else if (d == Direction::IN) {
-        AdjacentList al = new AdjacentList_T(g->GetIncomingAdjList(Vertex_G(v)));
-        return al;
-    } else {
-        return NULL_LIST;
-    }
+  if (d == Direction::OUT) {
+    AdjacentList al = new AdjacentList_T(g->GetOutgoingAdjList(Vertex_G(v)));
+    return al;
+  } else if (d == Direction::IN) {
+    AdjacentList al = new AdjacentList_T(g->GetIncomingAdjList(Vertex_G(v)));
+    return al;
+  } else {
+    return NULL_LIST;
+  }
 }
 
 AdjacentListIterator get_adjacent_list_begin(const AdjacentList alh) {
-    AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
-    return al->begin_pointer();
+  AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
+  return al->begin_pointer();
 }
 
-AdjacentListIterator get_next_adjacent_iter(const AdjacentList alh, AdjacentListIterator alih) {
-    AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
-    return ali++;
+AdjacentListIterator get_next_adjacent_iter(const AdjacentList alh,
+                                            AdjacentListIterator alih) {
+  AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
+  return ali++;
 }
 
 size_t get_adjacent_list_size(const AdjacentList alh) {
-    AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
-    return al->Size();
+  AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
+  return al->Size();
 }
 
-bool has_next_adjacent_iter(const AdjacentList alh, const AdjacentListIterator alih) {
-    AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
-    AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
-    return ali != al->end_pointer();
+bool has_next_adjacent_iter(const AdjacentList alh,
+                            const AdjacentListIterator alih) {
+  AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
+  AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
+  return ali != al->end_pointer();
 }
 
-Vertex get_neighbor_from_iter(const AdjacentList alh, const AdjacentListIterator alih) {
-    AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
-    return ali->get_neighbor_lid();
+Vertex get_neighbor_from_iter(const AdjacentList alh,
+                              const AdjacentListIterator alih) {
+  AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
+  return ali->get_neighbor_lid();
 }
 
 #ifdef WITH_EDGE_WEIGHT
 DataType get_adjacent_edge_weight_type(const Graph g) {
-    return DataTypeName<G_EDATA_T>::Get();
+  return DataTypeName<EdgeData>::Get();
 }
 
-G_EDATA_T get_adjacent_edge_weight_value(const AdjacentList alh, const AdjacentListIterator alih) {
-    AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
-    return ali->get_data();
+EdgeData get_adjacent_edge_weight_value(const AdjacentList alh,
+                                         const AdjacentListIterator alih) {
+  AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
+  return ali->get_data();
 }
 #endif
 

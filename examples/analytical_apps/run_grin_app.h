@@ -147,8 +147,9 @@ void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
         ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
     std::shared_ptr<O_FRAG_T> o_fragment =
         LoadGraph<O_FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using FRAG_T = 
-        GRIN_ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
+    using FRAG_T =
+        GRIN_ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                      load_strategy>;
     std::shared_ptr<FRAG_T> fragment = std::make_shared<FRAG_T>();
     fragment->Init(o_fragment.get(), o_fragment->GetVertexMap());
     using AppType = APP_T<FRAG_T>;
@@ -277,7 +278,7 @@ void Run() {
                 SSSP, OID_T>(comm_spec, out_prefix, fnum, spec,
                               FLAGS_sssp_source);
 #endif
-  
+
 #ifdef GRANULA
   granula::operation offloadGraph("grape", "Id.Unique", "OffloadGraph",
                                   "Id.Unique");

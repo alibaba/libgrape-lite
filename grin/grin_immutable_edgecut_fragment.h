@@ -39,30 +39,21 @@ limitations under the License.
 #include "grape/vertex_map/global_vertex_map.h"
 #include "grape/worker/comm_spec.h"
 
-#include "grin/include/predefine.h"
-extern "C" {
-#include "grin/include/topology/structure.h"
-#include "grin/include/partition/partition.h"
-}
 #include "grin/grin_csr_edgecut_fragment_base.h"
+#include "grin/include/predefine.h"
+
+extern "C" {
+#include "grin/include/partition/partition.h"
+#include "grin/include/topology/structure.h"
+}
 
 namespace grape {
 class CommSpec;
 
-// template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-//           typename VERTEX_MAP_T>
-// struct ImmutableEdgecutFragmentTraits {
-//   using inner_vertices_t = VertexRange<VID_T>;
-//   using outer_vertices_t = VertexRange<VID_T>;
-//   using vertices_t = VertexRange<VID_T>;
-//   using sub_vertices_t = VertexRange<VID_T>;
-
-//   using mirror_vertices_t = std::vector<Vertex<VID_T>>;
-//   using vertex_map_t = VERTEX_MAP_T;
-// };
-
 /**
- * @brief A kind of edgecut fragment.
+ * @brief GRIN_ImmutableEdgecutFragment is the GRIN version 
+ * of ImmutableEdgecutFragment in grape,
+ * which is a kind of edgecut fragment.
  *
  * @tparam OID_T Type of original ID.
  * @tparam VID_T Type of global ID and local ID.
@@ -121,22 +112,18 @@ class GRIN_ImmutableEdgecutFragment
                                                   EDATA_T, VERTEX_MAP_T>;
   using base_t =
       GRIN_CSREdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>;
-  // using internal_vertex_t = internal::Vertex<VID_T, VDATA_T>;
-  // using edge_t = Edge<VID_T, EDATA_T>;
+  using edge_t = Edge<VID_T, EDATA_T>;
   using nbr_t = Nbr<VID_T, EDATA_T>;
   using vertex_t = Vertex<VID_T>;
-  // using vid_t = VID_T;
+  using vid_t = VID_T;
   using oid_t = OID_T;
-  // using vdata_t = VDATA_T;
-  // using edata_t = EDATA_T;
+  using vdata_t = VDATA_T;
+  using edata_t = EDATA_T;
   using vertex_map_t = typename traits_t::vertex_map_t;
-
-  //using IsEdgeCut = std::true_type;
-  //using IsVertexCut = std::false_type;
 
   static constexpr LoadStrategy load_strategy = _load_strategy;
 
-  // using vertex_range_t = VertexRange<VID_T>;
+  using vertex_range_t = VertexRange<VID_T>;
   using inner_vertices_t = typename traits_t::inner_vertices_t;
   using outer_vertices_t = typename traits_t::outer_vertices_t;
   using vertices_t = typename traits_t::vertices_t;
@@ -169,11 +156,12 @@ class GRIN_ImmutableEdgecutFragment
     base_t::PrepareToRunApp(comm_spec, conf);
   }
 
-  using base_t::IsInnerVertex;
-  using base_t::GetFragId;
+  using base_t::fid_;
   using base_t::g_;
   using base_t::pg_;
-  using base_t::fid_;
+
+  using base_t::GetFragId;
+  using base_t::IsInnerVertex;
 
   inline const VDATA_T GetData(const vertex_t& v) const override {
     return get_vertex_data_value(g_, v.GetValue());
@@ -196,12 +184,12 @@ class GRIN_ImmutableEdgecutFragment
 
   using adj_list_t = typename base_t::adj_list_t;
   using const_adj_list_t = typename base_t::const_adj_list_t;
-  inline adj_list_t GetIncomingInnerVertexAdjList(const vertex_t& v) override {    
+  inline adj_list_t GetIncomingInnerVertexAdjList(const vertex_t& v) override {
     assert(IsInnerVertex(v));
     auto al = get_local_adjacent_list(pg_, Direction::IN, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline const_adj_list_t GetIncomingInnerVertexAdjList(
@@ -210,7 +198,7 @@ class GRIN_ImmutableEdgecutFragment
     auto al = get_local_adjacent_list(pg_, Direction::IN, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline adj_list_t GetIncomingOuterVertexAdjList(const vertex_t& v) override {
@@ -218,7 +206,7 @@ class GRIN_ImmutableEdgecutFragment
     auto al = get_remote_adjacent_list(pg_, Direction::IN, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline const_adj_list_t GetIncomingOuterVertexAdjList(
@@ -227,7 +215,7 @@ class GRIN_ImmutableEdgecutFragment
     auto al = get_remote_adjacent_list(pg_, Direction::IN, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline adj_list_t GetOutgoingInnerVertexAdjList(const vertex_t& v) override {
@@ -235,7 +223,7 @@ class GRIN_ImmutableEdgecutFragment
     auto al = get_local_adjacent_list(pg_, Direction::OUT, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline const_adj_list_t GetOutgoingInnerVertexAdjList(
@@ -244,7 +232,7 @@ class GRIN_ImmutableEdgecutFragment
     auto al = get_local_adjacent_list(pg_, Direction::OUT, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline adj_list_t GetOutgoingOuterVertexAdjList(const vertex_t& v) override {
@@ -252,7 +240,7 @@ class GRIN_ImmutableEdgecutFragment
     auto al = get_remote_adjacent_list(pg_, Direction::OUT, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline const_adj_list_t GetOutgoingOuterVertexAdjList(
@@ -261,43 +249,47 @@ class GRIN_ImmutableEdgecutFragment
     auto al = get_remote_adjacent_list(pg_, Direction::OUT, fid_, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline adj_list_t GetIncomingAdjList(const vertex_t& v,
                                        fid_t src_fid) override {
     assert(IsInnerVertex(v));
-    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::IN, src_fid, v.GetValue());
+    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::IN, src_fid,
+                                                    v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline const_adj_list_t GetIncomingAdjList(const vertex_t& v,
                                              fid_t src_fid) const override {
     assert(IsInnerVertex(v));
-    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::IN, src_fid, v.GetValue());
+    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::IN, src_fid,
+                                                    v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline adj_list_t GetOutgoingAdjList(const vertex_t& v,
                                        fid_t dst_fid) override {
     assert(IsInnerVertex(v));
-    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::OUT, dst_fid, v.GetValue());
+    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::OUT,
+                                                    dst_fid, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   inline const_adj_list_t GetOutgoingAdjList(const vertex_t& v,
                                              fid_t dst_fid) const override {
     assert(IsInnerVertex(v));
-    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::OUT, dst_fid, v.GetValue());
+    auto al = get_remote_adjacent_list_by_partition(pg_, Direction::OUT,
+                                                    dst_fid, v.GetValue());
     assert(al != NULL_LIST);
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al));
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 };
 

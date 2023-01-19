@@ -13,10 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRIN_TOPOLOGY_EDGE_LIST_H_
-#define GRIN_TOPOLOGY_EDGE_LIST_H_
-
-//#include "../predefine.h"
+#ifndef GRIN_INCLUDE_TOPOLOGY_EDGELIST_H_
+#define GRIN_INCLUDE_TOPOLOGY_EDGELIST_H_
 
 #ifdef ENABLE_EDGE_LIST
 
@@ -32,12 +30,11 @@ bool has_next_edge_iter(const EdgeList, const EdgeListIterator);
 
 Edge get_edge_from_iter(const EdgeList, const EdgeListIterator);
 
-//EdgeList create_edge_list();
-
-//void destroy_edge_list(EdgeList);
-
-//bool insert_edge_to_list(EdgeList, const Edge);
+// TODO(andydiwenzhu): mutable functions
+// EdgeList create_edge_list();
+// void destroy_edge_list(EdgeList);
+// bool insert_edge_to_list(EdgeList, const Edge);
 
 #endif
 
-#endif  // GRIN_TOPOLOGY_EDGE_LIST_H_
+#endif  // GRIN_INCLUDE_TOPOLOGY_EDGELIST_H_

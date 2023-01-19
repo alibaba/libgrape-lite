@@ -23,32 +23,35 @@ limitations under the License.
 #include "grape/graph/immutable_csr.h"
 #include "grape/vertex_map/global_vertex_map.h"
 
+#include "grin/grin_edgecut_fragment_base.h"
 #include "grin/include/predefine.h"
+
 extern "C" {
+#include "grin/include/topology/adjacentlist.h"
 #include "grin/include/topology/edgelist.h"
 #include "grin/include/topology/vertexlist.h"
-#include "grin/include/topology/adjacentlist.h"
 }
-#include "grin/grin_edgecut_fragment_base.h"
 
 namespace grape {
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           typename TRAITS_T>
 class GRIN_CSREdgecutFragmentBase
-    : public GRIN_EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T> {
+    : public GRIN_EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T,
+                                      TRAITS_T> {
  public:
   using nbr_t = Nbr<VID_T, EDATA_T>;
   using vertex_t = Vertex<VID_T>;
   using const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
   using adj_list_t = AdjList<VID_T, EDATA_T>;
-  using base_t = GRIN_EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
+  using base_t =
+      GRIN_EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
 
+  using base_t::fid_;
+  using base_t::g_;
   using base_t::IsInnerVertex;
   using base_t::IsOuterVertex;
-  using base_t::g_;
   using base_t::pg_;
-  using base_t::fid_;
 
   GRIN_CSREdgecutFragmentBase() {}
 
@@ -66,19 +69,19 @@ class GRIN_CSREdgecutFragmentBase
   inline bool HasParent(const vertex_t& v) const override {
     assert(IsInnerVertex(v));
     auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
-    return get_adjacent_list_size(al) > 0;  
+    return get_adjacent_list_size(al) > 0;
   }
 
   inline int GetLocalOutDegree(const vertex_t& v) const override {
     assert(IsInnerVertex(v));
     auto al = get_adjacent_list(g_, Direction::OUT, v.GetValue());
-    return get_adjacent_list_size(al);  
+    return get_adjacent_list_size(al);
   }
 
   inline int GetLocalInDegree(const vertex_t& v) const override {
     assert(IsInnerVertex(v));
     auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
-    return get_adjacent_list_size(al);    
+    return get_adjacent_list_size(al);
   }
 
   /**
@@ -93,7 +96,7 @@ class GRIN_CSREdgecutFragmentBase
   inline adj_list_t GetIncomingAdjList(const vertex_t& v) override {
     auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al)); 
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   /**
@@ -108,7 +111,7 @@ class GRIN_CSREdgecutFragmentBase
   inline const_adj_list_t GetIncomingAdjList(const vertex_t& v) const override {
     auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al)); 
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   /**
@@ -123,7 +126,7 @@ class GRIN_CSREdgecutFragmentBase
   inline adj_list_t GetOutgoingAdjList(const vertex_t& v) override {
     auto al = get_adjacent_list(g_, Direction::OUT, v.GetValue());
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter+get_adjacent_list_size(al)); 
+    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   /**
@@ -138,7 +141,7 @@ class GRIN_CSREdgecutFragmentBase
   inline const_adj_list_t GetOutgoingAdjList(const vertex_t& v) const override {
     auto al = get_adjacent_list(g_, Direction::OUT, v.GetValue());
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter+get_adjacent_list_size(al)); 
+    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
 
   /**
@@ -237,8 +240,8 @@ class GRIN_CSREdgecutFragmentBase
   }
 
   using base_t::GetFragId;
-  using base_t::GetInnerVerticesNum;
   using base_t::GetIncomingAdjList;
+  using base_t::GetInnerVerticesNum;
   using base_t::GetOutgoingAdjList;
 
  private:

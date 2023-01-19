@@ -14,49 +14,49 @@ limitations under the License.
 */
 
 #include "grin/include/predefine.h"
+
 extern "C" {
 #include "grin/include/topology/structure.h"
 }
 
 bool is_directed(const Graph gh) {
-    Graph_T* g = static_cast<Graph_T*>(gh);
-    return g->directed();
+  Graph_T* g = static_cast<Graph_T*>(gh);
+  return g->directed();
 }
 
 #ifdef WITH_EDGE_SRC
 Vertex get_edge_src(const Graph gh, const Edge eh) {
-    Edge_T* e = static_cast<Edge_T*>(eh);
-    return e->src;
+  Edge_T* e = static_cast<Edge_T*>(eh);
+  return e->src;
 }
 #endif
 
 #ifdef WITH_EDGE_DST
 Vertex get_edge_dst(const Graph gh, const Edge eh) {
-    Edge_T* e = static_cast<Edge_T*>(eh);
-    return e->dst;
+  Edge_T* e = static_cast<Edge_T*>(eh);
+  return e->dst;
 }
 #endif
 
 #ifdef WITH_EDGE_WEIGHT
 DataType get_edge_weight_type(const Graph g) {
-    return DataTypeName<G_EDATA_T>::Get();
+  return DataTypeName<EdgeData>::Get();
 }
 
-G_EDATA_T get_edge_weight_value(const Graph gh, const Edge eh) {
-    Edge_T* e = static_cast<Edge_T*>(eh);
-    return e->edata;
+EdgeData get_edge_weight_value(const Graph gh, const Edge eh) {
+  Edge_T* e = static_cast<Edge_T*>(eh);
+  return e->edata;
 }
 #endif
 
 #ifdef WITH_VERTEX_DATA
 DataType get_vertex_data_type(const Graph g) {
-    return DataTypeName<G_VDATA_T>::Get(); 
+  return DataTypeName<VertexData>::Get();
 }
 
-G_VDATA_T get_vertex_data_value(const Graph gh, const Vertex v) {
-    Graph_T* g = static_cast<Graph_T*>(gh);
-    return g->GetData(Vertex_G(v));
+VertexData get_vertex_data_value(const Graph gh, const Vertex v) {
+  Graph_T* g = static_cast<Graph_T*>(gh);
+  return g->GetData(Vertex_G(v));
 }
 
-//void set_vertex_data_value(const Graph g, Vertex, const void*);
 #endif

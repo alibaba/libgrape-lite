@@ -13,10 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRIN_TOPOLOGY_VERTEX_LIST_H_
-#define GRIN_TOPOLOGY_VERTEX_LIST_H_
-
-//#include "../predefine.h"
+#ifndef GRIN_INCLUDE_TOPOLOGY_VERTEXLIST_H_
+#define GRIN_INCLUDE_TOPOLOGY_VERTEXLIST_H_
 
 #ifdef ENABLE_VERTEX_LIST
 
@@ -32,12 +30,11 @@ bool has_next_vertex_iter(const VertexList, const VertexListIterator);
 
 Vertex get_vertex_from_iter(const VertexList, const VertexListIterator);
 
-//VertexList create_vertex_list();
-
-//void destroy_vertex_list(VertexList);
-
-//bool insert_vertex_to_list(VertexList, const Vertex);
+// TODO(andydiwenzhu): mutable functions
+// VertexList create_vertex_list();
+// void destroy_vertex_list(VertexList);
+// bool insert_vertex_to_list(VertexList, const Vertex);
 
 #endif
 
-#endif  // GRIN_TOPOLOGY_VERTEX_LIST_H_
+#endif  // GRIN_INCLUDE_TOPOLOGY_VERTEXLIST_H_

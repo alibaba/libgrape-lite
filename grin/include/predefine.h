@@ -15,13 +15,9 @@ limitations under the License.
 #include <climits>
 
 #include "grape/fragment/immutable_edgecut_fragment.h"
-#include "grape/graph/adj_list.h"
-#include "grape/graph/edge.h"
-#include "grape/graph/vertex.h"
-#include "grape/utils/vertex_array.h"
 
-#ifndef GRIN_PRE_DEFINE_H_
-#define GRIN_PRE_DEFINE_H_
+#ifndef GRIN_INCLUDE_PREDEFINE_H_
+#define GRIN_INCLUDE_PREDEFINE_H_
 
 // The enum type for edge directions.
 typedef enum {
@@ -44,6 +40,7 @@ typedef enum {
   NONE = 2,
 } ReplicateEdgeStrategy;
 
+// The enum type for vertex/edge data type.
 typedef enum {
   INT = 0,
   UNSIGNED = 1,
@@ -54,63 +51,38 @@ typedef enum {
 } DataType;
 
 template <typename T>
-struct DataTypeName
-{
-    static DataType Get()
-    {
-        return DataType::OTHER;
-    }
+struct DataTypeName {
+  static DataType Get() { return DataType::OTHER; }
 };
 template <>
-struct DataTypeName<int>
-{
-    static DataType Get()
-    {
-        return DataType::INT;
-    }
+struct DataTypeName<int> {
+  static DataType Get() { return DataType::INT; }
 };
 template <>
-struct DataTypeName<unsigned>
-{
-    static DataType Get()
-    {
-        return DataType::UNSIGNED;
-    }
+struct DataTypeName<unsigned> {
+  static DataType Get() { return DataType::UNSIGNED; }
 };
 template <>
-struct DataTypeName<float>
-{
-    static DataType Get()
-    {
-        return DataType::FLOAT;
-    }
+struct DataTypeName<float> {
+  static DataType Get() { return DataType::FLOAT; }
 };
 template <>
-struct DataTypeName<double>
-{
-    static DataType Get()
-    {
-        return DataType::DOUBLE;
-    }
+struct DataTypeName<double> {
+  static DataType Get() { return DataType::DOUBLE; }
 };
 template <>
-struct DataTypeName<grape::EmptyType>
-{
-    static DataType Get()
-    {
-        return DataType::EMPTY;
-    }
+struct DataTypeName<grape::EmptyType> {
+  static DataType Get() { return DataType::EMPTY; }
 };
-
 
 /* The following macros are defined as the features of the storage. */
-#define WITH_VERTEX_DATA               // There is data on vertex.
-#define WITH_EDGE_SRC                  // There is src data for edge.
-#define WITH_EDGE_DST                  // There is dst data for edge.
-#define WITH_EDGE_WEIGHT               // There is weight for edge.
-#define ENABLE_VERTEX_LIST             // Enable the vertex list structure.
-#define ENABLE_EDGE_LIST               // Enable the edge list structure.
-#define ENABLE_ADJACENT_LIST           // Enable the adjacent list structure.
+#define WITH_VERTEX_DATA             // There is data on vertex.
+#define WITH_EDGE_SRC                // There is src data for edge.
+#define WITH_EDGE_DST                // There is dst data for edge.
+#define WITH_EDGE_WEIGHT             // There is weight for edge.
+#define ENABLE_VERTEX_LIST           // Enable the vertex list structure.
+#define ENABLE_EDGE_LIST             // Enable the edge list structure.
+#define ENABLE_ADJACENT_LIST         // Enable the adjacent list structure.
 #define PARTITION_STRATEGY EDGE_CUT  // The partition strategy.
 // There are all/part edges on local vertices.
 #define EDGES_ON_LOCAL_VERTEX ALL
@@ -119,41 +91,45 @@ struct DataTypeName<grape::EmptyType>
 // The direction of edges on local vertices.
 #define EDGES_ON_LOCAL_VERTEX_DIRECTION BOTH
 
-
 /* The followings macros are defined as invalid value. */
-#define NULL_TYPE NULL                  // Null type (null data type).
-#define NULL_GRAPH NULL                 // Null graph handle (invalid return value).
-#define NULL_VERTEX UINT_MAX            // Null vertex handle (invalid return value).
-#define NULL_EDGE NULL                  // Null edge handle (invalid return value).
-#define NULL_PARTITION UINT_MAX         // Null partition handle (invalid return value).
-#define NULL_REMOTE_PARTITION UINT_MAX  // Null remote partition handle (invalid return value).
-#define NULL_REMOTE_VERTEX UINT_MAX     // Null remote vertex handle (invalid return value).
-#define NULL_REMOTE_EDGE NULL           // Null remote edge handle (invalid return value).
-#define NULL_LIST NULL                  // Null list of any kind handler
+#define NULL_TYPE NULL        // Null type (null data type)
+#define NULL_GRAPH NULL       // Null graph handle (invalid return value).
+#define NULL_VERTEX NULL      // Null vertex handle (invalid return value).
+#define NULL_EDGE NULL        // Null edge handle (invalid return value).
+#define NULL_PARTITION NULL   // Null partition handle (invalid return value).
+#define NULL_LIST NULL        // Null list of any kind.
+#define NULL_REMOTE_PARTITION NULL  // same as partition.
+#define NULL_REMOTE_VERTEX NULL     // same as vertex.
+#define NULL_REMOTE_EDGE NULL       // same as edge.
 
 /* The following data types shall be defined through typedef. */
-
 // local graph
-typedef grape::ImmutableEdgecutFragment<G_OID_T, G_VID_T, G_VDATA_T, G_EDATA_T> Graph_T;
+typedef grape::ImmutableEdgecutFragment<G_OID_T, G_VID_T, G_VDATA_T, G_EDATA_T>
+    Graph_T;
 typedef void* Graph;
 
 // vertex
-typedef G_VID_T Vertex;
-typedef grape::Vertex<G_VID_T> Vertex_G;
+typedef Graph_T::vid_t Vertex;
+typedef Graph_T::vertex_t Vertex_G;
 
 // vertex list
-typedef grape::VertexRange<G_VID_T> VertexList_T;  
+typedef Graph_T::vertex_range_t VertexList_T;
 typedef void* VertexList;
-typedef G_VID_T VertexListIterator;
+typedef Graph_T::vid_t VertexListIterator;
+
+// vertex data
+#ifdef WITH_VERTEX_DATA
+typedef Graph_T::vdata_t VertexData;
+#endif
 
 // adjacent list
-typedef grape::AdjList<G_VID_T, G_EDATA_T> AdjacentList_T;
+typedef Graph_T::adj_list_t AdjacentList_T;
 typedef void* AdjacentList;
-typedef grape::Nbr<G_VID_T, G_EDATA_T> AdjacentListIterator_T;
+typedef Graph_T::nbr_t AdjacentListIterator_T;
 typedef void* AdjacentListIterator;
 
 // edge
-typedef grape::Edge<G_VID_T, G_EDATA_T> Edge_T;        
+typedef Graph_T::edge_t Edge_T;
 typedef void* Edge;
 
 // edge list
@@ -171,8 +147,12 @@ struct EdgeListIterator_T {
 };
 typedef void* EdgeListIterator;
 
+#ifdef WITH_EDGE_WEIGHT
+typedef Graph_T::edata_t EdgeData;
+#endif
+
 // partitioned graph
-typedef grape::ImmutableEdgecutFragment<G_OID_T, G_VID_T, G_VDATA_T, G_EDATA_T> PartitionedGraph_T;
+typedef Graph_T PartitionedGraph_T;
 typedef void* PartitionedGraph;
 
 // partition and partition list
@@ -191,41 +171,4 @@ typedef RemoteVertex* RemoteVertexList;
 typedef Edge_T RemoteEdge_T;
 typedef Edge RemoteEdge;
 
-
-/* The followings macros are not required in libgrape-lite. */
-/*
-#define WITH_VERTEX_LABEL          // There are labels on vertices.
-#define WITH_VERTEX_PROPERTY       // There is any property on vertices.
-#define WITH_VERTEX_PRIMARTY_KEYS  // There are primary keys for vertex.
-#define WITH_EDGE_LABEL            // There are labels for edges.
-#define WITH_EDGE_PROPERTY         // There is any property for edges.
-#define COLUMN_STORE               // Column-oriented storage for properties.
-#define PROPERTY_ON_NON_LOCAL_VERTEX
-// There are properties on non-local vertices.
-#define PROPERTY_ON_NON_LOCAL_EDGE  // There are properties on non-local edges.
-#define EDGES_ON_NON_LOCAL_VERTEX_DIRECTION
-// The direction of edges on on-local vertices.
-#define ENABLE_PREDICATE  // Enable predicates for vertices and edges.
-
-#define NULL_VERTEX_LABEL  // Null vertex label handle (invalid return value).
-#define NULL_EDGE_LABEL    // Null vertex label handle (invalid return value).
-#define NULL_PROPERTY      // Null property handle (invalid return value).
-#define NULL_ROW           // Null row handle (invalid return value).
-*/
-
-/* The followings data types are not required in libgrape-lite. */
-/*
-typedef void* VertexLabel;  // This is a handle for accessing a vertex label.
-typedef void* VertexLabelList;  // The type for a list of vertex labels.
-typedef void* EdgeLabel;        // This is a handle for accessing a edge label.
-typedef void* EdgeLabelList;    // The type for a list of edge labels.
-typedef void* Property;  // This is a handle for accessing a single property.
-typedef void* PropertyList;  // The type for respresenting a list of properties.
-typedef void* Row;           // This is a handle for a row (key-value paris).
-typedef void* RowList;       // The type for respresenting a list of rows.
-typedef void* RowListIterator;  // The iterator for accessing items in RowList.
-typedef void* VertexVerifyResults;  // The type for vertices' verify results.
-typedef void* EdgeVerifyResults;    // The type for edges' verify results.
-*/
-
-#endif  // GRIN_PRE_DEFINE_H_
+#endif  // GRIN_INCLUDE_PREDEFINE_H_

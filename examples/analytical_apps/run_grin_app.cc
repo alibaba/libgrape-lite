@@ -37,7 +37,8 @@ int main(int argc, char* argv[]) {
 
   grape::Init();
 
-  grape::Run<Graph_T::oid_t, Graph_T::vid_t, Graph_T::vdata_t, Graph_T::edata_t>();
+  grape::Run<Graph_T::oid_t, Graph_T::vid_t,
+             Graph_T::vdata_t, Graph_T::edata_t>();
 
   grape::Finalize();
 

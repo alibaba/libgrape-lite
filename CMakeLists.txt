@@ -17,7 +17,7 @@ option(PROFILING "Whether to enable profiling" OFF)
 option(WITH_ASAN "Build with Address Sanitizer" OFF)
 option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
 option(WCC_USE_GID "Use global id as wcc component id" OFF)
-option(WITH_GRIN "Use GRIN based fragments" ON)
+option(WITH_LTO "Use LTO compiler optimization" ON)
 
 if (USE_HUGEPAGES AND LINUX)
   add_definitions(-DUSE_HUGEPAGES)
@@ -32,7 +32,7 @@ if (WCC_USE_GID)
   add_definitions(-DWCC_USE_GID)
 endif ()
 
-if(WITH_GRIN)
+if(WITH_LTO)
   if(POLICY CMP0069)
       cmake_policy(SET CMP0069 NEW)
       set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
@@ -62,7 +62,7 @@ set(VID_TYPE "" CACHE STRING "set vid type")
 set(VDATA_TYPE "" CACHE STRING "set vdata type")
 set(EDATA_TYPE "" CACHE STRING "set edata type")
 
-set(DEFAULT_OID_TYPE "long long" CACHE STRING "default oid type")
+set(DEFAULT_OID_TYPE "int64_t" CACHE STRING "default oid type")
 set(DEFAULT_VID_TYPE "unsigned int" CACHE STRING "default vid type")
 set(DEFAULT_VDATA_TYPE "grape::EmptyType" CACHE STRING "default vdata type")
 set(DEFAULT_EDATA_TYPE "grape::EmptyType" CACHE STRING "default edata type")
@@ -286,7 +286,7 @@ else ()
     install_libgrapelite_target(gpu_analytical_apps)
   endif ()
 
-  if (WITH_GRIN)
+  if (NOT "${GRIN_APPS}" STREQUAL "")
     foreach(app ${GRIN_APPS})
       string(TOLOWER "run_grin_${app}" app_name)
       add_executable(${app_name} examples/analytical_apps/flags.cc examples/analytical_apps/run_grin_app.cc ${GRIN_SRC_FILES})
@@ -436,7 +436,9 @@ file(GLOB_RECURSE FILES_NEED_FORMAT "grape/*.cc"
                                     "examples/*.h"
                                     "examples/*.cc"
                                     "tests/*.h"
-                                    "tests/*.cc")
+                                    "tests/*.cc"
+                                    "grin/*.h"
+                                    "grin/*.cc")
 foreach (file_path ${FILES_NEED_FORMAT})
   if (${file_path} MATCHES ".*thirdparty.*")
     list(REMOVE_ITEM FILES_NEED_FORMAT ${file_path})
