@@ -45,11 +45,11 @@ Vertex get_edge_dst(const Graph gh, const Edge eh) {
 }
 
 #ifdef WITH_EDGE_DATA
-DataType get_edge_weight_type(const Graph g) {
+DataType get_edge_data_type(const Graph g) {
   return DataTypeName<EdgeData>::Get();
 }
 
-EdgeData get_edge_weight_value(const Graph gh, const Edge eh) {
+EdgeData get_edge_data_value(const Graph gh, const Edge eh) {
   Edge_T* e = static_cast<Edge_T*>(eh);
   return e->edata;
 }

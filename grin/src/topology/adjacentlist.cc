@@ -73,11 +73,11 @@ Vertex get_neighbor_from_iter(const AdjacentList alh,
 }
 
 #ifdef WITH_EDGE_DATA
-DataType get_adjacent_edge_weight_type(const Graph g) {
+DataType get_adjacent_edge_data_type(const Graph g) {
   return DataTypeName<EdgeData>::Get();
 }
 
-EdgeData get_adjacent_edge_weight_value(const AdjacentList alh,
+EdgeData get_adjacent_edge_data_value(const AdjacentList alh,
                                          const AdjacentListIterator alih) {
   AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
   return ali->get_data();

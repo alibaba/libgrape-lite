@@ -32,9 +32,9 @@ DataType get_vertex_data_type(const Graph, const Vertex);
 VertexData get_vertex_data_value(const Graph, const Vertex);
 
 #ifdef WITH_EDGE_DATA
-DataType get_edge_weight_type(const Graph, const Edge);
+DataType get_edge_data_type(const Graph, const Edge);
 
-EdgeData get_edge_weight_value(const Graph, const Edge);
+EdgeData get_edge_data_value(const Graph, const Edge);
 #endif
 
 // TODO(andydiwenzhu): mutable functions

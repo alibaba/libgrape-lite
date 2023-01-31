@@ -34,9 +34,9 @@ bool has_next_adjacent_iter(const AdjacentList, const AdjacentListIterator);
 Vertex get_neighbor_from_iter(const AdjacentList, const AdjacentListIterator);
 
 #ifdef WITH_EDGE_DATA
-DataType get_adjacent_edge_weight_type(const Graph);
+DataType get_adjacent_edge_data_type(const Graph);
 
-EdgeData get_adjacent_edge_weight_value(const AdjacentList,
+EdgeData get_adjacent_edge_data_value(const AdjacentList,
                                         const AdjacentListIterator);
 #endif
 
