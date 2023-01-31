@@ -20,6 +20,8 @@ limitations under the License.
 
 VertexList get_vertex_list(const Graph);
 
+void destroy_vertex_list(Graph);
+
 size_t get_vertex_list_size(const VertexList);
 
 VertexListIterator get_vertex_list_begin(const VertexList);
@@ -32,7 +34,6 @@ Vertex get_vertex_from_iter(const VertexList, const VertexListIterator);
 
 // TODO(andydiwenzhu): mutable functions
 // VertexList create_vertex_list();
-// void destroy_vertex_list(VertexList);
 // bool insert_vertex_to_list(VertexList, const Vertex);
 
 #endif

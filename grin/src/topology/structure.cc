@@ -24,21 +24,27 @@ bool is_directed(const Graph gh) {
   return g->directed();
 }
 
-#ifdef WITH_EDGE_SRC
+size_t get_vertex_num(const Graph gh) {
+  Graph_T* g = static_cast<Graph_T*>(gh);
+  return g->GetVerticesNum();
+}
+
+size_t get_edge_num(const Graph gh) {
+  Graph_T* g = static_cast<Graph_T*>(gh);
+  return g->GetEdgeNum();
+}
+
 Vertex get_edge_src(const Graph gh, const Edge eh) {
   Edge_T* e = static_cast<Edge_T*>(eh);
   return e->src;
 }
-#endif
 
-#ifdef WITH_EDGE_DST
 Vertex get_edge_dst(const Graph gh, const Edge eh) {
   Edge_T* e = static_cast<Edge_T*>(eh);
   return e->dst;
 }
-#endif
 
-#ifdef WITH_EDGE_WEIGHT
+#ifdef WITH_EDGE_DATA
 DataType get_edge_weight_type(const Graph g) {
   return DataTypeName<EdgeData>::Get();
 }

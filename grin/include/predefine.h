@@ -77,13 +77,14 @@ struct DataTypeName<grape::EmptyType> {
 
 /* The following macros are defined as the features of the storage. */
 #define WITH_VERTEX_DATA             // There is data on vertex.
-#define WITH_EDGE_SRC                // There is src data for edge.
-#define WITH_EDGE_DST                // There is dst data for edge.
-#define WITH_EDGE_WEIGHT             // There is weight for edge.
+#define WITH_EDGE_DATA               // There is data on edge, e.g. weight.
 #define ENABLE_VERTEX_LIST           // Enable the vertex list structure.
-#define ENABLE_EDGE_LIST             // Enable the edge list structure.
 #define ENABLE_ADJACENT_LIST         // Enable the adjacent list structure.
-#define PARTITION_STRATEGY EDGE_CUT  // The partition strategy.
+// Note: edge_list is only used in vertex_cut fragment
+// #define ENABLE_EDGE_LIST          // Enable the edge list structure.
+
+// The partition strategy.
+#define PARTITION_STRATEGY EDGE_CUT
 // There are all/part edges on local vertices.
 #define EDGES_ON_LOCAL_VERTEX ALL
 // There are all/part/none edges on non-local vertices.
@@ -147,7 +148,7 @@ struct EdgeListIterator_T {
 };
 typedef void* EdgeListIterator;
 
-#ifdef WITH_EDGE_WEIGHT
+#ifdef WITH_EDGE_DATA
 typedef Graph_T::edata_t EdgeData;
 #endif
 

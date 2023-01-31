@@ -42,6 +42,12 @@ PartitionList get_local_partitions(const PartitionedGraph pgh) {
   return pl;
 }
 
+void destroy_partition_list(PartitionList pl) {
+  if (pl != NULL_LIST) {
+    delete pl;
+  }
+}
+
 size_t get_partition_list_size(const PartitionList pl) { return 1; }
 
 Partition get_partition_from_list(const PartitionList pl, const size_t idx) {
@@ -247,6 +253,12 @@ RemotePartitionList get_remote_partition_list_for_vertex(
   return rpl;
 }
 
+void destroy_remote_partition_list(RemotePartitionList rpl) {
+  if (rpl != NULL_LIST) {
+    delete rpl;
+  }
+}
+
 size_t get_remote_partition_list_size(const RemotePartitionList rpl) {
   return 1;
 }
@@ -261,6 +273,12 @@ RemoteVertexList get_all_replicas_for_vertex(const PartitionedGraph pgh,
                                              const Partition p,
                                              const Vertex v) {
   return NULL_LIST;
+}
+
+void destroy_remote_vertex_list(RemoteVertexList rvl) {
+  if (rvl != NULL_LIST) {
+    delete rvl;
+  }
 }
 
 size_t get_remote_vertex_list_size(const RemoteVertexList rvl) { return 0; }
@@ -326,7 +344,7 @@ AdjacentList get_remote_adjacent_list(const PartitionedGraph pgh,
                                       const Vertex v) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   if (d == Direction::BOTH || pg->fid() != p) {
-    return NULL;
+    return NULL_LIST;
   } else if (d == Direction::IN) {
     AdjacentList_T* al =
         new AdjacentList_T(pg->GetIncomingOuterVertexAdjList(Vertex_G(v)));
@@ -344,7 +362,7 @@ AdjacentList get_remote_adjacent_list_by_partition(const PartitionedGraph pgh,
                                                    const Vertex v) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   if (d == Direction::BOTH) {
-    return NULL;
+    return NULL_LIST;
   } else if (pg->fid() == p) {
     return get_local_adjacent_list(pgh, d, p, v);
   } else if (d == Direction::IN) {

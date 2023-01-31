@@ -27,6 +27,13 @@ VertexList get_vertex_list(const Graph gh) {
   return vl;
 }
 
+void destroy_vertex_list(VertexList vlh) {
+  if (vlh != NULL_LIST) {
+    VertexList_T* vl = static_cast<VertexList_T*>(vlh);
+    delete vl;
+  }
+}
+
 size_t get_vertex_list_size(const VertexList vlh) {
   VertexList_T* vl = static_cast<VertexList_T*>(vlh);
   return vl->size();

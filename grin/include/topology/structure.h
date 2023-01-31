@@ -18,24 +18,24 @@ limitations under the License.
 
 bool is_directed(const Graph);
 
-#ifdef WITH_EDGE_SRC
+size_t get_vertex_num(const Graph);
+
+size_t get_edge_num(const Graph);
+
 Vertex get_edge_src(const Graph, const Edge);
-#endif
 
-#ifdef WITH_EDGE_DST
 Vertex get_edge_dst(const Graph, const Edge);
-#endif
-
-#ifdef WITH_EDGE_WEIGHT
-DataType get_edge_weight_type(const Graph, const Edge);
-
-EdgeData get_edge_weight_value(const Graph, const Edge);
-#endif
 
 #ifdef WITH_VERTEX_DATA
 DataType get_vertex_data_type(const Graph, const Vertex);
 
 VertexData get_vertex_data_value(const Graph, const Vertex);
+
+#ifdef WITH_EDGE_DATA
+DataType get_edge_weight_type(const Graph, const Edge);
+
+EdgeData get_edge_weight_value(const Graph, const Edge);
+#endif
 
 // TODO(andydiwenzhu): mutable functions
 // void set_vertex_data_value(const Graph, Vertex, const void*);

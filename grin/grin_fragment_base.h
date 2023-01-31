@@ -121,8 +121,7 @@ class GRIN_FragmentBase {
    * @return The number of vertices in this fragment.
    */
   VID_T GetVerticesNum() const {
-    auto vl = get_vertex_list(g_);
-    return get_vertex_list_size(vl);
+    return get_vertex_num(g_);
   }
 
   /**

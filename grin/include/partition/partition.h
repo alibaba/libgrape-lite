@@ -25,13 +25,14 @@ size_t get_total_vertices_number(const PartitionedGraph);
 
 PartitionList get_local_partitions(const PartitionedGraph);
 
+void destroy_partition_list(PartitionList);
+
 size_t get_partition_list_size(const PartitionList);
 
 Partition get_partition_from_list(const PartitionList, const size_t);
 
 // TODO(andydiwenzhu): mutable functions
 // PartitionList create_partition_list();
-// void destroy_partition_list(PartitionList);
 // bool insert_partition_to_list(PartitionList, const Partition);
 
 void* get_partition_info(const Partition);
@@ -91,6 +92,8 @@ RemotePartitionList get_remote_partition_list_for_vertex(const PartitionedGraph,
                                                          const Partition,
                                                          const Vertex);
 
+void destroy_remote_partition_list(RemotePartitionList);
+
 size_t get_remote_partition_list_size(const RemotePartitionList);
 
 RemotePartition get_remote_partition_from_list(const RemotePartitionList,
@@ -98,7 +101,6 @@ RemotePartition get_remote_partition_from_list(const RemotePartitionList,
 
 // TODO(andydiwenzhu): mutable functions
 // RemotePartitionList create_remote_partition_list();
-// void destroy_remote_partition_list(RemotePartitionList);
 // bool insert_remote_partition_to_list(RemotePartitionList,
 //                                      const RemotePartition);
 
@@ -106,13 +108,14 @@ RemotePartition get_remote_partition_from_list(const RemotePartitionList,
 RemoteVertexList get_all_replicas_for_vertex(const PartitionedGraph,
                                              const Partition, const Vertex);
 
+void destroy_remote_vertex_list(RemoteVertexList);
+
 size_t get_remote_vertex_list_size(const RemoteVertexList);
 
 RemoteVertex get_remote_vertex_from_list(const RemoteVertexList, const size_t);
 
 // TODO(andydiwenzhu): mutable functions
 // RemoteVertexList create_remote_vertex_list();
-// void destroy_remote_vertex_list(RemoteVertexList);
 // bool insert_remote_vertex_to_list(RemoteVertexList, const RemoteVertex);
 #endif
 

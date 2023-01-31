@@ -36,6 +36,13 @@ AdjacentList get_adjacent_list(const Graph gh, const Direction d,
   }
 }
 
+void destroy_adjacent_list(AdjacentList alh) {
+  if (alh != NULL_LIST) {
+    AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
+    delete al;
+  }
+}
+
 AdjacentListIterator get_adjacent_list_begin(const AdjacentList alh) {
   AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
   return al->begin_pointer();
@@ -65,7 +72,7 @@ Vertex get_neighbor_from_iter(const AdjacentList alh,
   return ali->get_neighbor_lid();
 }
 
-#ifdef WITH_EDGE_WEIGHT
+#ifdef WITH_EDGE_DATA
 DataType get_adjacent_edge_weight_type(const Graph g) {
   return DataTypeName<EdgeData>::Get();
 }

@@ -20,6 +20,8 @@ limitations under the License.
 
 EdgeList get_edge_list(const Graph, const Direction);
 
+void destroy_edge_list(EdgeList);
+
 size_t get_edge_list_size(const EdgeList);
 
 EdgeListIterator get_edge_list_begin(const EdgeList);
@@ -32,7 +34,6 @@ Edge get_edge_from_iter(const EdgeList, const EdgeListIterator);
 
 // TODO(andydiwenzhu): mutable functions
 // EdgeList create_edge_list();
-// void destroy_edge_list(EdgeList);
 // bool insert_edge_to_list(EdgeList, const Edge);
 
 #endif

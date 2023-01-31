@@ -28,7 +28,6 @@ limitations under the License.
 
 extern "C" {
 #include "grin/include/topology/adjacentlist.h"
-#include "grin/include/topology/edgelist.h"
 #include "grin/include/topology/vertexlist.h"
 }
 
@@ -56,8 +55,7 @@ class GRIN_CSREdgecutFragmentBase
   GRIN_CSREdgecutFragmentBase() {}
 
   inline size_t GetEdgeNum() const override {
-    auto el = get_edge_list(g_, Direction::BOTH);
-    return get_edge_list_size(el);
+    return get_edge_num(g_);
   }
 
   inline bool HasChild(const vertex_t& v) const override {

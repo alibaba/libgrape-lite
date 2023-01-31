@@ -20,6 +20,8 @@ limitations under the License.
 
 AdjacentList get_adjacent_list(const Graph, const Direction, const Vertex);
 
+void destroy_adjacent_list(AdjacentList);
+
 AdjacentListIterator get_adjacent_list_begin(const AdjacentList);
 
 AdjacentListIterator get_next_adjacent_iter(const AdjacentList,
@@ -31,7 +33,7 @@ bool has_next_adjacent_iter(const AdjacentList, const AdjacentListIterator);
 
 Vertex get_neighbor_from_iter(const AdjacentList, const AdjacentListIterator);
 
-#ifdef WITH_EDGE_WEIGHT
+#ifdef WITH_EDGE_DATA
 DataType get_adjacent_edge_weight_type(const Graph);
 
 EdgeData get_adjacent_edge_weight_value(const AdjacentList,

@@ -45,6 +45,13 @@ EdgeList get_edge_list(const Graph gh, const Direction d) {
   return el;
 }
 
+void destroy_edge_list(EdgeList elh) {
+  if (elh != NULL_LIST) {
+    EdgeList_T* el = static_cast<EdgeList_T*>(elh);
+    delete el;
+  }
+}
+
 size_t get_edge_list_size(const EdgeList elh) {
   EdgeList_T* el = static_cast<EdgeList_T*>(elh);
   return el->size;
