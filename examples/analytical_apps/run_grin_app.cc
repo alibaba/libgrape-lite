@@ -14,7 +14,7 @@ limitations under the License.
 */
 
 #include "run_grin_app.h"
-#include "grin/include/predefine.h"
+#include "grin/src/predefine.h"
 
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>

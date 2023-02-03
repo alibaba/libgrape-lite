@@ -88,10 +88,12 @@ class GRIN_EdgecutFragmentBase
    * @return The vertex range of inner vertices in this fragment.
    */
   const inner_vertices_t InnerVertices() const {
-    auto vl = get_local_vertices(pg_, fid_);
-    auto viter = get_vertex_list_begin(vl);
-    size_t size = get_vertex_list_size(vl);
-    return inner_vertices_t(viter, viter + size);
+    void* vlh = get_local_vertices(pg_, fid_);
+    void* beginh = get_index_begin_from_vertex_list(vlh);
+    VID_T* begin = static_cast<VID_T*>(beginh);
+    void* endh = get_index_end_from_vertex_list(vlh);
+    VID_T* end = static_cast<VID_T*>(endh);
+    return inner_vertices_t(*begin, *end);
   }
 
   using outer_vertices_t = typename TRAITS_T::outer_vertices_t;
@@ -101,18 +103,22 @@ class GRIN_EdgecutFragmentBase
    * @return The vertex range of outer vertices in this fragment.
    */
   const outer_vertices_t OuterVertices() const {
-    auto vl = get_remote_vertices(pg_, fid_);
-    auto viter = get_vertex_list_begin(vl);
-    size_t size = get_vertex_list_size(vl);
-    return outer_vertices_t(viter, viter + size);
+    void* vlh = get_remote_vertices(pg_, fid_);
+    void* beginh = get_index_begin_from_vertex_list(vlh);
+    VID_T* begin = static_cast<VID_T*>(beginh);
+    void* endh = get_index_end_from_vertex_list(vlh);
+    VID_T* end = static_cast<VID_T*>(endh);
+    return outer_vertices_t(*begin, *end);
   }
 
   using sub_vertices_t = typename TRAITS_T::sub_vertices_t;
   const sub_vertices_t OuterVertices(fid_t fid) const {
-    auto vl = get_remote_vertices_by_partition(pg_, fid_);
-    auto viter = get_vertex_list_begin(vl);
-    size_t size = get_vertex_list_size(vl);
-    return sub_vertices_t(viter, viter + size);
+    void* vlh = get_remote_vertices_by_partition(pg_, fid_);
+    void* beginh = get_index_begin_from_vertex_list(vlh);
+    VID_T* begin = static_cast<VID_T*>(beginh);
+    void* endh = get_index_end_from_vertex_list(vlh);
+    VID_T* end = static_cast<VID_T*>(endh);
+    return sub_vertices_t(*begin, *end);
   }
 
   using mirror_vertices_t = typename TRAITS_T::mirror_vertices_t;
@@ -128,7 +134,7 @@ class GRIN_EdgecutFragmentBase
    * @return True if vertex v is an inner vertex, false otherwise.
    */
   bool IsInnerVertex(const Vertex<VID_T>& v) const {
-    return is_local_vertex(pg_, fid_, v.GetValue());
+    return is_local_vertex(pg_, fid_, (void*)(&v));
   }
 
   /**
@@ -139,7 +145,7 @@ class GRIN_EdgecutFragmentBase
    * @return True if vertex v is outer vertex, false otherwise.
    */
   bool IsOuterVertex(const Vertex<VID_T>& v) const {
-    return !is_local_vertex(pg_, fid_, v.GetValue());
+    return !is_local_vertex(pg_, fid_, (void*)(&v));
   }
 
   /**
@@ -228,7 +234,7 @@ class GRIN_EdgecutFragmentBase
    * @return Global id of the vertex.
    */
   VID_T GetInnerVertexGid(vertex_t v) const {
-    std::stringstream ss(serialize_remote_vertex(pg_, v.GetValue()));
+    std::stringstream ss(serialize_remote_vertex(pg_, (void*)(&v)));
     VID_T gid;
     ss >> gid;
     return gid;
@@ -364,11 +370,12 @@ class GRIN_EdgecutFragmentBase
   bool Gid2Vertex(const vid_t& gid, vertex_t& v) const override {
     std::stringstream ss;
     ss << gid;
-    auto vh = get_vertex_from_deserialization(pg_, fid_, ss.str().c_str());
+    void* vh = get_vertex_from_deserialization(pg_, fid_, ss.str().c_str());
     if (vh == NULL_VERTEX) {
       return false;
     }
-    v.SetValue(vh);
+    vertex_t* _v = static_cast<vertex_t*>(vh);
+    v.SetValue(_v->GetValue());
     return true;
   }
 
@@ -394,7 +401,7 @@ class GRIN_EdgecutFragmentBase
         gid_list.reserve(range.size());
         for (auto& v : range) {
           gid_list.emplace_back(
-              get_master_partition_for_vertex(pg_, fid_, v.GetValue()));
+              get_master_partition_for_vertex(pg_, fid_, (void*)(&v)));
         }
         sync_comm::Send<std::vector<vertex_t>>(gid_list, dst_worker_id, 0,
                                                comm_spec.comm());

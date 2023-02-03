@@ -22,7 +22,7 @@ limitations under the License.
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
 #include "grape/worker/comm_spec.h"
-#include "grin/include/predefine.h"
+#include "grin/src/predefine.h"
 
 extern "C" {
 #include "grin/include/partition/partition.h"
@@ -138,9 +138,12 @@ class GRIN_FragmentBase {
    * @return A vertex set can be iterate on.
    */
   const vertices_t Vertices() const {
-    auto vl = get_vertex_list(g_);
-    auto viter = get_vertex_list_begin(vl);
-    return vertices_t(viter, viter + get_vertex_list_size(vl));
+    void* vlh = get_vertex_list(g_);
+    void* beginh = get_index_begin_from_vertex_list(vlh);
+    VID_T* begin = static_cast<VID_T*>(beginh);
+    void* endh = get_index_end_from_vertex_list(vlh);
+    VID_T* end = static_cast<VID_T*>(endh);
+    return vertices_t(*begin, *end);
   }
 
   /**
@@ -195,7 +198,7 @@ class GRIN_FragmentBase {
    * @return Its fragment ID.
    */
   fid_t GetFragId(const Vertex<VID_T>& u) const {
-    auto rp = get_master_partition_for_vertex(pg_, fid_, u.GetValue());
+    auto rp = get_master_partition_for_vertex(pg_, fid_, (void*)(&u));
     if (rp == NULL_REMOTE_PARTITION) {
       return fid_;
     }

@@ -16,6 +16,8 @@ limitations under the License.
 #ifndef GRIN_INCLUDE_TOPOLOGY_VERTEXLIST_H_
 #define GRIN_INCLUDE_TOPOLOGY_VERTEXLIST_H_
 
+#include "../predefine.h"
+
 #ifdef ENABLE_VERTEX_LIST
 
 VertexList get_vertex_list(const Graph);
@@ -32,10 +34,22 @@ bool has_next_vertex_iter(const VertexList, const VertexListIterator);
 
 Vertex get_vertex_from_iter(const VertexList, const VertexListIterator);
 
-// TODO(andydiwenzhu): mutable functions
-// VertexList create_vertex_list();
-// bool insert_vertex_to_list(VertexList, const Vertex);
+#ifdef ENABLE_INDEXED_VERTEX_LIST
+void destroy_vertex_index(VertexIndex);
 
+VertexIndex get_index_begin_from_vertex_list(const VertexList);
+
+VertexIndex get_index_end_from_vertex_list(const VertexList);
+
+VertexIndex get_vertex_index_from_vertex_list(const VertexList, Vertex);
+
+Vertex get_vertex_from_list_by_index(const VertexList, VertexIndex);
+#endif
+
+#ifdef MUTABLE_GRAPH
+VertexList create_vertex_list();
+bool insert_vertex_to_list(VertexList, const Vertex);
+#endif
 #endif
 
 #endif  // GRIN_INCLUDE_TOPOLOGY_VERTEXLIST_H_

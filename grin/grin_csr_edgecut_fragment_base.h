@@ -24,7 +24,7 @@ limitations under the License.
 #include "grape/vertex_map/global_vertex_map.h"
 
 #include "grin/grin_edgecut_fragment_base.h"
-#include "grin/include/predefine.h"
+#include "grin/src/predefine.h"
 
 extern "C" {
 #include "grin/include/topology/adjacentlist.h"
@@ -60,25 +60,25 @@ class GRIN_CSREdgecutFragmentBase
 
   inline bool HasChild(const vertex_t& v) const override {
     assert(IsInnerVertex(v));
-    auto al = get_adjacent_list(g_, Direction::OUT, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::OUT, (void*)(&v));
     return get_adjacent_list_size(al) > 0;
   }
 
   inline bool HasParent(const vertex_t& v) const override {
     assert(IsInnerVertex(v));
-    auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::IN, (void*)(&v));
     return get_adjacent_list_size(al) > 0;
   }
 
   inline int GetLocalOutDegree(const vertex_t& v) const override {
     assert(IsInnerVertex(v));
-    auto al = get_adjacent_list(g_, Direction::OUT, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::OUT, (void*)(&v));
     return get_adjacent_list_size(al);
   }
 
   inline int GetLocalInDegree(const vertex_t& v) const override {
     assert(IsInnerVertex(v));
-    auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::IN, (void*)(&v));
     return get_adjacent_list_size(al);
   }
 
@@ -92,7 +92,7 @@ class GRIN_CSREdgecutFragmentBase
    * @attention Only inner vertex is available.
    */
   inline adj_list_t GetIncomingAdjList(const vertex_t& v) override {
-    auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::IN, (void*)(&v));
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
     return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
@@ -107,7 +107,7 @@ class GRIN_CSREdgecutFragmentBase
    * @attention Only inner vertex is available.
    */
   inline const_adj_list_t GetIncomingAdjList(const vertex_t& v) const override {
-    auto al = get_adjacent_list(g_, Direction::IN, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::IN, (void*)(&v));
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
     return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
@@ -122,7 +122,7 @@ class GRIN_CSREdgecutFragmentBase
    * @attention Only inner vertex is available.
    */
   inline adj_list_t GetOutgoingAdjList(const vertex_t& v) override {
-    auto al = get_adjacent_list(g_, Direction::OUT, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::OUT, (void*)(&v));
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
     return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
@@ -137,7 +137,7 @@ class GRIN_CSREdgecutFragmentBase
    * @attention Only inner vertex is available.
    */
   inline const_adj_list_t GetOutgoingAdjList(const vertex_t& v) const override {
-    auto al = get_adjacent_list(g_, Direction::OUT, v.GetValue());
+    auto al = get_adjacent_list(g_, Direction::OUT, (void*)(&v));
     auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
     return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
   }
@@ -251,10 +251,11 @@ class GRIN_CSREdgecutFragmentBase
     auto vl = get_local_vertices(pg_, fid_);
     auto viter = get_vertex_list_begin(vl);
     while (has_next_vertex_iter(vl, viter)) {
-      auto v = get_vertex_from_iter(vl, viter);
+      void* vh = get_vertex_from_iter(vl, viter);
+      vertex_t* v = static_cast<vertex_t*>(vh);
       dstset.clear();
       if (in_edge) {
-        adj_list_t al = GetIncomingAdjList(vertex_t(v));
+        adj_list_t al = GetIncomingAdjList(*v);
         nbr_t* ptr = al.begin_pointer();
         nbr_t* end = al.end_pointer();
         while (ptr != end) {
@@ -265,7 +266,7 @@ class GRIN_CSREdgecutFragmentBase
         }
       }
       if (out_edge) {
-        adj_list_t al = GetOutgoingAdjList(vertex_t(v));
+        adj_list_t al = GetOutgoingAdjList(*v);
         nbr_t* ptr = al.begin_pointer();
         nbr_t* end = al.end_pointer();
         while (ptr != end) {

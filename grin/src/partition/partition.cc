@@ -13,10 +13,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <cstdlib>
 #include <string>
 
-#include "grin/include/predefine.h"
+#include "grin/src/predefine.h"
 
 extern "C" {
 #include "grin/include/partition/partition.h"
@@ -54,6 +53,11 @@ Partition get_partition_from_list(const PartitionList pl, const size_t idx) {
   return *(pl + idx);
 }
 
+#ifdef MUTABLE_GRAPH
+PartitionList create_partition_list() { return NULL_LIST }
+bool insert_partition_to_list(PartitionList, const Partition) { return false }
+#endif
+
 void* get_partition_info(const Partition p) { return NULL; }
 
 Graph get_local_graph_from_partition(const PartitionedGraph pgh,
@@ -76,9 +80,10 @@ char* serialize_remote_partition(const PartitionedGraph pgh,
 }
 
 char* serialize_remote_vertex(const PartitionedGraph pgh,
-                              const RemoteVertex rv) {
+                              const RemoteVertex rvh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  Vertex gid = pg->Vertex2Gid(Vertex_G(rv));
+  RemoteVertex_T *rv = static_cast<RemoteVertex_T*>(rvh);
+  VertexID_T gid = pg->Vertex2Gid(*rv);
   std::stringstream ss;
   ss << gid;
   int len = ss.str().length() + 1;
@@ -88,10 +93,11 @@ char* serialize_remote_vertex(const PartitionedGraph pgh,
 }
 
 char* serialize_remote_vertex_with_data(const PartitionedGraph pgh,
-                                        const RemoteVertex rv,
+                                        const RemoteVertex rvh,
                                         const VertexData data) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  Vertex gid = pg->Vertex2Gid(Vertex_G(rv));
+  RemoteVertex_T *rv = static_cast<RemoteVertex_T*>(rvh);
+  VertexID_T gid = pg->Vertex2Gid(*rv);
   std::stringstream ss;
   ss << gid;
   ss << data;
@@ -104,10 +110,10 @@ char* serialize_remote_vertex_with_data(const PartitionedGraph pgh,
 char* serialize_remote_edge(const PartitionedGraph pgh, const RemoteEdge reh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   RemoteEdge_T* re = static_cast<RemoteEdge_T*>(reh);
-  Vertex src = pg->Vertex2Gid(Vertex_G(re->src));
-  Vertex dst = pg->Vertex2Gid(Vertex_G(re->dst));
+  VertexID_T src = pg->Vertex2Gid(Vertex_T(re->src));
+  VertexID_T dst = pg->Vertex2Gid(Vertex_T(re->dst));
   std::stringstream ss;
-  if (DataTypeName<EdgeData>::Get() == DataType::EMPTY) {
+  if (DataTypeName<EdgeData>::Get() == DataType::OTHER) {
     ss << src << dst;
   } else {
     ss << src << dst << re->edata;
@@ -133,14 +139,14 @@ Partition get_partition_from_deserialization(const PartitionedGraph pgh,
 Vertex get_vertex_from_deserialization(const PartitionedGraph pgh,
                                        const Partition p, const char* msg) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  Vertex gv;
+  VertexID_T gv;
   std::stringstream ss(msg);
   ss >> gv;
-  Vertex_G v;
-  if (!pg->Gid2Vertex(gv, v)) {
+  Vertex_T* v = new Vertex_T();
+  if (!pg->Gid2Vertex(gv, *v)) {
     return NULL_VERTEX;
   }
-  return v.GetValue();
+  return v;
 }
 
 Vertex get_vertex_from_deserialization_with_data(const PartitionedGraph pgh,
@@ -148,28 +154,28 @@ Vertex get_vertex_from_deserialization_with_data(const PartitionedGraph pgh,
                                                  const char* msg,
                                                  VertexData& data) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  Vertex gv;
+  VertexID_T gv;
   std::stringstream ss(msg);
   ss >> gv >> data;
-  Vertex_G v;
-  if (!pg->Gid2Vertex(gv, v)) {
+  Vertex_T* v = new Vertex_T();
+  if (!pg->Gid2Vertex(gv, *v)) {
     return NULL_VERTEX;
   }
-  return v.GetValue();
+  return v;
 }
 
 Edge get_edge_from_deserialization(const PartitionedGraph pgh,
                                    const Partition p, const char* msg) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  Vertex src, dst;
-  EdgeData data;
+  VertexID_T src, dst;
+  EdgeData_T data;
   std::stringstream ss(msg);
-  if (DataTypeName<EdgeData>::Get() == DataType::EMPTY) {
+  if (DataTypeName<EdgeData_T>::Get() == DataType::OTHER) {
     ss >> src >> dst;
   } else {
     ss >> src >> dst >> data;
   }
-  Vertex_G v1, v2;
+  Vertex_T v1, v2;
   if (!pg->Gid2Vertex(src, v1) || !pg->Gid2Vertex(dst, v2)) {
     return NULL_EDGE;
   }
@@ -178,24 +184,26 @@ Edge get_edge_from_deserialization(const PartitionedGraph pgh,
 }
 
 bool is_local_vertex(const PartitionedGraph pgh, const Partition p,
-                     const Vertex v) {
+                     Vertex vh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  return pg->IsInnerVertex(Vertex_G(v));
+  Vertex_T* v = static_cast<Vertex_T*>(vh);
+  return pg->IsInnerVertex(*v);
 }
 
 bool is_local_edge(const PartitionedGraph pgh, const Partition p,
                    const Edge eh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   Edge_T* e = static_cast<Edge_T*>(eh);
-  return pg->IsInnerVertex(Vertex_G(e->src)) ||
-         pg->IsInnerVertex(Vertex_G(e->dst));
+  return pg->IsInnerVertex(Vertex_T(e->src)) ||
+         pg->IsInnerVertex(Vertex_T(e->dst));
 }
 
 RemotePartition get_master_partition_for_vertex(const PartitionedGraph pgh,
                                                 const Partition p,
-                                                const Vertex v) {
+                                                Vertex vh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  RemotePartition rp = pg->GetFragId(Vertex_G(v));
+  Vertex_T* v = static_cast<Vertex_T*>(vh);
+  RemotePartition rp = pg->GetFragId(*v);
   if (rp == p) {
     return NULL_PARTITION;
   }
@@ -207,8 +215,8 @@ RemotePartition get_master_partition_for_edge(const PartitionedGraph pgh,
                                               const Edge eh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   Edge_T* e = static_cast<Edge_T*>(eh);
-  RemotePartition src_rp = pg->GetFragId(Vertex_G(e->src));
-  RemotePartition dst_rp = pg->GetFragId(Vertex_G(e->dst));
+  RemotePartition src_rp = pg->GetFragId(Vertex_T(e->src));
+  RemotePartition dst_rp = pg->GetFragId(Vertex_T(e->dst));
   if (src_rp == p) {
     if (dst_rp == p) {
       return NULL_PARTITION;
@@ -226,9 +234,11 @@ RemotePartition get_master_partition_for_edge(const PartitionedGraph pgh,
 }
 
 RemoteVertex get_master_vertex_for_vertex(const PartitionedGraph pgh,
-                                          const Partition p, const Vertex v) {
+                                          const Partition p, Vertex vh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
-  return pg->Vertex2Gid(Vertex_G(v));
+  Vertex_T* v = static_cast<Vertex_T*>(vh);
+  RemoteVertex_T* rv = new RemoteVertex_T(pg->Vertex2Gid(*v));
+  return rv;
 }
 
 RemoteEdge get_master_edge_for_edge(const PartitionedGraph pgh,
@@ -236,20 +246,22 @@ RemoteEdge get_master_edge_for_edge(const PartitionedGraph pgh,
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   Edge_T* e = static_cast<Edge_T*>(eh);
   RemoteEdge_T* re =
-      new RemoteEdge_T(pg->Vertex2Gid(Vertex_G(e->src)),
-                       pg->Vertex2Gid(Vertex_G(e->dst)), e->edata);
+      new RemoteEdge_T(pg->Vertex2Gid(Vertex_T(e->src)),
+                       pg->Vertex2Gid(Vertex_T(e->dst)), e->edata);
   return re;
 }
 
 // get the partitions in which a vertex exists
 RemotePartitionList get_remote_partition_list_for_vertex(
-    const PartitionedGraph pgh, const Partition p, const Vertex v) {
-  if (is_local_vertex(pgh, p, v)) {
+    const PartitionedGraph pgh, const Partition p, Vertex vh) {
+  if (is_local_vertex(pgh, p, vh)) {
     return NULL_LIST;
   }
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   RemotePartitionList rpl = new RemotePartition[1];
-  rpl[0] = pg->GetFragId(Vertex_G(v));
+  Vertex_T* v = static_cast<Vertex_T*>(vh);
+
+  rpl[0] = pg->GetFragId(*v);
   return rpl;
 }
 
@@ -268,10 +280,16 @@ RemotePartition get_remote_partition_from_list(const RemotePartitionList rpl,
   return *(rpl + idx);
 }
 
+#ifdef MUTABLE_GRAPH
+RemotePartitionList create_remote_partition_list() { return NULL_LIST }
+bool insert_remote_partition_to_list(RemotePartitionList,
+                                     const RemotePartition) { return false }
+#endif
+
 // get the replicas of a vertex
 RemoteVertexList get_all_replicas_for_vertex(const PartitionedGraph pgh,
                                              const Partition p,
-                                             const Vertex v) {
+                                             Vertex v) {
   return NULL_LIST;
 }
 
@@ -287,6 +305,11 @@ RemoteVertex get_remote_vertex_from_list(const RemoteVertexList rvl,
                                          const size_t idx) {
   return NULL_REMOTE_VERTEX;
 }
+
+#ifdef MUTABLE_GRAPH
+RemoteVertexList create_remote_vertex_list() { return NULL_LIST };
+bool insert_remote_vertex_to_list(RemoteVertexList, const RemoteVertex) { return false };
+#endif
 
 #endif
 
@@ -324,34 +347,38 @@ VertexList get_remote_vertices_by_partition(const PartitionedGraph pgh,
 #if defined(PARTITION_STRATEGY) && defined(ENABLE_ADJACENT_LIST)
 AdjacentList get_local_adjacent_list(const PartitionedGraph pgh,
                                      const Direction d, const Partition p,
-                                     const Vertex v) {
+                                     Vertex vh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   if (d == Direction::BOTH || pg->fid() != p) {
     return NULL_LIST;
   } else if (d == Direction::IN) {
+    Vertex_T* v = static_cast<Vertex_T*>(vh);
     AdjacentList_T* al =
-        new AdjacentList_T(pg->GetIncomingInnerVertexAdjList(Vertex_G(v)));
+        new AdjacentList_T(pg->GetIncomingInnerVertexAdjList(*v));
     return al;
   } else {
+    Vertex_T* v = static_cast<Vertex_T*>(vh);
     AdjacentList_T* al =
-        new AdjacentList_T(pg->GetOutgoingInnerVertexAdjList(Vertex_G(v)));
+        new AdjacentList_T(pg->GetOutgoingInnerVertexAdjList(*v));
     return al;
   }
 }
 
 AdjacentList get_remote_adjacent_list(const PartitionedGraph pgh,
                                       const Direction d, const Partition p,
-                                      const Vertex v) {
+                                      Vertex vh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   if (d == Direction::BOTH || pg->fid() != p) {
     return NULL_LIST;
   } else if (d == Direction::IN) {
+    Vertex_T* v = static_cast<Vertex_T*>(vh);
     AdjacentList_T* al =
-        new AdjacentList_T(pg->GetIncomingOuterVertexAdjList(Vertex_G(v)));
+        new AdjacentList_T(pg->GetIncomingOuterVertexAdjList(*v));
     return al;
   } else {
+    Vertex_T* v = static_cast<Vertex_T*>(vh);
     AdjacentList_T* al =
-        new AdjacentList_T(pg->GetOutgoingOuterVertexAdjList(Vertex_G(v)));
+        new AdjacentList_T(pg->GetOutgoingOuterVertexAdjList(*v));
     return al;
   }
 }
@@ -359,19 +386,21 @@ AdjacentList get_remote_adjacent_list(const PartitionedGraph pgh,
 AdjacentList get_remote_adjacent_list_by_partition(const PartitionedGraph pgh,
                                                    const Direction d,
                                                    const RemotePartition p,
-                                                   const Vertex v) {
+                                                   Vertex vh) {
   PartitionedGraph_T* pg = static_cast<PartitionedGraph_T*>(pgh);
   if (d == Direction::BOTH) {
     return NULL_LIST;
   } else if (pg->fid() == p) {
-    return get_local_adjacent_list(pgh, d, p, v);
+    return get_local_adjacent_list(pgh, d, p, vh);
   } else if (d == Direction::IN) {
+    Vertex_T* v = static_cast<Vertex_T*>(vh);
     AdjacentList_T* al =
-        new AdjacentList_T(pg->GetIncomingAdjList(Vertex_G(v), p));
+        new AdjacentList_T(pg->GetIncomingAdjList(*v, p));
     return al;
   } else {
+    Vertex_T* v = static_cast<Vertex_T*>(vh);
     AdjacentList_T* al =
-        new AdjacentList_T(pg->GetOutgoingAdjList(Vertex_G(v), p));
+        new AdjacentList_T(pg->GetOutgoingAdjList(*v, p));
     return al;
   }
 }

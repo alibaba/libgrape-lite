@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "grin/include/predefine.h"
+#include "grin/src/predefine.h"
 
 extern "C" {
 #include "grin/include/topology/edgelist.h"

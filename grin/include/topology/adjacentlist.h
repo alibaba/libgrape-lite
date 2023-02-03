@@ -16,9 +16,11 @@ limitations under the License.
 #ifndef GRIN_INCLUDE_TOPOLOGY_ADJACENTLIST_H_
 #define GRIN_INCLUDE_TOPOLOGY_ADJACENTLIST_H_
 
+#include "../predefine.h"
+
 #ifdef ENABLE_ADJACENT_LIST
 
-AdjacentList get_adjacent_list(const Graph, const Direction, const Vertex);
+AdjacentList get_adjacent_list(const Graph, const Direction, Vertex);
 
 void destroy_adjacent_list(AdjacentList);
 
@@ -37,7 +39,7 @@ Vertex get_neighbor_from_iter(const AdjacentList, const AdjacentListIterator);
 DataType get_adjacent_edge_data_type(const Graph);
 
 EdgeData get_adjacent_edge_data_value(const AdjacentList,
-                                        const AdjacentListIterator);
+                                      const AdjacentListIterator);
 #endif
 
 #endif

@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "grin/include/predefine.h"
+#include "grin/src/predefine.h"
 
 extern "C" {
 #include "grin/include/topology/adjacentlist.h"
@@ -22,14 +22,15 @@ extern "C" {
 #ifdef ENABLE_ADJACENT_LIST
 
 AdjacentList get_adjacent_list(const Graph gh, const Direction d,
-                               const Vertex v) {
+                               Vertex vh) {
   Graph_T* g = static_cast<Graph_T*>(gh);
+  Vertex_T* v = static_cast<Vertex_T*>(vh);
 
   if (d == Direction::OUT) {
-    AdjacentList al = new AdjacentList_T(g->GetOutgoingAdjList(Vertex_G(v)));
+    AdjacentList al = new AdjacentList_T(g->GetOutgoingAdjList(*v));
     return al;
   } else if (d == Direction::IN) {
-    AdjacentList al = new AdjacentList_T(g->GetIncomingAdjList(Vertex_G(v)));
+    AdjacentList al = new AdjacentList_T(g->GetIncomingAdjList(*v));
     return al;
   } else {
     return NULL_LIST;
@@ -69,7 +70,8 @@ bool has_next_adjacent_iter(const AdjacentList alh,
 Vertex get_neighbor_from_iter(const AdjacentList alh,
                               const AdjacentListIterator alih) {
   AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
-  return ali->get_neighbor_lid();
+  Vertex_T* v = new Vertex_T(ali->get_neighbor_lid());
+  return v;
 }
 
 #ifdef WITH_EDGE_DATA
@@ -78,9 +80,10 @@ DataType get_adjacent_edge_data_type(const Graph g) {
 }
 
 EdgeData get_adjacent_edge_data_value(const AdjacentList alh,
-                                         const AdjacentListIterator alih) {
+                                      const AdjacentListIterator alih) {
   AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
-  return ali->get_data();
+  EdgeData_T* edata = new EdgeData_T(ali->get_data());
+  return edata;
 }
 #endif
 

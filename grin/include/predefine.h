@@ -12,12 +12,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <climits>
-
-#include "grape/fragment/immutable_edgecut_fragment.h"
-
 #ifndef GRIN_INCLUDE_PREDEFINE_H_
 #define GRIN_INCLUDE_PREDEFINE_H_
+
+#include <limits.h>
+#include <stdbool.h>
+#include <stddef.h>
 
 // The enum type for edge directions.
 typedef enum {
@@ -43,42 +43,21 @@ typedef enum {
 // The enum type for vertex/edge data type.
 typedef enum {
   INT = 0,
-  UNSIGNED = 1,
-  FLOAT = 2,
-  DOUBLE = 3,
-  EMPTY = 4,
-  OTHER = 5,
+  LONG = 1,
+  UNSIGNED = 2,
+  UNSIGNED_LONG = 3,
+  FLOAT = 4,
+  DOUBLE = 5,
+  OTHER = 6,
 } DataType;
 
-template <typename T>
-struct DataTypeName {
-  static DataType Get() { return DataType::OTHER; }
-};
-template <>
-struct DataTypeName<int> {
-  static DataType Get() { return DataType::INT; }
-};
-template <>
-struct DataTypeName<unsigned> {
-  static DataType Get() { return DataType::UNSIGNED; }
-};
-template <>
-struct DataTypeName<float> {
-  static DataType Get() { return DataType::FLOAT; }
-};
-template <>
-struct DataTypeName<double> {
-  static DataType Get() { return DataType::DOUBLE; }
-};
-template <>
-struct DataTypeName<grape::EmptyType> {
-  static DataType Get() { return DataType::EMPTY; }
-};
-
 /* The following macros are defined as the features of the storage. */
+// Note: mutable graph is currently NOT supported in grin-libgrape-lite
+// #define MUTABLE_GRAPH                // Graph is mutable
 #define WITH_VERTEX_DATA             // There is data on vertex.
 #define WITH_EDGE_DATA               // There is data on edge, e.g. weight.
 #define ENABLE_VERTEX_LIST           // Enable the vertex list structure.
+#define ENABLE_INDEXED_VERTEX_LIST   // Enable continous index on vertext list.
 #define ENABLE_ADJACENT_LIST         // Enable the adjacent list structure.
 // Note: edge_list is only used in vertex_cut fragment
 // #define ENABLE_EDGE_LIST          // Enable the edge list structure.
@@ -93,67 +72,56 @@ struct DataTypeName<grape::EmptyType> {
 #define EDGES_ON_LOCAL_VERTEX_DIRECTION BOTH
 
 /* The followings macros are defined as invalid value. */
-#define NULL_TYPE NULL        // Null type (null data type)
-#define NULL_GRAPH NULL       // Null graph handle (invalid return value).
-#define NULL_VERTEX NULL      // Null vertex handle (invalid return value).
-#define NULL_EDGE NULL        // Null edge handle (invalid return value).
-#define NULL_PARTITION NULL   // Null partition handle (invalid return value).
-#define NULL_LIST NULL        // Null list of any kind.
-#define NULL_REMOTE_PARTITION NULL  // same as partition.
+#define NULL_TYPE NULL              // Null type (null data type)
+#define NULL_GRAPH NULL             // Null graph handle (invalid return value).
+#define NULL_VERTEX NULL            // Null vertex handle (invalid return value).
+#define NULL_EDGE NULL              // Null edge handle (invalid return value).
+#define NULL_PARTITION UINT_MAX	    // Null partition handle (invalid return value).
+#define NULL_LIST NULL              // Null list of any kind.
+#define NULL_REMOTE_PARTITION UINT_MAX  // same as partition.
 #define NULL_REMOTE_VERTEX NULL     // same as vertex.
 #define NULL_REMOTE_EDGE NULL       // same as edge.
 
 /* The following data types shall be defined through typedef. */
 // local graph
-typedef grape::ImmutableEdgecutFragment<G_OID_T, G_VID_T, G_VDATA_T, G_EDATA_T>
-    Graph_T;
 typedef void* Graph;
 
 // vertex
-typedef Graph_T::vid_t Vertex;
-typedef Graph_T::vertex_t Vertex_G;
-
-// vertex list
-typedef Graph_T::vertex_range_t VertexList_T;
-typedef void* VertexList;
-typedef Graph_T::vid_t VertexListIterator;
+typedef void* Vertex;
+typedef void* VertexID;
 
 // vertex data
 #ifdef WITH_VERTEX_DATA
-typedef Graph_T::vdata_t VertexData;
+typedef void* VertexData;
+#endif
+
+// vertex list
+#ifdef ENABLE_VERTEX_LIST
+typedef void* VertexList;
+typedef void* VertexListIterator;
+#endif
+
+// indexed vertex list
+#ifdef ENABLE_INDEXED_VERTEX_LIST
+typedef void* VertexIndex;
+#define NULL_INDEX NULL
 #endif
 
 // adjacent list
-typedef Graph_T::adj_list_t AdjacentList_T;
+#ifdef ENABLE_ADJACENT_LIST
 typedef void* AdjacentList;
-typedef Graph_T::nbr_t AdjacentListIterator_T;
 typedef void* AdjacentListIterator;
+#endif
 
 // edge
-typedef Graph_T::edge_t Edge_T;
 typedef void* Edge;
 
-// edge list
-struct EdgeList_T {
-  Graph_T* g;
-  Direction d;
-  size_t size;
-  VertexList_T* vl;
-};
-typedef void* EdgeList;
-struct EdgeListIterator_T {
-  Direction d;
-  VertexListIterator vli;
-  AdjacentListIterator_T* ptr;
-};
-typedef void* EdgeListIterator;
-
+// edge data
 #ifdef WITH_EDGE_DATA
-typedef Graph_T::edata_t EdgeData;
+typedef void* EdgeData;
 #endif
 
 // partitioned graph
-typedef Graph_T PartitionedGraph_T;
 typedef void* PartitionedGraph;
 
 // partition and partition list
@@ -169,7 +137,6 @@ typedef Vertex RemoteVertex;
 typedef RemoteVertex* RemoteVertexList;
 
 // remote edge
-typedef Edge_T RemoteEdge_T;
 typedef Edge RemoteEdge;
 
 #endif  // GRIN_INCLUDE_PREDEFINE_H_

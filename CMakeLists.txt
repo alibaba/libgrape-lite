@@ -55,6 +55,8 @@ include_directories(SYSTEM thirdparty)
 # ------------------------------------------------------------------------------
 # grin options
 # ------------------------------------------------------------------------------
+add_library(grin_example OBJECT grin/example/example.c)
+
 set(GRIN_APPS "BFS_AUTO;BFS;PAGERANK_LOCAL;PAGERANK_LOCAL_PARALLEL;PAGERANK_AUTO;PAGERANK;PAGERANK_PARALLEL;CDLP_AUTO;CDLP;WCC_AUTO;WCC;LCC_AUTO;LCC;SSSP_AUTO;SSSP" CACHE STRING "GRIN-supported Apps")
 
 set(OID_TYPE "" CACHE STRING "set oid type")

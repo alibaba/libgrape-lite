@@ -32,10 +32,10 @@ bool has_next_edge_iter(const EdgeList, const EdgeListIterator);
 
 Edge get_edge_from_iter(const EdgeList, const EdgeListIterator);
 
-// TODO(andydiwenzhu): mutable functions
-// EdgeList create_edge_list();
-// bool insert_edge_to_list(EdgeList, const Edge);
-
+#ifdef MUTABLE_GRAPH
+EdgeList create_edge_list();
+bool insert_edge_to_list(EdgeList, const Edge);
+#endif
 #endif
 
 #endif  // GRIN_INCLUDE_TOPOLOGY_EDGELIST_H_
