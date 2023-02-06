@@ -22,6 +22,9 @@ limitations under the License.
 #include "grape/graph/edge.h"
 #include "grape/utils/vertex_array.h"
 
+#include "grin/include/topology/adjacentlist.h"
+#include "grin/include/topology/structure.h"
+
 namespace grape {
 
 /**
@@ -255,6 +258,223 @@ class AdjList {
  private:
   NbrT* begin_;
   NbrT* end_;
+};
+
+
+/**
+ * @brief A GRIN style iteratable adjencent list of a vertex. 
+ *
+ * @tparam VID_T
+ * @tparam EDATA_T
+ */
+template <typename VID_T, typename EDATA_T>
+class GRIN_AdjList {
+  using NbrT = Nbr<VID_T, EDATA_T>;
+
+ public:
+  DEV_HOST GRIN_AdjList() {}
+
+  DEV_HOST GRIN_AdjList(void* al, size_t sz) : al_(al), begin_(0), end_(sz) {}
+
+  DEV_HOST ~GRIN_AdjList() {}
+
+  DEV_HOST_INLINE bool Empty() const { return begin_ == end_; }
+
+  DEV_HOST_INLINE bool NotEmpty() const { return !Empty(); }
+
+  DEV_HOST_INLINE size_t Size() const { return end_ - begin_; }
+
+  class iterator {
+    using pointer_type = NbrT*;
+    using reference_type = NbrT&;
+
+   private:
+    void* al_;
+    void* ali_;
+    size_t current_;
+    NbrT current_value_;
+
+    void add_current_value() {
+      ali_ = get_next_adjacent_iter(al_, ali_);
+      void* v_ = get_neighbor_from_iter(al_, ali_);
+      VID_T* vptr = static_cast<VID_T*>(get_vertex_id(v_));
+      current_value_.neighbor = (*vptr);
+      EDATA_T* eptr = static_cast<EDATA_T*>(get_adjacent_edge_data_value(al_, ali_));
+      current_value_.data = (*eptr);
+    }
+
+   public:
+    DEV_HOST iterator() noexcept : al_(nullptr), ali_(nullptr), current_(0) {}
+    DEV_HOST explicit iterator(void* al, const size_t& c) noexcept : al_(al), current_(c) {
+      if (c == 0) {
+        ali_ = get_adjacent_list_begin(al_);
+      } else {
+        ali_ = nullptr;
+      }
+    }
+    DEV_HOST reference_type operator*() noexcept { 
+      return current_value_; 
+    }
+
+    DEV_HOST iterator& operator++() noexcept {
+      ++current_;
+      add_current_value();
+      return *this;
+    }
+
+    DEV_HOST bool operator==(const iterator& rhs) noexcept {
+      return current_ == rhs.current_;
+    }
+    DEV_HOST bool operator!=(const iterator& rhs) noexcept {
+      return current_ != rhs.current_;
+    }
+  };
+
+  class const_iterator {
+    using pointer_type = const NbrT*;
+    using reference_type = const NbrT&;
+
+   private:
+    void* al_;
+    void* ali_;
+    size_t current_;
+    NbrT current_value_;
+
+    void add_current_value() {
+      ali_ = get_next_adjacent_iter(al_, ali_);
+      void* v_ = get_neighbor_from_iter(al_, ali_);
+      VID_T* vptr = static_cast<VID_T*>(get_vertex_id(v_));
+      current_value_.neighbor = (*vptr);
+      EDATA_T* eptr = static_cast<EDATA_T*>(get_adjacent_edge_data_value(al_, ali_));
+      current_value_.data = (*eptr);
+    }
+
+   public:
+    DEV_HOST const_iterator() noexcept : al_{nullptr}, current_(0) {}
+    DEV_HOST explicit const_iterator(void* al, const size_t& c) noexcept
+        : al_(al), current_(c) {
+      if (c == 0) {
+        ali_ = get_adjacent_list_begin(al_);
+      } else {
+        ali_ = nullptr;
+      }
+    }
+
+    DEV_HOST reference_type operator*() const noexcept {  
+      return current_value_;
+    }
+
+    DEV_HOST const_iterator& operator++() noexcept {
+      ++current_;
+      add_current_value();
+      return *this;
+    }
+
+    DEV_HOST bool operator==(const const_iterator& rhs) noexcept {
+      return current_ == rhs.current_;
+    }
+    DEV_HOST bool operator!=(const const_iterator& rhs) noexcept {
+      return current_ != rhs.current_;
+    }
+  };
+
+  DEV_HOST iterator begin() { return iterator(al_, begin_); }
+  DEV_HOST iterator end() { return iterator(al_, end_); }
+
+  DEV_HOST const_iterator begin() const { return const_iterator(al_, begin_); }
+  DEV_HOST const_iterator end() const { return const_iterator(al_, end_); }
+
+  DEV_HOST bool empty() const { return end_ == begin_; }
+
+ private:
+  void* al_;
+  size_t begin_;
+  size_t end_;
+};
+
+
+/**
+ * @brief A GRIN style iteratable adjencent list of a vertex. 
+ *
+ * @tparam VID_T
+ * @tparam EDATA_T
+ */
+template <typename VID_T, typename EDATA_T>
+class GRIN_ConstAdjList {
+  using NbrT = Nbr<VID_T, EDATA_T>;
+
+ public:
+  DEV_HOST GRIN_ConstAdjList() {}
+
+  DEV_HOST GRIN_ConstAdjList(void* al, size_t sz) : al_(al), begin_(0), end_(sz) {}
+
+  DEV_HOST ~GRIN_ConstAdjList() {}
+
+  DEV_HOST_INLINE bool Empty() const { return begin_ == end_; }
+
+  DEV_HOST_INLINE bool NotEmpty() const { return !Empty(); }
+
+  DEV_HOST_INLINE size_t Size() const { return end_ - begin_; }
+
+  class const_iterator {
+    using pointer_type = const NbrT*;
+    using reference_type = const NbrT&;
+
+   private:
+    void* al_;
+    void* ali_;
+    size_t current_;
+    NbrT current_value_;
+
+    void add_current_value() {
+      ali_ = get_next_adjacent_iter(al_, ali_);
+      void* v_ = get_neighbor_from_iter(al_, ali_);
+      VID_T* vptr = static_cast<VID_T*>(get_vertex_id(v_));
+      current_value_.neighbor = (*vptr);
+      EDATA_T* eptr = static_cast<EDATA_T*>(get_adjacent_edge_data_value(al_, ali_));
+      current_value_.data = (*eptr);
+    }
+
+   public:
+    DEV_HOST const_iterator() noexcept : al_{nullptr}, current_(0) {}
+    DEV_HOST explicit const_iterator(void* al, const size_t& c) noexcept
+        : al_(al), current_(c) {
+      if (c == 0) {
+        ali_ = get_adjacent_list_begin(al_);
+      } else {
+        ali_ = nullptr;
+      }
+    }
+
+    DEV_HOST reference_type operator*() const noexcept {  
+      return current_value_;
+    }
+
+    DEV_HOST pointer_type operator->() const noexcept { return &current_value_; }
+
+    DEV_HOST const_iterator& operator++() noexcept {
+      ++current_;
+      add_current_value();
+      return *this;
+    }
+
+    DEV_HOST bool operator==(const const_iterator& rhs) noexcept {
+      return current_ == rhs.current_;
+    }
+    DEV_HOST bool operator!=(const const_iterator& rhs) noexcept {
+      return current_ != rhs.current_;
+    }
+  };
+
+  DEV_HOST const_iterator begin() const { return const_iterator(al_, begin_); }
+  DEV_HOST const_iterator end() const { return const_iterator(al_, end_); }
+
+  DEV_HOST bool empty() const { return end_ == begin_; }
+
+ private:
+  void* al_;
+  const size_t begin_;
+  const size_t end_;
 };
 
 template <typename VID_T, typename EDATA_T, typename PRED_T>

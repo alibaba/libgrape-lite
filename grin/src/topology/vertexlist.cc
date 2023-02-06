@@ -69,42 +69,17 @@ Vertex get_vertex_from_iter(const VertexList vlh, VertexListIterator vlih) {
   return v;
 }
 
-#ifdef ENABLE_INDEXED_VERTEX_LIST
-void destroy_vertex_index(VertexIndex vih) {
-  VertexIndex_T* vi = static_cast<VertexIndex_T*>(vih);
-  delete vi;
-}
-
-VertexIndex get_index_begin_from_vertex_list(const VertexList vlh) {
+#ifdef CONTINUOUS_VID_TRAIT
+VertexID get_begin_vertex_id_from_list(const VertexList vlh) {
   VertexList_T* vl = static_cast<VertexList_T*>(vlh);
-  VertexIndex_T* vi = new VertexIndex_T(vl->begin_value());
+  VertexID_T* vi = new VertexID_T(vl->begin_value());
   return vi;
 }
 
-VertexIndex get_index_end_from_vertex_list(const VertexList vlh) {
+VertexID get_end_vertex_id_from_list(const VertexList vlh) {
   VertexList_T* vl = static_cast<VertexList_T*>(vlh);
-  VertexIndex_T* vi = new VertexIndex_T(vl->end_value());
+  VertexID_T* vi = new VertexID_T(vl->end_value());
   return vi;
-}
-
-VertexIndex get_vertex_index_from_vertex_list(const VertexList vlh, Vertex vh) {
-  VertexList_T* vl = static_cast<VertexList_T*>(vlh);
-  Vertex_T* v = static_cast<Vertex_T*>(vh);
-  if (vl->Contain(*v)) {
-    VertexIndex_T* vi = new VertexIndex_T(v->GetValue());
-    return vi;
-  }
-  return NULL_INDEX;
-}
-
-Vertex get_vertex_from_list_by_index(const VertexList vlh, VertexIndex vih) {
-  VertexList_T* vl = static_cast<VertexList_T*>(vlh);
-  VertexIndex_T* vi = static_cast<VertexIndex_T*>(vih);
-  Vertex_T* v = new Vertex_T(*vi);
-  if (vl->Contain(*v)) {
-    return v;
-  }
-  return NULL_VERTEX;  
 }
 #endif
 

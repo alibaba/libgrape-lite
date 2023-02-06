@@ -57,7 +57,7 @@ typedef enum {
 #define WITH_VERTEX_DATA             // There is data on vertex.
 #define WITH_EDGE_DATA               // There is data on edge, e.g. weight.
 #define ENABLE_VERTEX_LIST           // Enable the vertex list structure.
-#define ENABLE_INDEXED_VERTEX_LIST   // Enable continous index on vertext list.
+#define CONTINUOUS_VID_TRAIT         // Enable continous index on vertext list.
 #define ENABLE_ADJACENT_LIST         // Enable the adjacent list structure.
 // Note: edge_list is only used in vertex_cut fragment
 // #define ENABLE_EDGE_LIST          // Enable the edge list structure.
@@ -99,12 +99,6 @@ typedef void* VertexData;
 #ifdef ENABLE_VERTEX_LIST
 typedef void* VertexList;
 typedef void* VertexListIterator;
-#endif
-
-// indexed vertex list
-#ifdef ENABLE_INDEXED_VERTEX_LIST
-typedef void* VertexIndex;
-#define NULL_INDEX NULL
 #endif
 
 // adjacent list

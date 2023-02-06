@@ -34,16 +34,10 @@ bool has_next_vertex_iter(const VertexList, const VertexListIterator);
 
 Vertex get_vertex_from_iter(const VertexList, const VertexListIterator);
 
-#ifdef ENABLE_INDEXED_VERTEX_LIST
-void destroy_vertex_index(VertexIndex);
+#ifdef CONTINUOUS_VID_TRAIT
+VertexID get_begin_vertex_id_from_list(const VertexList);
 
-VertexIndex get_index_begin_from_vertex_list(const VertexList);
-
-VertexIndex get_index_end_from_vertex_list(const VertexList);
-
-VertexIndex get_vertex_index_from_vertex_list(const VertexList, Vertex);
-
-Vertex get_vertex_from_list_by_index(const VertexList, VertexIndex);
+VertexID get_end_vertex_id_from_list(const VertexList);
 #endif
 
 #ifdef MUTABLE_GRAPH

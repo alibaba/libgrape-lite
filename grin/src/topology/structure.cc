@@ -43,7 +43,7 @@ DataType get_vertex_id_data_type(const Graph gh) {
   return DataTypeName<VertexID_T>::Get();
 }
 
-VertexID get_vertex_id(const Graph gh, const Vertex vh) {
+VertexID get_vertex_id(const Vertex vh) {
   Vertex_T* v = static_cast<Vertex_T*>(vh);
   VertexID_T* id = new VertexID_T(v->GetValue());
   return id;

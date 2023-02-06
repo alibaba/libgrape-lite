@@ -28,7 +28,7 @@ void destroy_vertex(Vertex);
 
 DataType get_vertex_id_data_type(const Graph);
 
-VertexID get_vertex_id(const Graph, const Vertex);
+VertexID get_vertex_id(const Vertex);
 
 #ifdef WITH_VERTEX_DATA
 DataType get_vertex_data_type(const Graph, const Vertex);

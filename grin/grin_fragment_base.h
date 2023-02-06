@@ -44,16 +44,13 @@ namespace grape {
  * @tparam VID_T
  * @tparam VDATA_T
  * @tparam EDATA_T
- * @tparam TRAITS_T
+ * @tparam VERTEX_MAP_T
  */
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          typename TRAITS_T>
+          typename VERTEX_MAP_T>
 class GRIN_FragmentBase {
  public:
-  using vertex_map_t = typename TRAITS_T::vertex_map_t;
-  using fragment_adj_list_t = typename TRAITS_T::fragment_adj_list_t;
-  using fragment_const_adj_list_t =
-      typename TRAITS_T::fragment_const_adj_list_t;
+  using vertex_map_t = VERTEX_MAP_T;
 
   GRIN_FragmentBase() : pg_(nullptr) {}
 
@@ -131,7 +128,7 @@ class GRIN_FragmentBase {
    */
   size_t GetTotalVerticesNum() const { return get_total_vertices_number(pg_); }
 
-  using vertices_t = typename TRAITS_T::vertices_t;
+  using vertices_t = VertexRange<VID_T>;
   /**
    * @brief Get all vertices referenced to this fragment.
    *
@@ -139,9 +136,9 @@ class GRIN_FragmentBase {
    */
   const vertices_t Vertices() const {
     void* vlh = get_vertex_list(g_);
-    void* beginh = get_index_begin_from_vertex_list(vlh);
+    void* beginh = get_begin_vertex_id_from_list(vlh);
     VID_T* begin = static_cast<VID_T*>(beginh);
-    void* endh = get_index_end_from_vertex_list(vlh);
+    void* endh = get_end_vertex_id_from_list(vlh);
     VID_T* end = static_cast<VID_T*>(endh);
     return vertices_t(*begin, *end);
   }
@@ -277,16 +274,17 @@ class GRIN_FragmentBase {
    *
    * @return The incoming adjacent vertices of v.
    */
-  virtual AdjList<VID_T, EDATA_T> GetIncomingAdjList(
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetIncomingAdjList(
       const Vertex<VID_T>& v) = 0;
 
-  virtual ConstAdjList<VID_T, EDATA_T> GetIncomingAdjList(
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetIncomingAdjList(
       const Vertex<VID_T>& v) const = 0;
 
-  virtual fragment_adj_list_t GetIncomingAdjList(const Vertex<VID_T>& v,
+  // fragment_adj_list_t
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetIncomingAdjList(const Vertex<VID_T>& v,
                                                  fid_t fid) = 0;
 
-  virtual fragment_const_adj_list_t GetIncomingAdjList(const Vertex<VID_T>& v,
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetIncomingAdjList(const Vertex<VID_T>& v,
                                                        fid_t fid) const = 0;
   /**
    * @brief Returns the outgoing adjacent vertices of v.
@@ -295,16 +293,16 @@ class GRIN_FragmentBase {
    *
    * @return The outgoing adjacent vertices of v.
    */
-  virtual AdjList<VID_T, EDATA_T> GetOutgoingAdjList(
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetOutgoingAdjList(
       const Vertex<VID_T>& v) = 0;
 
-  virtual ConstAdjList<VID_T, EDATA_T> GetOutgoingAdjList(
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetOutgoingAdjList(
       const Vertex<VID_T>& v) const = 0;
 
-  virtual fragment_adj_list_t GetOutgoingAdjList(const Vertex<VID_T>& v,
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetOutgoingAdjList(const Vertex<VID_T>& v,
                                                  fid_t fid) = 0;
 
-  virtual fragment_const_adj_list_t GetOutgoingAdjList(const Vertex<VID_T>& v,
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetOutgoingAdjList(const Vertex<VID_T>& v,
                                                        fid_t fid) const = 0;
 
  protected:

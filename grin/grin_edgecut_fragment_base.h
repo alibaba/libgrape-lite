@@ -45,15 +45,15 @@ namespace grape {
  * @tparam VID_T
  * @tparam VDATA_T
  * @tparam EDATA_T
- * @tparam TRAITS_T
+ * @tparam VERTEX_MAP_T
  */
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          typename TRAITS_T>
+          typename VERTEX_MAP_T>
 class GRIN_EdgecutFragmentBase
     : virtual public GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T,
-                                       TRAITS_T> {
+                                       VERTEX_MAP_T> {
  public:
-  using base_t = GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
+  using base_t = GRIN_FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, VERTEX_MAP_T>;
   using vid_t = VID_T;
   using vertex_t = Vertex<VID_T>;
   using base_t::fid_;
@@ -81,7 +81,7 @@ class GRIN_EdgecutFragmentBase
     return get_vertex_list_size(vl);
   }
 
-  using inner_vertices_t = typename TRAITS_T::inner_vertices_t;
+  using inner_vertices_t = VertexRange<VID_T>;
   /**
    * @brief Returns the vertex range of inner vertices in this fragment.
    *
@@ -89,14 +89,14 @@ class GRIN_EdgecutFragmentBase
    */
   const inner_vertices_t InnerVertices() const {
     void* vlh = get_local_vertices(pg_, fid_);
-    void* beginh = get_index_begin_from_vertex_list(vlh);
+    void* beginh = get_begin_vertex_id_from_list(vlh);
     VID_T* begin = static_cast<VID_T*>(beginh);
-    void* endh = get_index_end_from_vertex_list(vlh);
+    void* endh = get_end_vertex_id_from_list(vlh);
     VID_T* end = static_cast<VID_T*>(endh);
     return inner_vertices_t(*begin, *end);
   }
 
-  using outer_vertices_t = typename TRAITS_T::outer_vertices_t;
+  using outer_vertices_t = VertexRange<VID_T>;
   /**
    * @brief Returns the vertex range of outer vertices in this fragment.
    *
@@ -104,24 +104,24 @@ class GRIN_EdgecutFragmentBase
    */
   const outer_vertices_t OuterVertices() const {
     void* vlh = get_remote_vertices(pg_, fid_);
-    void* beginh = get_index_begin_from_vertex_list(vlh);
+    void* beginh = get_begin_vertex_id_from_list(vlh);
     VID_T* begin = static_cast<VID_T*>(beginh);
-    void* endh = get_index_end_from_vertex_list(vlh);
+    void* endh = get_end_vertex_id_from_list(vlh);
     VID_T* end = static_cast<VID_T*>(endh);
     return outer_vertices_t(*begin, *end);
   }
 
-  using sub_vertices_t = typename TRAITS_T::sub_vertices_t;
+  using sub_vertices_t = VertexRange<VID_T>;
   const sub_vertices_t OuterVertices(fid_t fid) const {
     void* vlh = get_remote_vertices_by_partition(pg_, fid_);
-    void* beginh = get_index_begin_from_vertex_list(vlh);
+    void* beginh = get_begin_vertex_id_from_list(vlh);
     VID_T* begin = static_cast<VID_T*>(beginh);
-    void* endh = get_index_end_from_vertex_list(vlh);
+    void* endh = get_end_vertex_id_from_list(vlh);
     VID_T* end = static_cast<VID_T*>(endh);
     return sub_vertices_t(*begin, *end);
   }
 
-  using mirror_vertices_t = typename TRAITS_T::mirror_vertices_t;
+  using mirror_vertices_t = std::vector<Vertex<VID_T>>;
   const mirror_vertices_t MirrorVertices(fid_t fid) const {
     return mirrors_of_frag_[fid];
   }
@@ -297,7 +297,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The incoming adjacent inner vertices of v.
    */
-  virtual AdjList<VID_T, EDATA_T> GetIncomingInnerVertexAdjList(
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetIncomingInnerVertexAdjList(
       const Vertex<VID_T>& v) = 0;
   /**
    * @brief Returns the incoming adjacent inner vertices of v.
@@ -306,7 +306,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The incoming adjacent inner vertices of v.
    */
-  virtual ConstAdjList<VID_T, EDATA_T> GetIncomingInnerVertexAdjList(
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetIncomingInnerVertexAdjList(
       const Vertex<VID_T>& v) const = 0;
   /**
    * @brief Returns the incoming adjacent outer vertices of v.
@@ -315,7 +315,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The incoming adjacent outer vertices of v.
    */
-  virtual AdjList<VID_T, EDATA_T> GetIncomingOuterVertexAdjList(
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetIncomingOuterVertexAdjList(
       const Vertex<VID_T>& v) = 0;
   /**
    * @brief Returns the incoming adjacent outer vertices of v.
@@ -324,7 +324,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The incoming adjacent outer vertices of v.
    */
-  virtual ConstAdjList<VID_T, EDATA_T> GetIncomingOuterVertexAdjList(
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetIncomingOuterVertexAdjList(
       const Vertex<VID_T>& v) const = 0;
   /**
    * @brief Returns the outgoing adjacent inner vertices of v.
@@ -333,7 +333,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The outgoing adjacent inner vertices of v.
    */
-  virtual AdjList<VID_T, EDATA_T> GetOutgoingInnerVertexAdjList(
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetOutgoingInnerVertexAdjList(
       const Vertex<VID_T>& v) = 0;
   /**
    * @brief Returns the outgoing adjacent inner vertices of v.
@@ -342,7 +342,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The outgoing adjacent inner vertices of v.
    */
-  virtual ConstAdjList<VID_T, EDATA_T> GetOutgoingInnerVertexAdjList(
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetOutgoingInnerVertexAdjList(
       const Vertex<VID_T>& v) const = 0;
 
   /**
@@ -352,7 +352,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The outgoing adjacent outer vertices of v.
    */
-  virtual AdjList<VID_T, EDATA_T> GetOutgoingOuterVertexAdjList(
+  virtual GRIN_AdjList<VID_T, EDATA_T> GetOutgoingOuterVertexAdjList(
       const Vertex<VID_T>& v) = 0;
   /**
    * @brief Returns the outgoing adjacent outer vertices of v.
@@ -361,7 +361,7 @@ class GRIN_EdgecutFragmentBase
    *
    * @return The outgoing adjacent outer vertices of v.
    */
-  virtual ConstAdjList<VID_T, EDATA_T> GetOutgoingOuterVertexAdjList(
+  virtual GRIN_ConstAdjList<VID_T, EDATA_T> GetOutgoingOuterVertexAdjList(
       const Vertex<VID_T>& v) const = 0;
 
   using base_t::fid;

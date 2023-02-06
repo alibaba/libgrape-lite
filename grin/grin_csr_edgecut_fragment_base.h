@@ -34,17 +34,17 @@ extern "C" {
 namespace grape {
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          typename TRAITS_T>
+          typename VERTEX_MAP_T>
 class GRIN_CSREdgecutFragmentBase
     : public GRIN_EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T,
-                                      TRAITS_T> {
+                                      VERTEX_MAP_T> {
  public:
   using nbr_t = Nbr<VID_T, EDATA_T>;
   using vertex_t = Vertex<VID_T>;
-  using const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
-  using adj_list_t = AdjList<VID_T, EDATA_T>;
+  using const_adj_list_t = GRIN_ConstAdjList<VID_T, EDATA_T>;
+  using adj_list_t = GRIN_AdjList<VID_T, EDATA_T>;
   using base_t =
-      GRIN_EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
+      GRIN_EdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, VERTEX_MAP_T>;
 
   using base_t::fid_;
   using base_t::g_;
@@ -92,9 +92,8 @@ class GRIN_CSREdgecutFragmentBase
    * @attention Only inner vertex is available.
    */
   inline adj_list_t GetIncomingAdjList(const vertex_t& v) override {
-    auto al = get_adjacent_list(g_, Direction::IN, (void*)(&v));
-    auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
+    void* al = get_adjacent_list(g_, Direction::IN, (void*)(&v));
+    return adj_list_t(al, get_adjacent_list_size(al));
   }
 
   /**
@@ -108,8 +107,7 @@ class GRIN_CSREdgecutFragmentBase
    */
   inline const_adj_list_t GetIncomingAdjList(const vertex_t& v) const override {
     auto al = get_adjacent_list(g_, Direction::IN, (void*)(&v));
-    auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
+    return const_adj_list_t(al, get_adjacent_list_size(al));
   }
 
   /**
@@ -122,9 +120,8 @@ class GRIN_CSREdgecutFragmentBase
    * @attention Only inner vertex is available.
    */
   inline adj_list_t GetOutgoingAdjList(const vertex_t& v) override {
-    auto al = get_adjacent_list(g_, Direction::OUT, (void*)(&v));
-    auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return adj_list_t(aiter, aiter + get_adjacent_list_size(al));
+    void* al = get_adjacent_list(g_, Direction::OUT, (void*)(&v));
+    return adj_list_t(al, get_adjacent_list_size(al));
   }
 
   /**
@@ -138,8 +135,7 @@ class GRIN_CSREdgecutFragmentBase
    */
   inline const_adj_list_t GetOutgoingAdjList(const vertex_t& v) const override {
     auto al = get_adjacent_list(g_, Direction::OUT, (void*)(&v));
-    auto aiter = static_cast<nbr_t*>(get_adjacent_list_begin(al));
-    return const_adj_list_t(aiter, aiter + get_adjacent_list_size(al));
+    return const_adj_list_t(al, get_adjacent_list_size(al));
   }
 
   /**
@@ -256,24 +252,18 @@ class GRIN_CSREdgecutFragmentBase
       dstset.clear();
       if (in_edge) {
         adj_list_t al = GetIncomingAdjList(*v);
-        nbr_t* ptr = al.begin_pointer();
-        nbr_t* end = al.end_pointer();
-        while (ptr != end) {
-          if (IsOuterVertex(ptr->neighbor)) {
-            dstset.insert(GetFragId(ptr->neighbor));
+        for (auto& ali : al) {
+          if (IsOuterVertex(ali.neighbor)) {
+            dstset.insert(GetFragId(ali.neighbor));
           }
-          ++ptr;
         }
       }
       if (out_edge) {
         adj_list_t al = GetOutgoingAdjList(*v);
-        nbr_t* ptr = al.begin_pointer();
-        nbr_t* end = al.end_pointer();
-        while (ptr != end) {
-          if (IsOuterVertex(ptr->neighbor)) {
-            dstset.insert(GetFragId(ptr->neighbor));
+        for (auto& ali : al) {
+          if (IsOuterVertex(ali.neighbor)) {
+            dstset.insert(GetFragId(ali.neighbor));
           }
-          ++ptr;
         }
       }
       builder.add_edges(dstset.begin(), dstset.end());

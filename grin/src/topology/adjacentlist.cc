@@ -55,6 +55,13 @@ AdjacentListIterator get_next_adjacent_iter(const AdjacentList alh,
   return ali++;
 }
 
+// AdjacentListIterator get_adjacent_iter_by_idx(const AdjacentList alh,
+//                                               const size_t sz) {
+//   void* alih = get_adjacent_list_begin(alh);
+//   AdjacentListIterator_T* ali = static_cast<AdjacentListIterator_T*>(alih);
+//   return ali + sz;
+// }
+
 size_t get_adjacent_list_size(const AdjacentList alh) {
   AdjacentList_T* al = static_cast<AdjacentList_T*>(alh);
   return al->Size();
