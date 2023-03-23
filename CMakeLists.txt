@@ -15,6 +15,7 @@ option(BUILD_SHARED_LIBS "Whether to build libgrape-lite as shared library" ON)
 option(PROFILING "Whether to enable profiling" OFF)
 option(WITH_ASAN "Build with Address Sanitizer" OFF)
 option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
+option(BUILD_LIBGRAPELITE_TESTS "Build libgrape-lite test cases" ON)
 option(WCC_USE_GID "Use global id as wcc component id" OFF)
 
 if (USE_HUGEPAGES AND LINUX)
@@ -98,9 +99,9 @@ else()
   else ()
     option(WITH_CUDA "Whether to enable cuda support" ON)
     message(STATUS "Build with CUDA support")
-  
+
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
-  
+
     include_directories(${CUDA_TOOLKIT_INCLUDE})
     set(CUDA_LIBS ${CUDA_TOOLKIT_TARGET_DIR}/lib64/stubs/libcuda.so
                   ${CUDA_TOOLKIT_TARGET_DIR}/lib64/libnvToolsExt.so
@@ -121,21 +122,21 @@ else()
       message(STATUS "CUDA_ARCH = ${CUDA_ARCH_LIST}")
       set_property(GLOBAL PROPERTY CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
     endif()
-  
+
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Wno-deprecated-gpu-targets")
-  
+
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
       set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-g;-lineinfo;-Xcompiler;-ggdb;-std=c++14;--expt-extended-lambda)
     else ()
       set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3;-std=c++14;--expt-extended-lambda)
     endif ()
-  
+
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
     set(CUDA_SEPARABLE_COMPILATION OFF)
     message(STATUS "Host Compiler: ${CUDA_HOST_COMPILER}")
-  
+
     include_directories(SYSTEM ${NCCL_INCLUDE_DIRS})
-  endif() 
+  endif()
 endif ()
 
 # ------------------------------------------------------------------------------
@@ -223,9 +224,13 @@ else ()
     string(REGEX MATCH "^(.*)\\.[^.]*$" dummy ${f})
     set(T_NAME ${CMAKE_MATCH_1})
     message(STATUS "Found test - " ${T_NAME})
-    add_executable(${T_NAME} tests/${T_NAME}.cc)
+    if(BUILD_LIBGRAPELITE_TESTS)
+      add_executable(${T_NAME} tests/${T_NAME}.cc)
+    else()
+      add_executable(${T_NAME} EXCLUDE_FROM_ALL tests/${T_NAME}.cc)
+    endif()
     target_include_directories(${T_NAME} PRIVATE examples/analytical_apps)
-    target_link_libraries(${T_NAME} PRIVATE grape-lite ${MPI_CXX_LIBRARIES} 
+    target_link_libraries(${T_NAME} PRIVATE grape-lite ${MPI_CXX_LIBRARIES}
                           ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
   endforeach()
 
@@ -262,7 +267,7 @@ if (PROFILING)
           DESTINATION include # target directory
           FILES_MATCHING      # install only matched files
           PATTERN "*.h"       # select header files
-  ) 
+  )
 endif()
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
