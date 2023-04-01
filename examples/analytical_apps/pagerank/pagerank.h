@@ -109,99 +109,37 @@ class PageRank : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
     ctx.dangling_sum = base * ctx.total_dangling_vnum;
 
 #ifdef PROFILING
+    ctx.preprocess_time -= GetCurrentTime();
+#endif
+    messages.UpdateOuterVertices();
+#ifdef PROFILING
+    ctx.preprocess_time += GetCurrentTime();
     ctx.exec_time -= GetCurrentTime();
 #endif
-
-    if (ctx.avg_degree > 10 && frag.fnum() > 1) {
-      // If fragment is dense and there are multiple fragments, receiving
-      // messages is overlapped with computation. Receiving and computing
-      // procedures are be splitted into multiple rounds. In each round,
-      // messages from a fragment are received and then processed.
-      ForEach(inner_vertices, [&ctx, &frag](int tid, vertex_t u) {
-        double cur = 0;
-        auto es = frag.GetOutgoingInnerVertexAdjList(u);
-        for (auto& e : es) {
-          cur += ctx.result[e.get_neighbor()];
-        }
-        ctx.next_result[u] = cur;
-      });
-
-      for (fid_t i = 2; i < frag.fnum(); ++i) {
-#ifdef PROFILING
-        ctx.preprocess_time -= GetCurrentTime();
-#endif
-        fid_t src_fid = messages.UpdatePartialOuterVertices();
-#ifdef PROFILING
-        ctx.preprocess_time += GetCurrentTime();
-        ctx.exec_time -= GetCurrentTime();
-#endif
-        ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
-          double cur = ctx.next_result[u];
-          auto es = frag.GetOutgoingAdjList(u, src_fid);
-          for (auto& e : es) {
-            cur += ctx.result[e.get_neighbor()];
-          }
-          ctx.next_result[u] = cur;
-        });
-#ifdef PROFILING
-        ctx.exec_time += GetCurrentTime();
-#endif
+    ForEach(inner_vertices, [&ctx, &frag, base](int tid, vertex_t u) {
+      double cur = 0;
+      auto es = frag.GetOutgoingAdjList(u);
+      for (auto& e : es) {
+        cur += ctx.result[e.get_neighbor()];
       }
+      int en = frag.GetLocalOutDegree(u);
+      ctx.next_result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
+    });
+#ifdef PROFILING
+    ctx.exec_time += GetCurrentTime();
+#endif
 
-#ifdef PROFILING
-      ctx.preprocess_time -= GetCurrentTime();
-#endif
-      fid_t src_fid = messages.UpdatePartialOuterVertices();
-#ifdef PROFILING
-      ctx.preprocess_time += GetCurrentTime();
-      ctx.exec_time -= GetCurrentTime();
-#endif
-      ForEach(
-          inner_vertices, [src_fid, &frag, &ctx, base](int tid, vertex_t u) {
-            double cur = ctx.next_result[u];
-            auto es = frag.GetOutgoingAdjList(u, src_fid);
-            for (auto& e : es) {
-              cur += ctx.result[e.get_neighbor()];
-            }
-            int en = frag.GetLocalOutDegree(u);
-            ctx.next_result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
-          });
-#ifdef PROFILING
-      ctx.exec_time += GetCurrentTime();
-#endif
-    } else {
-      // If the fragment is sparse or there is only one fragment, one round of
-      // iterating inner vertices is prefered.
-#ifdef PROFILING
-      ctx.preprocess_time -= GetCurrentTime();
-#endif
-      messages.UpdateOuterVertices();
-#ifdef PROFILING
-      ctx.preprocess_time += GetCurrentTime();
-      ctx.exec_time -= GetCurrentTime();
-#endif
-      ForEach(inner_vertices, [&ctx, &frag, base](int tid, vertex_t u) {
-        double cur = 0;
-        auto es = frag.GetOutgoingAdjList(u);
-        for (auto& e : es) {
-          cur += ctx.result[e.get_neighbor()];
-        }
-        int en = frag.GetLocalOutDegree(u);
-        ctx.next_result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
-      });
-#ifdef PROFILING
-      ctx.exec_time += GetCurrentTime();
-#endif
-    }
-
-#ifdef PROFILING
-    ctx.postprocess_time -= GetCurrentTime();
-#endif
     ctx.result.Swap(ctx.next_result);
 
     if (ctx.step != ctx.max_round) {
+#ifdef PROFILING
+      ctx.postprocess_time -= GetCurrentTime();
+#endif
       messages.SyncInnerVertices<fragment_t, double>(frag, ctx.result,
                                                      thread_num());
+#ifdef PROFILING
+      ctx.postprocess_time += GetCurrentTime();
+#endif
     } else {
       auto& degree = ctx.degree;
       auto& result = ctx.result;
@@ -213,9 +151,6 @@ class PageRank : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
       }
       return;
     }
-#ifdef PROFILING
-    ctx.postprocess_time += GetCurrentTime();
-#endif
   }
 };
 

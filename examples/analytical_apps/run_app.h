@@ -46,6 +46,7 @@ limitations under the License.
 #include "lcc/lcc.h"
 #include "lcc/lcc_auto.h"
 #include "pagerank/pagerank.h"
+#include "pagerank/pagerank_push.h"
 #include "pagerank/pagerank_auto.h"
 #include "pagerank/pagerank_local.h"
 #include "pagerank/pagerank_local_parallel.h"
@@ -236,6 +237,10 @@ void Run() {
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      PageRank, double, int>(comm_spec, out_prefix, fnum, spec,
                                             FLAGS_pr_d, FLAGS_pr_mr);
+    } else if (name == "pagerank_push") {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                     PageRankPush, double, int>(comm_spec, out_prefix, fnum,
+                                                spec, FLAGS_pr_d, FLAGS_pr_mr);
     } else if (name == "pagerank_parallel") {
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
                      PageRankParallel, double, int>(

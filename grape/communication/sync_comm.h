@@ -161,6 +161,35 @@ static inline void recv_buffer(T* ptr, size_t len, int src_worker_id, int tag,
 }
 
 template <typename T>
+static inline int chunk_num(size_t len) {
+  static constexpr size_t chunk_num = chunk_size / sizeof(T);
+  return (len + chunk_num - 1) / chunk_num;
+}
+
+template <typename T>
+static inline void irecv_buffer(T* ptr, size_t len, int src_worker_id, int tag,
+                                MPI_Comm comm, MPI_Request* reqs) {
+  static constexpr size_t chunk_num = chunk_size / sizeof(T);
+  if (len <= chunk_num) {
+    irecv_small_buffer(ptr, len, src_worker_id, tag, comm, reqs[0]);
+    return;
+  }
+  const size_t chunk_size_in_bytes = chunk_num * sizeof(T);
+  int iter = len / chunk_num;
+  size_t remaining = (len % chunk_num) * sizeof(T);
+  LOG(INFO) << "irecving large buffer in " << iter + (remaining != 0)
+            << " iterations";
+  for (int i = 0; i < iter; ++i) {
+    MPI_Irecv(ptr, chunk_size_in_bytes, MPI_CHAR, src_worker_id, tag, comm,
+              &reqs[i]);
+    ptr += chunk_num;
+  }
+  if (remaining != 0) {
+    MPI_Irecv(ptr, remaining, MPI_CHAR, src_worker_id, tag, comm, &reqs[iter]);
+  }
+}
+
+template <typename T>
 static inline void irecv_buffer(T* ptr, size_t len, int src_worker_id, int tag,
                                 MPI_Comm comm, std::vector<MPI_Request>& reqs) {
   static constexpr size_t chunk_num = chunk_size / sizeof(T);
