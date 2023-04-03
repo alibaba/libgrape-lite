@@ -259,7 +259,7 @@ void Run() {
                                     FLAGS_cdlp_mr);
     } else if (name == "cdlp") {
       FLAGS_directed = false;
-      CreateAndQueryUD<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      CDLP, int>(comm_spec, out_prefix, fnum, spec,
                                 FLAGS_cdlp_mr);
     } else if (name == "wcc_auto") {
