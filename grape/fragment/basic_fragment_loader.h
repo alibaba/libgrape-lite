@@ -28,9 +28,9 @@ limitations under the License.
 
 #include "grape/communication/shuffle.h"
 #include "grape/config.h"
-#include "grape/fragment/rebalancer.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
+#include "grape/util.h"
 #include "grape/utils/concurrent_queue.h"
 #include "grape/utils/vertex_array.h"
 #include "grape/worker/comm_spec.h"
@@ -48,7 +48,7 @@ struct LoadGraphSpec {
 
   bool serialize;
   std::string serialization_prefix;
-
+  
   bool deserialize;
   std::string deserialization_prefix;
 
@@ -102,9 +102,9 @@ class BasicFragmentLoader {
     edges_to_frag_.resize(comm_spec_.fnum());
     for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
       int worker_id = comm_spec_.FragToWorker(fid);
-      vertices_to_frag_[fid].Init(comm_spec_.comm(), vertex_tag);
+      vertices_to_frag_[fid].Init(comm_spec_.comm(), vertex_tag, 4096000);
       vertices_to_frag_[fid].SetDestination(worker_id, fid);
-      edges_to_frag_[fid].Init(comm_spec_.comm(), edge_tag);
+      edges_to_frag_[fid].Init(comm_spec_.comm(), edge_tag, 4096000);
       edges_to_frag_[fid].SetDestination(worker_id, fid);
       if (worker_id == comm_spec_.worker_id()) {
         vertices_to_frag_[fid].DisableComm();
@@ -123,11 +123,6 @@ class BasicFragmentLoader {
 
   void SetPartitioner(partitioner_t&& partitioner) {
     vm_ptr_->SetPartitioner(std::move(partitioner));
-  }
-
-  void SetRebalance(bool rebalance, int rebalance_vertex_factor) {
-    rebalance_ = rebalance;
-    rebalance_vertex_factor_ = rebalance_vertex_factor;
   }
 
   void Start() {
@@ -173,27 +168,47 @@ class BasicFragmentLoader {
 
   bool SerializeFragment(std::shared_ptr<fragment_t>& fragment,
                          const std::string& serialization_prefix) {
+    std::string type_prefix = fragment_t::type_info();
+    std::string typed_prefix = serialization_prefix + "/" + type_prefix;
     char serial_file[1024];
-    snprintf(serial_file, sizeof(serial_file), "%s/%s",
-             serialization_prefix.c_str(), kSerializationVertexMapFilename);
-    vm_ptr_->template Serialize<IOADAPTOR_T>(serialization_prefix);
-    fragment->template Serialize<IOADAPTOR_T>(serialization_prefix);
+    snprintf(serial_file, sizeof(serial_file), "%s/%s", typed_prefix.c_str(),
+             kSerializationVertexMapFilename);
+    vm_ptr_->template Serialize<IOADAPTOR_T>(typed_prefix);
+    fragment->template Serialize<IOADAPTOR_T>(typed_prefix);
 
     return true;
   }
 
+  bool existSerializationFile(const std::string& prefix) {
+    char vm_fbuf[1024], frag_fbuf[1024];
+    snprintf(vm_fbuf, sizeof(vm_fbuf), "%s/%s", prefix.c_str(),
+             kSerializationVertexMapFilename);
+    snprintf(frag_fbuf, sizeof(frag_fbuf), kSerializationFilenameFormat,
+             prefix.c_str(), comm_spec_.fid());
+    std::string vm_path = vm_fbuf;
+    std::string frag_path = frag_fbuf;
+    return exists_file(vm_path) && exists_file(frag_path);
+  }
+
   bool DeserializeFragment(std::shared_ptr<fragment_t>& fragment,
                            const std::string& deserialization_prefix) {
+    std::string type_prefix = fragment_t::type_info();
+    std::string typed_prefix = deserialization_prefix + "/" + type_prefix;
+    if (!existSerializationFile(typed_prefix)) {
+      return false;
+    }
     auto io_adaptor =
-        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(deserialization_prefix));
+        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(typed_prefix));
     if (io_adaptor->IsExist()) {
-      vm_ptr_->template Deserialize<IOADAPTOR_T>(deserialization_prefix,
+      vm_ptr_->template Deserialize<IOADAPTOR_T>(typed_prefix,
                                                  comm_spec_.fid());
       fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
-      fragment->template Deserialize<IOADAPTOR_T>(deserialization_prefix,
+      fragment->template Deserialize<IOADAPTOR_T>(typed_prefix,
                                                   comm_spec_.fid());
+      return true;
+    } else {
+      return false;
     }
-    return true;
   }
 
   void ConstructFragment(std::shared_ptr<fragment_t>& fragment, bool directed) {
@@ -358,9 +373,6 @@ class BasicFragmentLoader {
 
   static constexpr int vertex_tag = 5;
   static constexpr int edge_tag = 6;
-
-  bool rebalance_;
-  int rebalance_vertex_factor_;
 };
 
 }  // namespace grape

@@ -19,6 +19,8 @@ limitations under the License.
 #include <gflags/gflags_declare.h>
 #include <glog/logging.h>
 
+#include "run_app_opt.h"
+
 int main(int argc, char* argv[]) {
   FLAGS_stderrthreshold = 0;
 
@@ -37,10 +39,18 @@ int main(int argc, char* argv[]) {
   grape::Init();
 
   std::string name = FLAGS_application;
-  if (name.find("sssp") != std::string::npos) {
-    grape::Run<int64_t, uint32_t, grape::EmptyType, double>();
+  if (FLAGS_opt) {
+    if (name.find("sssp") != std::string::npos) {
+      grape::RunOpt<int64_t, uint32_t, grape::EmptyType, double>();
+    } else {
+      grape::RunOpt<int64_t, uint32_t, grape::EmptyType, grape::EmptyType>();
+    }
   } else {
-    grape::Run<int64_t, uint32_t, grape::EmptyType, grape::EmptyType>();
+    if (name.find("sssp") != std::string::npos) {
+      grape::Run<int64_t, uint32_t, grape::EmptyType, double>();
+    } else {
+      grape::Run<int64_t, uint32_t, grape::EmptyType, grape::EmptyType>();
+    }
   }
 
   grape::Finalize();

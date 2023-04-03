@@ -23,6 +23,7 @@ limitations under the License.
 #endif
 
 #include <stdio.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 
 #include <algorithm>
@@ -99,6 +100,47 @@ void DistinctSort(std::vector<T>& vec) {
     }
   }
   vec.resize(size - count);
+}
+
+template <typename T>
+struct IdHasher {};
+
+template <>
+struct IdHasher<uint32_t> {
+  static uint32_t hash(uint32_t x) {
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    return x;
+  }
+};
+
+template <>
+struct IdHasher<uint64_t> {
+  static uint64_t hash(uint64_t x) {
+    x = (x ^ (x >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+    x = (x ^ (x >> 27)) * UINT64_C(0x94d049bb133111eb);
+    x = x ^ (x >> 31);
+    return x;
+  }
+};
+
+template <typename T>
+struct IdenticalHasher {};
+
+template <>
+struct IdenticalHasher<uint32_t> {
+  static uint32_t hash(uint32_t x) { return x; }
+};
+
+template <>
+struct IdenticalHasher<uint64_t> {
+  static uint64_t hash(uint64_t x) { return x; }
+};
+
+bool exists_file(const std::string& name) {
+  struct stat buffer;
+  return (stat(name.c_str(), &buffer) == 0);
 }
 
 }  // namespace grape

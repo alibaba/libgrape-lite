@@ -30,6 +30,7 @@ limitations under the License.
 #include "grape/parallel/batch_shuffle_message_manager.h"
 #include "grape/parallel/parallel_engine.h"
 #include "grape/parallel/parallel_message_manager.h"
+#include "grape/parallel/parallel_message_manager_opt.h"
 #include "grape/util.h"
 #include "grape/worker/comm_spec.h"
 
@@ -121,8 +122,8 @@ class Worker {
       messages_.FinishARound();
 
       if (comm_spec_.worker_id() == kCoordinatorRank) {
-        VLOG(1) << "[Coordinator]: Finished IncEval - " << step << ", time: "
-                << GetCurrentTime() - t << " sec";
+        VLOG(1) << "[Coordinator]: Finished IncEval - " << step
+                << ", time: " << GetCurrentTime() - t << " sec";
       }
       ++step;
     }
@@ -197,6 +198,9 @@ class Worker {
 
 template <typename APP_T>
 using ParallelWorker = Worker<APP_T, ParallelMessageManager>;
+
+template <typename APP_T>
+using ParallelWorkerOpt = Worker<APP_T, ParallelMessageManagerOpt>;
 
 template <typename APP_T>
 using AutoWorker =

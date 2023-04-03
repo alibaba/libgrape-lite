@@ -61,6 +61,10 @@ class InArchive {
 
   inline size_t GetSize() const { return buffer_.size(); }
 
+  inline void AddByte(char v) {
+    buffer_.push_back(v);
+  }
+
   inline void AddBytes(const void* head, size_t size) {
     size_t _size = buffer_.size();
     buffer_.resize(_size + size);

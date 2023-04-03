@@ -72,6 +72,7 @@ class EVFragmentLoader {
                                            const std::string& vfile,
                                            const LoadGraphSpec& spec) {
     std::shared_ptr<fragment_t> fragment(nullptr);
+    CHECK(!spec.rebalance);
     if (spec.deserialize && (!spec.serialize)) {
       bool deserialized = basic_fragment_loader_.DeserializeFragment(
           fragment, spec.deserialization_prefix);
@@ -124,8 +125,6 @@ class EVFragmentLoader {
     partitioner_t partitioner(comm_spec_.fnum(), id_list);
 
     basic_fragment_loader_.SetPartitioner(std::move(partitioner));
-    basic_fragment_loader_.SetRebalance(spec.rebalance,
-                                        spec.rebalance_vertex_factor);
 
     basic_fragment_loader_.Start();
 
