@@ -213,13 +213,25 @@ void Run() {
     }
   } else {
     if (name == "bfs_auto") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                     BFSAuto, OID_T>(comm_spec, out_prefix, fnum, spec,
-                                     FLAGS_bfs_source);
+      if (FLAGS_directed) {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+                       BFSAuto, OID_T>(comm_spec, out_prefix, fnum, spec,
+                                       FLAGS_bfs_source);
+      } else {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                       BFSAuto, OID_T>(comm_spec, out_prefix, fnum, spec,
+                                       FLAGS_bfs_source);
+      }
     } else if (name == "bfs") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                     BFS, OID_T>(comm_spec, out_prefix, fnum, spec,
-                                 FLAGS_bfs_source);
+      if (FLAGS_directed) {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+                       BFS, OID_T>(comm_spec, out_prefix, fnum, spec,
+                                   FLAGS_bfs_source);
+      } else {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+                       BFS, OID_T>(comm_spec, out_prefix, fnum, spec,
+                                   FLAGS_bfs_source);
+      }
     } else if (name == "pagerank_local") {
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      PageRankLocal, double, int>(comm_spec, out_prefix, fnum,
@@ -233,6 +245,7 @@ void Run() {
                      PageRankAuto, double, int>(comm_spec, out_prefix, fnum,
                                                 spec, FLAGS_pr_d, FLAGS_pr_mr);
     } else if (name == "pagerank") {
+      // buggy for directed
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      PageRank, double, int>(comm_spec, out_prefix, fnum, spec,
                                             FLAGS_pr_d, FLAGS_pr_mr);
@@ -245,19 +258,23 @@ void Run() {
                      CDLPAuto, int>(comm_spec, out_prefix, fnum, spec,
                                     FLAGS_cdlp_mr);
     } else if (name == "cdlp") {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+      FLAGS_directed = false;
+      CreateAndQueryUD<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      CDLP, int>(comm_spec, out_prefix, fnum, spec,
                                 FLAGS_cdlp_mr);
     } else if (name == "wcc_auto") {
+      FLAGS_directed = false;
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      WCCAuto>(comm_spec, out_prefix, fnum, spec);
     } else if (name == "wcc") {
+      FLAGS_directed = false;
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      WCC>(comm_spec, out_prefix, fnum, spec);
     } else if (name == "lcc_auto") {
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      LCCAuto>(comm_spec, out_prefix, fnum, spec);
     } else if (name == "lcc") {
+      // buggy for directed
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
                      LCC>(comm_spec, out_prefix, fnum, spec,
                           FLAGS_degree_threshold);

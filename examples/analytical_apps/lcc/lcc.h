@@ -92,36 +92,64 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
       ctx.preprocess_time += GetCurrentTime();
       ctx.exec_time -= GetCurrentTime();
 #endif
-
-      ForEach(inner_vertices,
-              [this, &frag, &ctx, &messages](int tid, vertex_t v) {
-                if (filterByDegree(frag, ctx, v)) {
-                  return;
-                }
-                vid_t u_gid, v_gid;
-                auto& nbr_vec = ctx.complete_neighbor[v];
-                int degree = ctx.global_degree[v];
-                nbr_vec.reserve(degree);
-                auto es = frag.GetOutgoingAdjList(v);
-                std::vector<vid_t> msg_vec;
-                msg_vec.reserve(degree);
-                for (auto& e : es) {
-                  auto u = e.get_neighbor();
-                  if (ctx.global_degree[u] < ctx.global_degree[v]) {
-                    nbr_vec.push_back(u);
-                    msg_vec.push_back(frag.Vertex2Gid(u));
-                  } else if (ctx.global_degree[u] == ctx.global_degree[v]) {
-                    u_gid = frag.Vertex2Gid(u);
-                    v_gid = frag.GetInnerVertexGid(v);
-                    if (v_gid > u_gid) {
+      if (ctx.degree_threshold == std::numeric_limits<int>::max()) {
+        ForEach(inner_vertices,
+                [this, &frag, &ctx, &messages](int tid, vertex_t v) {
+                  vid_t u_gid, v_gid;
+                  auto& nbr_vec = ctx.complete_neighbor[v];
+                  int degree = ctx.global_degree[v];
+                  nbr_vec.reserve(degree);
+                  auto es = frag.GetOutgoingAdjList(v);
+                  std::vector<vid_t> msg_vec;
+                  msg_vec.reserve(degree);
+                  for (auto& e : es) {
+                    auto u = e.get_neighbor();
+                    if (ctx.global_degree[u] < ctx.global_degree[v]) {
                       nbr_vec.push_back(u);
-                      msg_vec.push_back(u_gid);
+                      msg_vec.push_back(frag.Vertex2Gid(u));
+                    } else if (ctx.global_degree[u] == ctx.global_degree[v]) {
+                      u_gid = frag.Vertex2Gid(u);
+                      v_gid = frag.GetInnerVertexGid(v);
+                      if (v_gid > u_gid) {
+                        nbr_vec.push_back(u);
+                        msg_vec.push_back(u_gid);
+                      }
                     }
                   }
-                }
-                messages.SendMsgThroughOEdges<fragment_t, std::vector<vid_t>>(
-                    frag, v, msg_vec, tid);
-              });
+                  messages.SendMsgThroughOEdges<fragment_t, std::vector<vid_t>>(
+                      frag, v, msg_vec, tid);
+                });
+      } else {
+        ForEach(inner_vertices,
+                [this, &frag, &ctx, &messages](int tid, vertex_t v) {
+                  if (filterByDegree(frag, ctx, v)) {
+                    return;
+                  }
+                  vid_t u_gid, v_gid;
+                  auto& nbr_vec = ctx.complete_neighbor[v];
+                  int degree = ctx.global_degree[v];
+                  nbr_vec.reserve(degree);
+                  auto es = frag.GetOutgoingAdjList(v);
+                  std::vector<vid_t> msg_vec;
+                  msg_vec.reserve(degree);
+                  for (auto& e : es) {
+                    auto u = e.get_neighbor();
+                    if (ctx.global_degree[u] < ctx.global_degree[v]) {
+                      nbr_vec.push_back(u);
+                      msg_vec.push_back(frag.Vertex2Gid(u));
+                    } else if (ctx.global_degree[u] == ctx.global_degree[v]) {
+                      u_gid = frag.Vertex2Gid(u);
+                      v_gid = frag.GetInnerVertexGid(v);
+                      if (v_gid > u_gid) {
+                        nbr_vec.push_back(u);
+                        msg_vec.push_back(u_gid);
+                      }
+                    }
+                  }
+                  messages.SendMsgThroughOEdges<fragment_t, std::vector<vid_t>>(
+                      frag, v, msg_vec, tid);
+                });
+      }
 
 #ifdef PROFILING
       ctx.exec_time += GetCurrentTime();
@@ -154,36 +182,66 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
       std::vector<DenseVertexSet<typename FRAG_T::vertices_t>> vertexsets(
           thread_num());
 
-      ForEach(
-          inner_vertices,
-          [&vertexsets, &frag](int tid) {
-            auto& ns = vertexsets[tid];
-            ns.Init(frag.Vertices());
-          },
-          [this, &vertexsets, &frag, &ctx](int tid, vertex_t v) {
-            if (filterByDegree(frag, ctx, v)) {
-              return;
-            }
-            auto& v0_nbr_set = vertexsets[tid];
-            auto& v0_nbr_vec = ctx.complete_neighbor[v];
-            for (auto u : v0_nbr_vec) {
-              v0_nbr_set.Insert(u);
-            }
-            for (auto u : v0_nbr_vec) {
-              auto& v1_nbr_vec = ctx.complete_neighbor[u];
-              for (auto w : v1_nbr_vec) {
-                if (v0_nbr_set.Exist(w)) {
-                  atomic_add(ctx.tricnt[u], 1);
-                  atomic_add(ctx.tricnt[v], 1);
-                  atomic_add(ctx.tricnt[w], 1);
+      if (ctx.degree_threshold == std::numeric_limits<int>::max()) {
+        ForEach(
+            inner_vertices,
+            [&vertexsets, &frag](int tid) {
+              auto& ns = vertexsets[tid];
+              ns.Init(frag.Vertices());
+            },
+            [this, &vertexsets, &frag, &ctx](int tid, vertex_t v) {
+              auto& v0_nbr_set = vertexsets[tid];
+              auto& v0_nbr_vec = ctx.complete_neighbor[v];
+              for (auto u : v0_nbr_vec) {
+                v0_nbr_set.Insert(u);
+              }
+              for (auto u : v0_nbr_vec) {
+                auto& v1_nbr_vec = ctx.complete_neighbor[u];
+                for (auto w : v1_nbr_vec) {
+                  if (v0_nbr_set.Exist(w)) {
+                    atomic_add(ctx.tricnt[u], 1);
+                    atomic_add(ctx.tricnt[v], 1);
+                    atomic_add(ctx.tricnt[w], 1);
+                  }
                 }
               }
-            }
-            for (auto u : v0_nbr_vec) {
-              v0_nbr_set.Erase(u);
-            }
-          },
-          [](int tid) {});
+              for (auto u : v0_nbr_vec) {
+                v0_nbr_set.Erase(u);
+              }
+            },
+            [](int tid) {});
+      } else {
+        ForEach(
+            inner_vertices,
+            [&vertexsets, &frag](int tid) {
+              auto& ns = vertexsets[tid];
+              ns.Init(frag.Vertices());
+            },
+            [this, &vertexsets, &frag, &ctx](int tid, vertex_t v) {
+              if (filterByDegree(frag, ctx, v)) {
+                return;
+              }
+              auto& v0_nbr_set = vertexsets[tid];
+              auto& v0_nbr_vec = ctx.complete_neighbor[v];
+              for (auto u : v0_nbr_vec) {
+                v0_nbr_set.Insert(u);
+              }
+              for (auto u : v0_nbr_vec) {
+                auto& v1_nbr_vec = ctx.complete_neighbor[u];
+                for (auto w : v1_nbr_vec) {
+                  if (v0_nbr_set.Exist(w)) {
+                    atomic_add(ctx.tricnt[u], 1);
+                    atomic_add(ctx.tricnt[v], 1);
+                    atomic_add(ctx.tricnt[w], 1);
+                  }
+                }
+              }
+              for (auto u : v0_nbr_vec) {
+                v0_nbr_set.Erase(u);
+              }
+            },
+            [](int tid) {});
+      }
 
 #ifdef PROFILING
       ctx.exec_time += GetCurrentTime();
