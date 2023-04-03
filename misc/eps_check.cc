@@ -17,6 +17,7 @@ limitations under the License.
 #include <cmath>
 #include <limits>
 #include <string>
+#include <fstream>
 
 const double MIN_NEAR_INFINITY = std::numeric_limits<double>::max() * 0.999;
 const double MAX_NEAR_ZERO = std::numeric_limits<double>::min() * 10;
@@ -62,36 +63,43 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  FILE* fin1 = fopen(argv[1], "r");
-  FILE* fin2 = fopen(argv[2], "r");
+  std::string fname1 = argv[1];
+  std::string fname2 = argv[2];
 
-  unsigned long long id1, id2;
-  char val1[128], val2[128];
+  std::ifstream fin1(fname1);
+  std::ifstream fin2(fname2);
+
+  int64_t id1, id2;
+  std::string val1, val2;
 
   int ret = 0;
 
-  while (fscanf(fin1, "%21llu%21s", &id1, val1) != EOF) {
-    if (fscanf(fin2, "%21llu%21s", &id2, val2) == EOF) {
-      printf("Vertex number not match...\n");
-      ret = 1;
-      break;
+  while (fin1 >> id1 >> val1) {
+    if (!(fin2 >> id2 >> val2)) {
+      printf("Vertex number not match, %s too few...", fname2.c_str());
     }
-
     if (id1 != id2) {
-      printf("Vertex id not match: %llu v.s. %llu\n", id1, id2);
+      printf("Vertex id not match: %lu v.s. %lu\n", id1, id2);
       ret = 1;
       break;
     }
 
     if (!match(parse(val1), parse(val2))) {
-      printf("Value of [vertex-%llu] not match: %s v.s. %s\n", id1, val1, val2);
+      printf("Value of [vertex-%lu] not match: %s v.s. %s\n", id1, val1.c_str(), val2.c_str());
       ret = 1;
       break;
     }
   }
-
-  fclose(fin1);
-  fclose(fin2);
+  if (fin1.eof()) {
+    if (fin2 >> id2) {
+      printf("Vertex number not match, %s too few...", fname1.c_str());
+    }
+    if (!fin2.eof()) {
+      printf("%s not reach end of file...", fname2.c_str());
+    }
+  } else {
+    printf("%s not reach end of file...", fname1.c_str());
+  }
 
   return ret;
 }

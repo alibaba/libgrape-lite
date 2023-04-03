@@ -108,6 +108,8 @@ inline void ThreadPool::InitThreadPool(const grape::ParallelEngineSpec& spec) {
                              &cpuset);
       VLOG(2) << "bind thread " << i << " to " << spec.cpu_list[i] << std::endl;
     }
+#else
+    (void) affinity;
 #endif
   }
 }
