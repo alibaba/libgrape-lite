@@ -44,6 +44,7 @@ limitations under the License.
 #include "cdlp/cdlp_auto.h"
 #include "flags.h"
 #include "lcc/lcc.h"
+#include "lcc/lcc_directed.h"
 #include "lcc/lcc_auto.h"
 #include "pagerank/pagerank.h"
 #include "pagerank/pagerank_auto.h"
@@ -275,10 +276,17 @@ void Run() {
                      LCCAuto>(comm_spec, out_prefix, fnum, spec);
     } else if (name == "lcc") {
       // buggy for directed
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                     LCC>(comm_spec, out_prefix, fnum, spec,
-                          FLAGS_degree_threshold);
-    } else {
+      if (FLAGS_directed) {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+            LCCDirected>(comm_spec, out_prefix, fnum, spec,
+                 FLAGS_degree_threshold);
+      } else {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+            LCC>(comm_spec, out_prefix, fnum, spec,
+                 FLAGS_degree_threshold);
+      }
+    }
+    else {
       LOG(FATAL) << "No avaiable application named [" << name << "].";
     }
   }

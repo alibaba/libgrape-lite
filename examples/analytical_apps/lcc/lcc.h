@@ -94,7 +94,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
 #endif
       if (ctx.degree_threshold == std::numeric_limits<int>::max()) {
         ForEach(inner_vertices,
-                [this, &frag, &ctx, &messages](int tid, vertex_t v) {
+                [&frag, &ctx, &messages](int tid, vertex_t v) {
                   vid_t u_gid, v_gid;
                   auto& nbr_vec = ctx.complete_neighbor[v];
                   int degree = ctx.global_degree[v];
@@ -189,7 +189,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
               auto& ns = vertexsets[tid];
               ns.Init(frag.Vertices());
             },
-            [this, &vertexsets, &frag, &ctx](int tid, vertex_t v) {
+            [&vertexsets, &ctx](int tid, vertex_t v) {
               auto& v0_nbr_set = vertexsets[tid];
               auto& v0_nbr_vec = ctx.complete_neighbor[v];
               for (auto u : v0_nbr_vec) {
