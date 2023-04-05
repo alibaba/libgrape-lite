@@ -47,6 +47,7 @@ limitations under the License.
 #include "lcc/lcc_directed.h"
 #include "lcc/lcc_auto.h"
 #include "pagerank/pagerank.h"
+#include "pagerank/pagerank_directed.h"
 #include "pagerank/pagerank_auto.h"
 #include "pagerank/pagerank_local.h"
 #include "pagerank/pagerank_local_parallel.h"
@@ -246,10 +247,15 @@ void Run() {
                      PageRankAuto, double, int>(comm_spec, out_prefix, fnum,
                                                 spec, FLAGS_pr_d, FLAGS_pr_mr);
     } else if (name == "pagerank") {
-      // buggy for directed
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-                     PageRank, double, int>(comm_spec, out_prefix, fnum, spec,
-                                            FLAGS_pr_d, FLAGS_pr_mr);
+      if (FLAGS_directed) {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+            PageRankDirected, double, int>(comm_spec, out_prefix, fnum, spec,
+                                   FLAGS_pr_d, FLAGS_pr_mr);
+      } else {
+        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+            PageRank, double, int>(comm_spec, out_prefix, fnum, spec,
+                                   FLAGS_pr_d, FLAGS_pr_mr);
+      }
     } else if (name == "pagerank_parallel") {
       CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
                      PageRankParallel, double, int>(
