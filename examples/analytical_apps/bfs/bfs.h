@@ -145,19 +145,35 @@ class BFS : public ParallelAppBase<FRAG_T, BFSContext<FRAG_T>>,
             }
           }
         });
-        ForEach(inner_vertices, [next_depth, &frag, &ctx](int tid, vertex_t v) {
-          if (ctx.partial_result[v] == std::numeric_limits<depth_type>::max()) {
-            auto ies = frag.GetIncomingInnerVertexAdjList(v);
-            for (auto& e : ies) {
-              auto u = e.get_neighbor();
-              if (ctx.curr_inner_updated.Exist(u)) {
-                ctx.partial_result[v] = next_depth;
-                ctx.next_inner_updated.Insert(v);
-                break;
+	if (frag.directed()) {
+          ForEach(inner_vertices, [next_depth, &frag, &ctx](int tid, vertex_t v) {
+            if (ctx.partial_result[v] == std::numeric_limits<depth_type>::max()) {
+              auto ies = frag.GetIncomingInnerVertexAdjList(v);
+              for (auto& e : ies) {
+                auto u = e.get_neighbor();
+                if (ctx.curr_inner_updated.Exist(u)) {
+                  ctx.partial_result[v] = next_depth;
+                  ctx.next_inner_updated.Insert(v);
+                  break;
+                }
               }
             }
-          }
-        });
+          });
+	} else {
+          ForEach(inner_vertices, [next_depth, &frag, &ctx](int tid, vertex_t v) {
+            if (ctx.partial_result[v] == std::numeric_limits<depth_type>::max()) {
+	      auto oes = frag.GetOutgoingInnerVertexAdjList(v);
+              for (auto& e : oes) {
+                auto u = e.get_neighbor();
+                if (ctx.curr_inner_updated.Exist(u)) {
+                  ctx.partial_result[v] = next_depth;
+                  ctx.next_inner_updated.Insert(v);
+                  break;
+                }
+              }
+            }
+          });
+	}
       } else {
         ForEach(ctx.curr_inner_updated, [next_depth, &frag, &ctx, &channels](
                                             int tid, vertex_t v) {
