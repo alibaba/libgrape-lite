@@ -144,6 +144,9 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
                                     args...);
 }
 
+template <typename FRAG_T>
+using LCC32 = grape::LCC<FRAG_T, uint32_t>;
+
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
 void Run() {
   grape::CommSpec comm_spec;
@@ -229,7 +232,7 @@ void Run() {
           comm_spec, out_prefix, fnum, spec);
     } else if (name == "lcc") {
       CreateAndQuery<OID_T, VID_T, VDATA_T, grape::EmptyType,
-                     grape::LoadStrategy::kOnlyOut, grape::LCC>(
+                     grape::LoadStrategy::kOnlyOut, LCC32>(
           comm_spec, out_prefix, fnum, spec);
     } else if (name == "lcc_auto") {
       CreateAndQuery<OID_T, VID_T, VDATA_T, grape::EmptyType,

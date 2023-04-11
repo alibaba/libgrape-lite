@@ -28,12 +28,13 @@ namespace grape {
  *
  * @tparam FRAG_T
  */
-template <typename FRAG_T>
+template <typename FRAG_T, typename COUNT_T>
 class LCCDirectedContext : public VertexDataContext<FRAG_T, double> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
+  using count_t = COUNT_T;
 
   explicit LCCDirectedContext(const FRAG_T& fragment)
       : VertexDataContext<FRAG_T, double>(fragment) {}
@@ -75,7 +76,7 @@ class LCCDirectedContext : public VertexDataContext<FRAG_T, double> {
   typename FRAG_T::template vertex_array_t<int> global_degree;
   typename FRAG_T::template vertex_array_t<std::vector<vertex_t>>
       complete_neighbor;
-  typename FRAG_T::template vertex_array_t<int> tricnt;
+  typename FRAG_T::template vertex_array_t<count_t> tricnt;
   int degree_threshold = 0;
   int stage = 0;
 

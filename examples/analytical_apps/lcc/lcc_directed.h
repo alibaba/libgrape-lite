@@ -34,12 +34,26 @@ namespace grape {
  *
  * @tparam FRAG_T
  */
-template <typename FRAG_T>
-class LCCDirected : public ParallelAppBase<FRAG_T, LCCDirectedContext<FRAG_T>>,
+template <typename FRAG_T, typename COUNT_T=uint32_t>
+class LCCDirected : public ParallelAppBase<FRAG_T, LCCDirectedContext<FRAG_T, COUNT_T>>,
             public ParallelEngine {
  public:
-  INSTALL_PARALLEL_WORKER(LCCDirected<FRAG_T>, LCCDirectedContext<FRAG_T>, FRAG_T);
+  // using app_t = LCCDirected<FRAG_T, COUNT_T>;
+  // using ctx_t = LCCDirectedContext<FRAG_T, COUNT_T>;
+  // INSTALL_PARALLEL_WORKER(app_t, ctx_t, FRAG_T);
+
+  using fragment_t = FRAG_T;
+  using context_t = LCCDirectedContext<FRAG_T, COUNT_T>;
+  using message_manager_t = ParallelMessageManager;
+  using worker_t = ParallelWorker<LCCDirected<FRAG_T, COUNT_T>>;
+
+  virtual ~LCCDirected() {}
+
+  static std::shared_ptr<worker_t> CreateWorker(std::shared_ptr<LCCDirected<FRAG_T, COUNT_T>> app, std::shared_ptr<FRAG_T> frag) {
+    return std::shared_ptr<worker_t>(new worker_t(app, frag));
+  }
   using vertex_t = typename fragment_t::vertex_t;
+  using count_t = COUNT_T;
 
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kAlongEdgeToOuterVertex;

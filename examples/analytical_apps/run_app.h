@@ -64,6 +64,18 @@ limitations under the License.
 
 namespace grape {
 
+template <typename FRAG_T>
+using LCC64 = LCC<FRAG_T, uint64_t>;
+
+template <typename FRAG_T>
+using LCCDirected64 = LCCDirected<FRAG_T, uint64_t>;
+
+template <typename FRAG_T>
+using LCC32 = LCC<FRAG_T, uint32_t>;
+
+template <typename FRAG_T>
+using LCCDirected32 = LCCDirected<FRAG_T, uint32_t>;
+
 void Init() {
   if (FLAGS_out_prefix.empty()) {
     LOG(FATAL) << "Please assign an output prefix.";
@@ -283,13 +295,25 @@ void Run() {
     } else if (name == "lcc") {
       // buggy for directed
       if (FLAGS_directed) {
-        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
-            LCCDirected>(comm_spec, out_prefix, fnum, spec,
-                 FLAGS_degree_threshold);
+        if (FLAGS_edge_num > static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) {
+          CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+              LCCDirected64>(comm_spec, out_prefix, fnum, spec,
+                   FLAGS_degree_threshold);
+	} else {
+          CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kBothOutIn,
+              LCCDirected32>(comm_spec, out_prefix, fnum, spec,
+                   FLAGS_degree_threshold);
+	}
       } else {
-        CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
-            LCC>(comm_spec, out_prefix, fnum, spec,
-                 FLAGS_degree_threshold);
+        if (FLAGS_edge_num > static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) * 2) {
+          CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+              LCC64>(comm_spec, out_prefix, fnum, spec,
+                   FLAGS_degree_threshold);
+	} else {
+          CreateAndQuery<OID_T, VID_T, VDATA_T, EmptyType, LoadStrategy::kOnlyOut,
+              LCC32>(comm_spec, out_prefix, fnum, spec,
+                   FLAGS_degree_threshold);
+	}
       }
     }
     else {

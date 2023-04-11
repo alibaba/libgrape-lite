@@ -27,6 +27,9 @@ DEFINE_string(out_prefix, "", "output directory of results");
 DEFINE_string(jobid, "", "jobid, only used in LDBC graphanalytics.");
 DEFINE_bool(directed, false, "input graph is directed or not.");
 
+DEFINE_int64(vertex_num, -1, "vertex number");
+DEFINE_int64(edge_num, -1, "edge number");
+
 /* flags related to specific applications. */
 DEFINE_int64(bfs_source, 0, "source vertex of bfs.");
 DEFINE_int32(cdlp_mr, 10, "max rounds of cdlp.");

@@ -34,12 +34,27 @@ namespace grape {
  *
  * @tparam FRAG_T
  */
-template <typename FRAG_T>
-class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
+template <typename FRAG_T, typename COUNT_T=uint32_t>
+class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T, COUNT_T>>,
             public ParallelEngine {
  public:
-  INSTALL_PARALLEL_WORKER(LCC<FRAG_T>, LCCContext<FRAG_T>, FRAG_T);
+  // using app_t = LCC<FRAG_T, COUNT_T>;
+  // using ctx_t = LCCContext<FRAG_T, COUNT_T>;
+  // INSTALL_PARALLEL_WORKER(app_t, ctx_t, FRAG_T);
+  
+  using fragment_t = FRAG_T;
+  using context_t = LCCContext<FRAG_T, COUNT_T>;
+  using message_manager_t = ParallelMessageManager;
+  using worker_t = ParallelWorker<LCC<FRAG_T, COUNT_T>>;
+
+  virtual ~LCC() {}
+
+  static std::shared_ptr<worker_t> CreateWorker(std::shared_ptr<LCC<FRAG_T, COUNT_T>> app, std::shared_ptr<FRAG_T> frag) {
+    return std::shared_ptr<worker_t>(new worker_t(app, frag));
+  }
+
   using vertex_t = typename fragment_t::vertex_t;
+  using count_t = COUNT_T;
 
   static constexpr MessageStrategy message_strategy =
       MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
@@ -199,9 +214,9 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
                 auto& v1_nbr_vec = ctx.complete_neighbor[u];
                 for (auto w : v1_nbr_vec) {
                   if (v0_nbr_set.Exist(w)) {
-                    atomic_add(ctx.tricnt[u], 1);
-                    atomic_add(ctx.tricnt[v], 1);
-                    atomic_add(ctx.tricnt[w], 1);
+                    atomic_add(ctx.tricnt[u], static_cast<count_t>(1));
+                    atomic_add(ctx.tricnt[v], static_cast<count_t>(1));
+                    atomic_add(ctx.tricnt[w], static_cast<count_t>(1));
                   }
                 }
               }
@@ -230,9 +245,9 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
                 auto& v1_nbr_vec = ctx.complete_neighbor[u];
                 for (auto w : v1_nbr_vec) {
                   if (v0_nbr_set.Exist(w)) {
-                    atomic_add(ctx.tricnt[u], 1);
-                    atomic_add(ctx.tricnt[v], 1);
-                    atomic_add(ctx.tricnt[w], 1);
+                    atomic_add(ctx.tricnt[u], static_cast<count_t>(1));
+                    atomic_add(ctx.tricnt[v], static_cast<count_t>(1));
+                    atomic_add(ctx.tricnt[w], static_cast<count_t>(1));
                   }
                 }
               }
@@ -250,8 +265,8 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
 
       ForEach(outer_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
         if (ctx.tricnt[v] != 0) {
-          messages.SyncStateOnOuterVertex<fragment_t, int>(frag, v,
-                                                           ctx.tricnt[v], tid);
+          messages.SyncStateOnOuterVertex<fragment_t, count_t>(frag, v,
+                                                               ctx.tricnt[v], tid);
         }
       });
 
@@ -264,8 +279,8 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
 #ifdef PROFILING
       ctx.preprocess_time -= GetCurrentTime();
 #endif
-      messages.ParallelProcess<fragment_t, int>(
-          thread_num(), frag, [&ctx](int tid, vertex_t u, int deg) {
+      messages.ParallelProcess<fragment_t, count_t>(
+          thread_num(), frag, [&ctx](int tid, vertex_t u, count_t deg) {
             atomic_add(ctx.tricnt[u], deg);
           });
 #ifdef PROFILING
@@ -281,7 +296,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T>>,
         if (global_degree[v] == 0 || global_degree[v] == 1) {
           ctx_data[v] = 0;
         } else {
-          double re = 2.0 * (tricnt[v]) /
+          double re = 2.0 * (static_cast<int64_t>(tricnt[v])) /
                       (static_cast<int64_t>(global_degree[v]) *
                        (static_cast<int64_t>(global_degree[v]) - 1));
           ctx_data[v] = re;

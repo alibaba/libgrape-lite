@@ -28,12 +28,13 @@ namespace grape {
  *
  * @tparam FRAG_T
  */
-template <typename FRAG_T>
+template <typename FRAG_T, typename COUNT_T>
 class LCCContext : public VertexDataContext<FRAG_T, double> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
+  using count_t = COUNT_T;
 
   explicit LCCContext(const FRAG_T& fragment)
       : VertexDataContext<FRAG_T, double>(fragment) {}
@@ -57,7 +58,7 @@ class LCCContext : public VertexDataContext<FRAG_T, double> {
         os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
            << 0.0 << std::endl;
       } else {
-        double re = 2.0 * (tricnt[v]) /
+        double re = 2.0 * (static_cast<count_t>(tricnt[v])) /
                     (static_cast<int64_t>(global_degree[v]) *
                      (static_cast<int64_t>(global_degree[v]) - 1));
         os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
@@ -75,7 +76,7 @@ class LCCContext : public VertexDataContext<FRAG_T, double> {
   typename FRAG_T::template vertex_array_t<int> global_degree;
   typename FRAG_T::template vertex_array_t<std::vector<vertex_t>>
       complete_neighbor;
-  typename FRAG_T::template vertex_array_t<int> tricnt;
+  typename FRAG_T::template vertex_array_t<count_t> tricnt;
   int degree_threshold = 0;
   int stage = 0;
 
