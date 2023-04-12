@@ -21,8 +21,41 @@ limitations under the License.
 #include <vector>
 
 #include "lcc/lcc_context.h"
+#include "grape/utils/varint.h"
 
 namespace grape {
+
+template <typename T>
+class LCCRefVector {
+ public:
+  LCCRefVector() : p_(nullptr), limit_(nullptr) {}
+  ~LCCRefVector() {}
+
+  void reset(const T* p, size_t size) {
+    p_ = p;
+    limit_ = p + size;
+  }
+
+  bool pop(T& val) {
+    if (p_ == limit_) {
+      return false;
+    }
+    val = *p_++;
+    return true;
+  }
+
+ private:
+  const T* p_;
+  const T* limit_;
+};
+
+template <typename T>
+OutArchive& operator>>(OutArchive& arc, LCCRefVector<T>& vec) {
+  size_t size;
+  arc >> size;
+  vec.reset(static_cast<const T*>(arc.GetBytes(size * sizeof(T))), size);
+  return arc;
+}
 
 /**
  * @brief An implementation of LCC (Local CLustering Coefficient), the version
@@ -37,15 +70,20 @@ namespace grape {
 template <typename FRAG_T, typename COUNT_T=uint32_t>
 class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T, COUNT_T>>,
             public ParallelEngine {
+#if 0
+  using VecOutType = std::vector<typename FRAG_T::vid_t>;
+  using VecInType = LCCRefVector<typename FRAG_T::vid_t>;
+#else
+  using VecOutType = DeltaVarintEncoder<typename FRAG_T::vid_t>;
+  using VecInType = DeltaVarintDecoder<typename FRAG_T::vid_t>;
+#endif
  public:
-  // using app_t = LCC<FRAG_T, COUNT_T>;
-  // using ctx_t = LCCContext<FRAG_T, COUNT_T>;
-  // INSTALL_PARALLEL_WORKER(app_t, ctx_t, FRAG_T);
-  
   using fragment_t = FRAG_T;
   using context_t = LCCContext<FRAG_T, COUNT_T>;
   using message_manager_t = ParallelMessageManager;
   using worker_t = ParallelWorker<LCC<FRAG_T, COUNT_T>>;
+
+  static constexpr bool sort_neighbor_by_global_id = true;
 
   virtual ~LCC() {}
 
@@ -115,7 +153,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T, COUNT_T>>,
                   int degree = ctx.global_degree[v];
                   nbr_vec.reserve(degree);
                   auto es = frag.GetOutgoingAdjList(v);
-                  std::vector<vid_t> msg_vec;
+                  VecOutType msg_vec;
                   msg_vec.reserve(degree);
                   for (auto& e : es) {
                     auto u = e.get_neighbor();
@@ -145,7 +183,7 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T, COUNT_T>>,
                   int degree = ctx.global_degree[v];
                   nbr_vec.reserve(degree);
                   auto es = frag.GetOutgoingAdjList(v);
-                  std::vector<vid_t> msg_vec;
+                  VecOutType msg_vec;
                   msg_vec.reserve(degree);
                   for (auto& e : es) {
                     auto u = e.get_neighbor();
@@ -177,11 +215,12 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T, COUNT_T>>,
 #ifdef PROFILING
       ctx.preprocess_time -= GetCurrentTime();
 #endif
-      messages.ParallelProcess<fragment_t, std::vector<vid_t>>(
+      messages.ParallelProcess<fragment_t, VecInType>(
           thread_num(), frag,
-          [&frag, &ctx](int tid, vertex_t u, const std::vector<vid_t>& msg) {
+          [&frag, &ctx](int tid, vertex_t u, VecInType& msg) {
             auto& nbr_vec = ctx.complete_neighbor[u];
-            for (auto gid : msg) {
+            vid_t gid;
+            while (msg.pop(gid)) {
               vertex_t v;
               if (frag.Gid2Vertex(gid, v)) {
                 nbr_vec.push_back(v);
@@ -210,16 +249,20 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T, COUNT_T>>,
               for (auto u : v0_nbr_vec) {
                 v0_nbr_set.Insert(u);
               }
+              count_t v_count = 0;
               for (auto u : v0_nbr_vec) {
+                count_t u_count = 0;
                 auto& v1_nbr_vec = ctx.complete_neighbor[u];
                 for (auto w : v1_nbr_vec) {
                   if (v0_nbr_set.Exist(w)) {
-                    atomic_add(ctx.tricnt[u], static_cast<count_t>(1));
-                    atomic_add(ctx.tricnt[v], static_cast<count_t>(1));
+                    ++u_count;
+                    ++v_count;
                     atomic_add(ctx.tricnt[w], static_cast<count_t>(1));
                   }
                 }
+                atomic_add(ctx.tricnt[u], u_count);
               }
+              atomic_add(ctx.tricnt[v], v_count);
               for (auto u : v0_nbr_vec) {
                 v0_nbr_set.Erase(u);
               }
@@ -241,16 +284,20 @@ class LCC : public ParallelAppBase<FRAG_T, LCCContext<FRAG_T, COUNT_T>>,
               for (auto u : v0_nbr_vec) {
                 v0_nbr_set.Insert(u);
               }
+              count_t v_count = 0;
               for (auto u : v0_nbr_vec) {
+                count_t u_count = 0;
                 auto& v1_nbr_vec = ctx.complete_neighbor[u];
                 for (auto w : v1_nbr_vec) {
                   if (v0_nbr_set.Exist(w)) {
-                    atomic_add(ctx.tricnt[u], static_cast<count_t>(1));
-                    atomic_add(ctx.tricnt[v], static_cast<count_t>(1));
+                    ++u_count;
+                    ++v_count;
                     atomic_add(ctx.tricnt[w], static_cast<count_t>(1));
                   }
                 }
+                atomic_add(ctx.tricnt[u], u_count);
               }
+              atomic_add(ctx.tricnt[v], v_count);
               for (auto u : v0_nbr_vec) {
                 v0_nbr_set.Erase(u);
               }
