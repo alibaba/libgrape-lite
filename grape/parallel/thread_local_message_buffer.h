@@ -176,6 +176,9 @@ class ThreadLocalMessageBuffer {
   template <typename MESSAGE_T>
   inline void SendToFragment(fid_t dst_fid, const MESSAGE_T& msg) {
     to_send_[dst_fid] << msg;
+    if (to_send_[dst_fid].GetSize() > block_size_) {
+      flushLocalBuffer(dst_fid);
+    }
   }
 
   /**
