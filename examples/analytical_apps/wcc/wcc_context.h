@@ -41,8 +41,7 @@ class WCCContext : public WCCContextType<FRAG_T> {
   using cid_t = typename WCCContextType<FRAG_T>::data_t;
 
   explicit WCCContext(const FRAG_T& fragment)
-      : WCCContextType<FRAG_T>(fragment, true),
-        comp_id(this->data()) {}
+      : WCCContextType<FRAG_T>(fragment, true), comp_id(this->data()) {}
 
   void Init(ParallelMessageManager& messages) {
     auto& frag = this->fragment();

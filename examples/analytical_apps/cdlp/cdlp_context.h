@@ -48,7 +48,8 @@ class CDLPContext : public VertexDataContext<FRAG_T, typename FRAG_T::oid_t> {
 #else
       : VertexDataContext<FRAG_T, typename FRAG_T::oid_t>(fragment, true),
 #endif
-        labels(this->data()) {}
+        labels(this->data()) {
+  }
 
   void Init(ParallelMessageManager& messages, int max_round) {
     auto& frag = this->fragment();

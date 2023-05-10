@@ -68,13 +68,9 @@ class HpAllocator {
   HpAllocator& operator=(const HpAllocator&) noexcept { return *this; }
   HpAllocator& operator=(HpAllocator&&) noexcept { return *this; }
 
-  pointer address(reference value) const {
-    return &value;
-  }
+  pointer address(reference value) const { return &value; }
 
-  const_pointer address(const_reference value) const {
-    return &value;
-  }
+  const_pointer address(const_reference value) const { return &value; }
 
   size_type max_size() const {
     return std::numeric_limits<std::size_t>::max() / sizeof(_Tp);
@@ -95,12 +91,10 @@ class HpAllocator {
   }
 
   void construct(pointer p, const _Tp& value) {
-    new(reinterpret_cast<void*>(p))_Tp(value);
+    new (reinterpret_cast<void*>(p)) _Tp(value);
   }
 
-  void destroy(pointer p) {
-    p->~_Tp();
-  }
+  void destroy(pointer p) { p->~_Tp(); }
 
   void deallocate(pointer __p, size_type __n) {
     if (munmap(__p, ROUND_UP(__n * sizeof(_Tp)))) {

@@ -161,23 +161,25 @@ class BasicFragmentMutator {
     got_edges_to_update_.clear();
 
     for (auto& buffers : got_edges_to_remove_) {
-      foreach(buffers, [this](const internal_oid_t& src,
+      foreach (buffers, [this](const internal_oid_t& src,
                                const internal_oid_t& dst) {
         vid_t src_gid, dst_gid;
         if (vm_ptr_->_GetGid(src, src_gid) && vm_ptr_->_GetGid(dst, dst_gid)) {
           mutation_.edges_to_remove.emplace_back(src_gid, dst_gid);
         }
-      });
+      })
+        ;
     }
     got_edges_to_remove_.clear();
 
     for (auto& buffers : got_vertices_to_remove_) {
-      foreach(buffers, [this](const internal_oid_t& id) {
+      foreach (buffers, [this](const internal_oid_t& id) {
         vid_t gid;
         if (vm_ptr_->_GetGid(id, gid)) {
           parsed_vertices_to_remove_.emplace_back(gid);
         }
-      });
+      })
+        ;
     }
     got_vertices_to_remove_.clear();
 

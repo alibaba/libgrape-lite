@@ -299,13 +299,13 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   void reserve_edges_sparse(const std::map<vid_t, int>& degree_to_add) {
     std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
 
-    for (const auto &pair : degree_to_add) {
+    for (const auto& pair : degree_to_add) {
       if (in_head(pair.first)) {
         head_degree_to_add.insert(
-          std::make_pair(head_index(pair.first), pair.second));
+            std::make_pair(head_index(pair.first), pair.second));
       } else {
         tail_degree_to_add.insert(
-          std::make_pair(tail_index(pair.first), pair.second));
+            std::make_pair(tail_index(pair.first), pair.second));
       }
     }
     head_.reserve_edges_sparse(head_degree_to_add);
@@ -339,13 +339,13 @@ class DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   void sort_neighbors_sparse(const std::map<vid_t, int>& degree_to_add) {
     std::map<vid_t, int> head_degree_to_add, tail_degree_to_add;
 
-    for (const auto &pair : degree_to_add) {
+    for (const auto& pair : degree_to_add) {
       if (in_head(pair.first)) {
         head_degree_to_add.insert(
-          std::make_pair(head_index(pair.first), pair.second));
+            std::make_pair(head_index(pair.first), pair.second));
       } else {
         tail_degree_to_add.insert(
-          std::make_pair(tail_index(pair.first), pair.second));
+            std::make_pair(tail_index(pair.first), pair.second));
       }
     }
     head_.sort_neighbors_sparse(head_degree_to_add);

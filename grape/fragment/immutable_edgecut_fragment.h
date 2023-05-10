@@ -172,6 +172,8 @@ class ImmutableEdgecutFragment
       ret += "empty";
     } else if (std::is_same<EDATA_T, double>::value) {
       ret += "double";
+    } else if (std::is_same<EDATA_T, float>::value) {
+      ret += "float";
     } else {
       LOG(FATAL) << "Edge data type not supported...";
     }

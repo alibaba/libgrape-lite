@@ -120,7 +120,10 @@ class InArchiveGroup {
     return {ArrayView<char>(buffers_[idx]), sizes_.data(idx)};
   }
 
-  void resize(size_t idx, uint32_t capacity) { buffers_[idx].resize(capacity); }
+  void resize(size_t idx, uint32_t capacity) {
+    buffers_[idx].resize(capacity);
+    buffers_[idx].shrink_to_fit();
+  }
 
   const typename SharedArray<uint32_t>::host_t& size(
       const Stream& stream) const {

@@ -57,7 +57,7 @@ class FragmentBase {
   using fragment_const_adj_list_t =
       typename TRAITS_T::fragment_const_adj_list_t;
 
-  FragmentBase(): vm_ptr_(nullptr) {}
+  FragmentBase() : vm_ptr_(nullptr) {}
 
   explicit FragmentBase(std::shared_ptr<vertex_map_t> vm_ptr)
       : vm_ptr_(vm_ptr) {}

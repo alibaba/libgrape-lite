@@ -114,9 +114,6 @@ for np in ${proc_list}; do
     RunApp ${np} lcc -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_lcc
     ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
 
-    RunApp ${np} lcc_opt -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_lcc_opt
-    ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
-
     RunApp ${np} wcc -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 

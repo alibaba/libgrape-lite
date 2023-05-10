@@ -1,4 +1,4 @@
-/** Copyright 2022 Alibaba Group Holding Limited.
+/** Copyright 2023 Alibaba Group Holding Limited.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,12 +20,23 @@ limitations under the License.
 #include "grape/grape.h"
 namespace grape {
 namespace cuda {
+
+template <grape::LoadStrategy LS>
+struct RankTrait {
+  using rank_t = float;
+};
+
+template <>
+struct RankTrait<grape::LoadStrategy::kBothOutIn> {
+  using rank_t = double;
+};
+
 template <typename FRAG_T>
 class PagerankContext : public grape::VoidContext<FRAG_T> {
  public:
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
-  using rank_t = float;
+  using rank_t = typename RankTrait<FRAG_T::load_strategy>::rank_t;
 
   explicit PagerankContext(const FRAG_T& frag)
       : grape::VoidContext<FRAG_T>(frag) {}
@@ -44,7 +55,7 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
 #endif
 
   void Init(GPUMessageManager& messages, AppConfig app_config,
-            float damping_factor, int max_iter) {
+            rank_t damping_factor, int max_iter) {
     auto& frag = this->fragment();
     auto vertices = frag.Vertices();
 
@@ -54,12 +65,13 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
 
     rank.Init(vertices, 0);
     rank.H2D();
+    scale_factor = 1.0;
 
     next_rank.Init(vertices, 0);
     next_rank.H2D();
 
     auto comm_vol_in_bytes =
-        frag.OuterVertices().size() * (sizeof(vid_t) + sizeof(rank_t)) * 1.1;
+        frag.OuterVertices().size() * sizeof(thrust::pair<vid_t, rank_t>);
 
     messages.InitBuffer(comm_vol_in_bytes, comm_vol_in_bytes);
     mm = &messages;
@@ -73,7 +85,7 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
 
     for (auto v : iv) {
       os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
-         << rank[v] << std::endl;
+         << rank[v] / (scale_factor) << std::endl;
     }
   }
 
@@ -81,6 +93,7 @@ class PagerankContext : public grape::VoidContext<FRAG_T> {
   int max_iter{};
   rank_t damping_factor{};
   rank_t dangling_sum{};
+  rank_t scale_factor;
   LoadBalancing lb{};
   VertexArray<rank_t, vid_t> rank;
   VertexArray<rank_t, vid_t> next_rank;
@@ -115,7 +128,7 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
     auto d_rank = ctx.rank.DeviceObject();
     auto iv = frag.InnerVertices();
 
-    rank_t p = 1.0 / frag.GetTotalVerticesNum();
+    rank_t p = 1.0 * ctx.scale_factor / frag.GetTotalVerticesNum();
 
     WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
     ForEach(stream, ws_in,
@@ -176,9 +189,11 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
 
     Sum(local_dangling_sum, dangling_sum);
 
+    rank_t scale_factor = ctx.scale_factor;
     ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-      d_next_rank[v] = (1 - damping_factor) / total_vertices_num +
-                       damping_factor * dangling_sum / total_vertices_num;
+      d_next_rank[v] =
+          scale_factor * (1 - damping_factor) / total_vertices_num +
+          damping_factor * dangling_sum / total_vertices_num;
     });
 
     stream.Sync();
@@ -188,7 +203,7 @@ class Pagerank : public GPUAppBase<FRAG_T, PagerankContext<FRAG_T>>,
 #endif
     ForEachOutgoingEdge(
         stream, d_frag, ws_in,
-        [=] __device__(vertex_t u) -> rank_t {
+        [=] __device__ __host__(vertex_t u) -> rank_t {
           rank_t rank_send =
               damping_factor * d_rank[u] / d_frag.GetLocalOutDegree(u);
           return rank_send;

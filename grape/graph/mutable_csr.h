@@ -175,25 +175,23 @@ class MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
   const nbr_t* get_end(VID_T i) const { return adj_lists_[i].end; }
 
   nbr_t* find(VID_T i, VID_T nbr) {
-    return std::find_if(adj_lists_[i].begin, adj_lists_[i].end,
-                        [&nbr](const nbr_t& item) {
-                          return item.neighbor.GetValue() == nbr;
-                        });
+    return std::find_if(
+        adj_lists_[i].begin, adj_lists_[i].end,
+        [&nbr](const nbr_t& item) { return item.neighbor.GetValue() == nbr; });
   }
   const nbr_t* find(VID_T i, VID_T nbr) const {
-    return std::find_if(adj_lists_[i].begin, adj_lists_[i].end,
-                        [&nbr](const nbr_t& item) {
-                          return item.neighbor.GetValue() == nbr;
-                        });
+    return std::find_if(
+        adj_lists_[i].begin, adj_lists_[i].end,
+        [&nbr](const nbr_t& item) { return item.neighbor.GetValue() == nbr; });
   }
 
   nbr_t* binary_find(VID_T i, VID_T nbr) {
-    return mutable_csr_impl::binary_search_one(
-        adj_lists_[i].begin, adj_lists_[i].end, nbr);
+    return mutable_csr_impl::binary_search_one(adj_lists_[i].begin,
+                                               adj_lists_[i].end, nbr);
   }
   const nbr_t* binary_find(VID_T i, VID_T nbr) const {
-    return mutable_csr_impl::binary_search_one(
-        adj_lists_[i].begin, adj_lists_[i].end, nbr);
+    return mutable_csr_impl::binary_search_one(adj_lists_[i].begin,
+                                               adj_lists_[i].end, nbr);
   }
 
   void reserve_vertices(vid_t vnum) {

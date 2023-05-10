@@ -315,7 +315,7 @@ void foreach_rval_helper(Tuple& t, const Func& func, index_sequence<index...>) {
 }
 
 template <typename Tuple, typename Func>
-void foreach(Tuple& t, const Func& func) {
+void foreach (Tuple& t, const Func& func) {
   foreach_helper(t, func, make_index_sequence<Tuple::tuple_size>{});
 }
 

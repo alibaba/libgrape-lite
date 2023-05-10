@@ -91,6 +91,64 @@ inline void ForEach(const Stream& stream, const WORK_SOURCE_T& work_source,
 }
 
 template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
+inline void ForEachWithIndexWarpShared(const Stream& stream,
+                                       const WORK_SOURCE_T& work_source,
+                                       FUNC_T func, Args... args) {
+  if (work_source.size() == 0) {
+    return;
+  }
+  LaunchKernelFix(
+      stream, work_source.size(),
+      [=] __device__(FUNC_T f, Args... args) mutable {
+        __shared__ uint32_t shm[8192];
+        auto tid = TID_1D;
+        auto nthreads = TOTAL_THREADS_1D;
+        auto warp_size = 32;
+        auto warp_id = tid / warp_size;
+        auto lane = tid % warp_size;
+        auto n_warp = nthreads / warp_size;
+
+        for (size_t i = 0 + warp_id; i < work_source.size(); i += n_warp) {
+          auto work = work_source.GetWork(i);
+
+          f(shm, lane, warp_id, warp_size, n_warp, i, work,
+            args...);  // A warp will do this
+        }
+      },
+      func, args...);
+}
+
+template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
+inline void ForEachWithIndexBlockShared(const Stream& stream,
+                                        const WORK_SOURCE_T& work_source,
+                                        FUNC_T func, Args... args) {
+  if (work_source.size() == 0) {
+    return;
+  }
+  LaunchKernelFix(
+      stream, work_source.size(),
+      [=] __device__(FUNC_T f, Args... args) mutable {
+        __shared__ uint32_t shm[8192];
+        auto tid = TID_1D;
+        // auto nthreads = TOTAL_THREADS_1D;
+        auto block_size = blockDim.x;
+        auto block_id = blockIdx.x;
+        auto lane = tid;
+        auto n_block = gridDim.x;
+
+        for (size_t i = 0 + block_id; i < work_source.size(); i += n_block) {
+          auto work = work_source.GetWork(i);
+
+          __syncthreads();
+          f(shm, lane, block_id, block_size, n_block, i, work,
+            args...);  // A warp will do this
+          __syncthreads();
+        }
+      },
+      func, args...);
+}
+
+template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
 inline void ForEachWithIndexWarp(const Stream& stream,
                                  const WORK_SOURCE_T& work_source, FUNC_T func,
                                  Args... args) {
@@ -111,6 +169,102 @@ inline void ForEachWithIndexWarp(const Stream& stream,
           auto work = work_source.GetWork(i);
 
           f(lane, i, work, args...);  // A warp will do this
+        }
+      },
+      func, args...);
+}
+
+template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
+inline void ForEachWithIndexWarpDynamic(const Stream& stream,
+                                        const WORK_SOURCE_T& work_source,
+                                        FUNC_T func, Args... args) {
+  if (work_source.size() == 0) {
+    return;
+  }
+  thrust::device_vector<unsigned long long int> ticket;
+  ticket.resize(1, 256 * 256 / 32);
+  auto* d_ticket = thrust::raw_pointer_cast(ticket.data());
+  LaunchKernelFix(
+      stream, work_source.size(),
+      [=] __device__(FUNC_T f, Args... args) mutable {
+        auto tid = TID_1D;
+        // auto nthreads = TOTAL_THREADS_1D;
+        auto warp_size = 32;
+        auto warp_id = tid / warp_size;
+        auto lane = tid % warp_size;
+
+        for (size_t i = 0 + warp_id; i < work_source.size();) {
+          auto work = work_source.GetWork(i);
+
+          f(lane, i, work, args...);  // A warp will do this
+          __syncwarp();
+          if (lane == 0) {
+            i = atomicAdd(d_ticket, 1ll);
+          }
+          __syncwarp();
+          i = __shfl_sync(0xffffffff, i, 0);
+        }
+      },
+      func, args...);
+}
+
+template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
+inline void ForEachWithIndexBlock(const Stream& stream,
+                                  const WORK_SOURCE_T& work_source, FUNC_T func,
+                                  Args... args) {
+  if (work_source.size() == 0) {
+    return;
+  }
+  LaunchKernelFix(
+      stream, work_source.size(),
+      [=] __device__(FUNC_T f, Args... args) mutable {
+        // auto tid = TID_1D;
+        // auto nthreads = TOTAL_THREADS_1D;
+        // auto block_size = blockDim.x;
+        auto block_id = blockIdx.x;
+        auto lane = threadIdx.x;
+        auto n_block = gridDim.x;
+
+        for (size_t i = 0 + block_id; i < work_source.size(); i += n_block) {
+          auto work = work_source.GetWork(i);
+
+          __syncthreads();
+          f(lane, i, work, args...);  // A blk will do this
+          __syncthreads();
+        }
+      },
+      func, args...);
+}
+
+template <typename WORK_SOURCE_T, typename FUNC_T, typename... Args>
+inline void ForEachWithIndexBlockDynamic(const Stream& stream,
+                                         const WORK_SOURCE_T& work_source,
+                                         FUNC_T func, Args... args) {
+  if (work_source.size() == 0) {
+    return;
+  }
+  thrust::device_vector<unsigned long long int> ticket;
+  ticket.resize(1, 256);
+  auto* d_ticket = thrust::raw_pointer_cast(ticket.data());
+  LaunchKernelFix(
+      stream, work_source.size(),
+      [=] __device__(FUNC_T f, Args... args) mutable {
+        __shared__ size_t shared_idx;
+        auto block_id = blockIdx.x;
+        auto lane = threadIdx.x;
+        // auto n_block = gridDim.x;
+
+        for (size_t i = 0 + block_id; i < work_source.size();) {
+          auto work = work_source.GetWork(i);
+
+          __syncthreads();
+          f(lane, i, work, args...);  // A warp will do this
+          __syncthreads();
+          if (lane == 0) {
+            shared_idx = atomicAdd(d_ticket, 1ll);
+          }
+          __syncthreads();
+          i = shared_idx;
         }
       },
       func, args...);
@@ -1271,11 +1425,13 @@ class ParallelEngine {
     CHECK_CUDA(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes,
                                              d_degree, d_prefix_sum, size,
                                              stream.cuda_stream()));
-    CHECK_CUDA(cudaMalloc(&d_temp_storage, temp_storage_bytes));
+    CHECK_CUDA(cudaMallocAsync(&d_temp_storage, temp_storage_bytes,
+                               stream.cuda_stream()));
     CHECK_CUDA(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes,
                                              d_degree, d_prefix_sum, size,
                                              stream.cuda_stream()));
-    CHECK_CUDA(cudaFree(d_temp_storage));
+    CHECK_CUDA(cudaFreeAsync(d_temp_storage, stream.cuda_stream()));
+    stream.Sync();
   }
 
  private:

@@ -53,6 +53,6 @@ DEFINE_string(serialization_prefix, "",
 
 DEFINE_int32(app_concurrency, -1, "concurrency of application");
 
-DEFINE_string(lb, "cm",
-              "Load balancing policy, these options can be used: auto, "
-              "auto_static, none, cta, cm, wm, strict");
+DEFINE_string(lb, "cta",
+              "Load balancing policy, these options can be used: "
+              " none, cta, cm, wm, strict");

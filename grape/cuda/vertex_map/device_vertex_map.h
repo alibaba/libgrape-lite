@@ -128,19 +128,20 @@ class DeviceVertexMap {
         oids[lid] = oid;
       }
 
-      LaunchKernel(stream,
-                   [] __device__(OID_T * oids, VID_T size,
-                                 CUDASTL::HashMap<OID_T, VID_T> * o2l) {
-                     auto tid = TID_1D;
-                     auto nthreads = TOTAL_THREADS_1D;
+      LaunchKernel(
+          stream,
+          [] __device__(OID_T * oids, VID_T size,
+                        CUDASTL::HashMap<OID_T, VID_T> * o2l) {
+            auto tid = TID_1D;
+            auto nthreads = TOTAL_THREADS_1D;
 
-                     for (VID_T lid = 0 + tid; lid < size; lid += nthreads) {
-                       OID_T oid = oids[lid];
+            for (VID_T lid = 0 + tid; lid < size; lid += nthreads) {
+              OID_T oid = oids[lid];
 
-                       (*o2l)[oid] = lid;
-                     }
-                   },
-                   oids.data(), ivnum, d_o2l_[fid]);
+              (*o2l)[oid] = lid;
+            }
+          },
+          oids.data(), ivnum, d_o2l_[fid]);
       d_l2o_[fid].assign(oids.begin(), oids.end());
       d_l2o_ptr_[fid] = ArrayView<OID_T>(d_l2o_[fid]);
     }
