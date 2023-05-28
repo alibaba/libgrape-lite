@@ -149,7 +149,9 @@ class VertexRange {
     }
 
     DEV_HOST_INLINE iterator operator++(int) noexcept {
-      return iterator(cur_.GetValue() + 1);
+      iterator ret = *this;
+      ++*this;
+      return ret;
     }
 
     DEV_HOST_INLINE iterator& operator--() noexcept {
@@ -158,7 +160,9 @@ class VertexRange {
     }
 
     DEV_HOST_INLINE iterator operator--(int) noexcept {
-      return iterator(cur_.GetValue()--);
+      iterator ret = *this;
+      --*this;
+      return ret;
     }
 
     DEV_HOST_INLINE iterator operator+(size_t offset) const noexcept {
