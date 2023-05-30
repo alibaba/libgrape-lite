@@ -16,10 +16,10 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_AUTO_H_
 #define EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_AUTO_H_
 
-#include <grape/grape.h>
-
 #include <queue>
 #include <utility>
+
+#include <grape/grape.h>
 
 #include "sssp/sssp_auto_context.h"
 

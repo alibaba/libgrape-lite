@@ -13,17 +13,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
-#include <glog/logging.h>
-#include <grape/fragment/loader.h>
-#include <grape/fragment/partitioner.h>
-#include <grape/grape.h>
 #include <sys/stat.h>
 
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <gflags/gflags.h>
+#include <gflags/gflags_declare.h>
+#include <glog/logging.h>
+
+#include <grape/fragment/loader.h>
+#include <grape/fragment/partitioner.h>
+#include <grape/grape.h>
 
 #include "append_only_edgecut_fragment.h"
 #include "flags.h"

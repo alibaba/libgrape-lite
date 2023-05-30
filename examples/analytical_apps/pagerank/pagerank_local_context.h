@@ -16,9 +16,9 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_LOCAL_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_LOCAL_CONTEXT_H_
 
-#include <grape/grape.h>
-
 #include <iomanip>
+
+#include <grape/grape.h>
 
 namespace grape {
 /**

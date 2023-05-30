@@ -13,14 +13,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <gflags/gflags.h>
-#include <glog/logging.h>
-
 #include <iostream>
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
+
+#include <gflags/gflags.h>
+#include <glog/logging.h>
 
 #include <grape/fragment/loader.h>
 #include <grape/fragment/mutable_edgecut_fragment.h>

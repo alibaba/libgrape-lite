@@ -28,8 +28,6 @@
 #ifndef GRAPE_UTILS_THREAD_POOL_H_
 #define GRAPE_UTILS_THREAD_POOL_H_
 
-#include <glog/logging.h>
-
 #include <condition_variable>
 #include <functional>
 #include <future>
@@ -39,6 +37,8 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
+
+#include <glog/logging.h>
 
 #include "grape/parallel/parallel_engine_spec.h"
 

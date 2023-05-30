@@ -16,10 +16,10 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_WCC_WCC_AUTO_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_WCC_WCC_AUTO_CONTEXT_H_
 
-#include <grape/grape.h>
-
 #include <limits>
 #include <vector>
+
+#include <grape/grape.h>
 
 namespace grape {
 

@@ -9,3 +9,5 @@ AllowShortIfStatementsOnASingleLine: false
 Standard: 'Cpp11'
 SpaceAfterCStyleCast: true
 AlignAfterOpenBracket: Align
+SortIncludes: true
+IncludeBlocks: Preserve

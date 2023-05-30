@@ -206,7 +206,7 @@ class ImmutableEdgecutFragment
       };
 
       auto iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e,
-                         std::vector<VID_T>& outer_vertices) {
+                                    std::vector<VID_T>& outer_vertices) {
         if (IsInnerVertexGid(e.dst)) {
           if (!IsInnerVertexGid(e.src)) {
             outer_vertices.push_back(e.src);
@@ -220,7 +220,7 @@ class ImmutableEdgecutFragment
         }
       };
       auto iter_out_undirected = [&](Edge<VID_T, EDATA_T>& e,
-                          std::vector<VID_T>& outer_vertices) {
+                                     std::vector<VID_T>& outer_vertices) {
         if (IsInnerVertexGid(e.src)) {
           if (!IsInnerVertexGid(e.dst)) {
             outer_vertices.push_back(e.dst);
@@ -508,6 +508,7 @@ class ImmutableEdgecutFragment
     return const_adj_list_t(oespliters_[dst_fid][v],
                             oespliters_[dst_fid + 1][v]);
   }
+
  protected:
   void initOuterVerticesOfFragment() {
     std::vector<int> frag_v_num(fnum_, 0);
@@ -597,10 +598,10 @@ class ImmutableEdgecutFragment
 
   using base_t::ivnum_;
   VID_T ovnum_;
+  using base_t::directed_;
   using base_t::fid_;
   using base_t::fnum_;
   using base_t::id_parser_;
-  using base_t::directed_;
 
   ska::flat_hash_map<VID_T, VID_T> ovg2l_;
   Array<VID_T, Allocator<VID_T>> ovgid_;

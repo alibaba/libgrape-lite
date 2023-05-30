@@ -15,14 +15,6 @@ limitations under the License.
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <grape/fragment/immutable_edgecut_fragment.h>
-#include <grape/fragment/loader.h>
-#include <grape/fragment/mutable_edgecut_fragment.h>
-#include <grape/fragment/partitioner.h>
-#include <grape/grape.h>
-#include <grape/util.h>
-#include <grape/vertex_map/global_vertex_map.h>
-#include <grape/vertex_map/local_vertex_map.h>
 
 #include <algorithm>
 #include <iostream>
@@ -32,6 +24,15 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <grape/fragment/immutable_edgecut_fragment.h>
+#include <grape/fragment/loader.h>
+#include <grape/fragment/mutable_edgecut_fragment.h>
+#include <grape/fragment/partitioner.h>
+#include <grape/grape.h>
+#include <grape/util.h>
+#include <grape/vertex_map/global_vertex_map.h>
+#include <grape/vertex_map/local_vertex_map.h>
 
 #include "sssp/sssp.h"
 #include "timer.h"

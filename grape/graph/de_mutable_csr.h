@@ -17,6 +17,7 @@ limitations under the License.
 #define GRAPE_GRAPH_DE_MUTABLE_CSR_H_
 
 #include <algorithm>
+
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/mutable_csr.h"

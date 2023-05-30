@@ -16,11 +16,6 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_RUN_CUDA_APP_H_
 #define EXAMPLES_ANALYTICAL_APPS_RUN_CUDA_APP_H_
 
-#include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
-#include <glog/logging.h>
-#include <grape/grape.h>
-#include <grape/util.h>
 #include <sys/stat.h>
 
 #include <algorithm>
@@ -31,6 +26,13 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <gflags/gflags.h>
+#include <gflags/gflags_declare.h>
+#include <glog/logging.h>
+
+#include <grape/grape.h>
+#include <grape/util.h>
 
 #include "cuda/bfs/bfs.h"
 #include "cuda/cdlp/cdlp.h"

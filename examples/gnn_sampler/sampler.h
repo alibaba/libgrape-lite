@@ -16,14 +16,14 @@ limitations under the License.
 #ifndef EXAMPLES_GNN_SAMPLER_SAMPLER_H_
 #define EXAMPLES_GNN_SAMPLER_SAMPLER_H_
 
-#include <grape/parallel/parallel_engine.h>
-#include <grape/utils/concurrent_queue.h>
-
 #include <iomanip>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <grape/parallel/parallel_engine.h>
+#include <grape/utils/concurrent_queue.h>
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "fragment_indices.h"

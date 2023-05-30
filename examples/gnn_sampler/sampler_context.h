@@ -16,13 +16,13 @@ limitations under the License.
 #ifndef EXAMPLES_GNN_SAMPLER_SAMPLER_CONTEXT_H_
 #define EXAMPLES_GNN_SAMPLER_SAMPLER_CONTEXT_H_
 
-#include <grape/app/void_context.h>
-#include <grape/grape.h>
-#include <grape/io/line_parser_base.h>
-
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <grape/app/void_context.h>
+#include <grape/grape.h>
+#include <grape/io/line_parser_base.h>
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "util.h"

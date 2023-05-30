@@ -15,9 +15,9 @@ limitations under the License.
 
 #include "flags.h"
 
-#include <gflags/gflags.h>
-
 #include <limits>
+
+#include <gflags/gflags.h>
 
 /* flags related to the job. */
 DEFINE_string(application, "", "application name");

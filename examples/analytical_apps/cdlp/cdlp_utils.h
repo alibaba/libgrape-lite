@@ -16,12 +16,12 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_CDLP_CDLP_UTILS_H_
 #define EXAMPLES_ANALYTICAL_APPS_CDLP_CDLP_UTILS_H_
 
-#include <grape/grape.h>
-
 #include <algorithm>
 #include <random>
 #include <unordered_map>
 #include <vector>
+
+#include <grape/grape.h>
 
 namespace grape {
 template <typename LABEL_T, typename VERTEX_ARRAY_T, typename ADJ_LIST_T>
