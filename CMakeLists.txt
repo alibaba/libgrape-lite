@@ -1,5 +1,6 @@
-project(libgrape-lite C CXX)
 cmake_minimum_required(VERSION 2.8)
+
+project(libgrape-lite C CXX)
 
 set(LIBGRAPELITE_MAJOR_VERSION 0)
 set(LIBGRAPELITE_MINOR_VERSION 2)
