@@ -133,9 +133,9 @@ class VertexMapBase {
                                std::vector<std::vector<VID_T>>& gid_maps) = 0;
 
   // convert the vertex ids with the help of mappings.
-  virtual bool GetOid(const VID_T& vid, OID_T& oid) const = 0;
+  virtual bool GetOid(const VID_T& gid, OID_T& oid) const = 0;
 
-  virtual bool GetOid(fid_t fid, const VID_T& vid, OID_T& oid) const = 0;
+  virtual bool GetOid(fid_t fid, const VID_T& lid, OID_T& oid) const = 0;
 
   virtual bool GetGid(fid_t fid, const OID_T& oid, VID_T& gid) const = 0;
 

@@ -15,6 +15,14 @@ limitations under the License.
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <grape/fragment/immutable_edgecut_fragment.h>
+#include <grape/fragment/loader.h>
+#include <grape/fragment/mutable_edgecut_fragment.h>
+#include <grape/fragment/partitioner.h>
+#include <grape/grape.h>
+#include <grape/util.h>
+#include <grape/vertex_map/global_vertex_map.h>
+#include <grape/vertex_map/local_vertex_map.h>
 
 #include <algorithm>
 #include <iostream>
@@ -24,15 +32,6 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#include <grape/fragment/immutable_edgecut_fragment.h>
-#include <grape/fragment/loader.h>
-#include <grape/fragment/mutable_edgecut_fragment.h>
-#include <grape/fragment/partitioner.h>
-#include <grape/grape.h>
-#include <grape/util.h>
-#include <grape/vertex_map/global_vertex_map.h>
-#include <grape/vertex_map/local_vertex_map.h>
 
 #include "sssp/sssp.h"
 #include "timer.h"
@@ -218,16 +217,11 @@ void Run() {
   timer_start(is_coordinator);
 
   // FIXME: no barrier apps. more manager? or use a dynamic-cast.
-  std::string efile = FLAGS_efile;
-  std::string vfile = FLAGS_vfile;
-  std::string delta_efile = FLAGS_delta_efile;
-  std::string delta_vfile = FLAGS_delta_vfile;
-  std::string out_prefix = FLAGS_out_prefix;
   auto spec = grape::MultiProcessSpec(comm_spec, __AFFINITY__);
   int fnum = comm_spec.fnum();
-  CreateAndQuery<OID_T, VID_T, VDATA_T, double, grape::LoadStrategy::kOnlyOut,
+  CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T, grape::LoadStrategy::kOnlyOut,
                  grape::SSSP, OID_T>(
-      comm_spec, out_prefix, fnum, spec,
+      comm_spec, FLAGS_out_prefix, fnum, spec,
       ParamConverter<OID_T>::FromInt64(FLAGS_sssp_source));
 }
 
