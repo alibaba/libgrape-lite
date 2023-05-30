@@ -49,7 +49,7 @@ function RunApp() {
 }
 
 function BasicTests() {
-  np=$1, shift
+  np=$1; shift
 
   RunApp ${np} sssp --sssp_source=6 --serialize=true --serialization_prefix=./serial/${GRAPH}
   ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
@@ -122,7 +122,7 @@ function MutableFragmentTest() {
 }
 
 function MutableFragmentTests() {
-  np=$1, shift
+  np=$1; shift
 
   MutableFragmentTest ${np} sssp --sssp_source=6
   ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
@@ -182,7 +182,7 @@ function VertexMapTestOnMutableFragment() {
 }
 
 function VertexMapTests() {
-  np=$1, shift
+  np=$1; shift
 
   VertexMapTest ${np} --string_id
   ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP

@@ -89,13 +89,13 @@ class LocalVertexMapBuilder {
         int src_worker_id = (worker_id + worker_num - i) % worker_num;
         typename IdIndexer<internal_oid_t, VID_T>::key_buffer_t keys;
         sync_comm::Recv(keys, src_worker_id, 0, comm_spec.comm());
-        std::vector<VID_T> gid_list;
+        std::vector<VID_T> gid_list(keys.size());
         VID_T gid;
         auto& native_indexer = oid_to_index_[fid_];
         for (size_t k = 0; k < keys.size(); ++k) {
           CHECK(native_indexer.get_index(keys[k], gid));
           gid = id_parser_.generate_global_id(fid_, gid);
-          gid_list.push_back(gid);
+          gid_list[k] = gid;
         }
         sync_comm::Send(gid_list, src_worker_id, 1, comm_spec.comm());
       }
