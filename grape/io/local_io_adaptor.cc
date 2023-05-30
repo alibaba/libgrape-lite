@@ -15,10 +15,11 @@ limitations under the License.
 
 #include "grape/io/local_io_adaptor.h"
 
-#include <glog/logging.h>
 #include <sys/stat.h>
 
 #include <string>
+
+#include <glog/logging.h>
 
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"

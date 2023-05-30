@@ -15,16 +15,16 @@ limitations under the License.
 
 #include <sys/stat.h>
 
+#include <gflags/gflags.h>
+#include <gflags/gflags_declare.h>
+#include <glog/logging.h>
+
 #include <grape/fragment/ev_fragment_mutator.h>
 #include <grape/fragment/immutable_edgecut_fragment.h>
 #include <grape/fragment/loader.h>
 #include <grape/fragment/mutable_edgecut_fragment.h>
 #include <grape/grape.h>
 #include <grape/util.h>
-
-#include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
-#include <glog/logging.h>
 
 #include "pagerank/pagerank_local_parallel.h"
 #include "sssp/sssp.h"

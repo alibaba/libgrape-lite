@@ -16,10 +16,10 @@ limitations under the License.
 #ifndef GRAPE_GRAPH_IMMUTABLE_CSR_H_
 #define GRAPE_GRAPH_IMMUTABLE_CSR_H_
 
-#include <glog/logging.h>
-
 #include <algorithm>
 #include <vector>
+
+#include <glog/logging.h>
 
 #include "grape/config.h"
 #include "grape/graph/adj_list.h"

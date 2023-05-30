@@ -16,11 +16,11 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_CONTEXT_H_
 
-#include <grape/grape.h>
-
 #include <iomanip>
 #include <iostream>
 #include <limits>
+
+#include <grape/grape.h>
 
 namespace grape {
 

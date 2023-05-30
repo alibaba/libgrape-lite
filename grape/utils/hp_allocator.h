@@ -16,9 +16,10 @@ limitations under the License.
 #ifndef GRAPE_UTILS_HP_ALLOCATOR_H_
 #define GRAPE_UTILS_HP_ALLOCATOR_H_
 
-#include <glog/logging.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+
+#include <glog/logging.h>
 
 #ifdef USE_HUGEPAGES
 

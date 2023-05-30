@@ -16,13 +16,13 @@ limitations under the License.
 #ifndef EXAMPLES_GNN_SAMPLER_KAFKA_PRODUCER_H_
 #define EXAMPLES_GNN_SAMPLER_KAFKA_PRODUCER_H_
 
-#include <librdkafka/rdkafka.h>
-#include <librdkafka/rdkafkacpp.h>
-
 #include <iosfwd>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <librdkafka/rdkafka.h>
+#include <librdkafka/rdkafkacpp.h>
 
 /** Kafka producer class
  *

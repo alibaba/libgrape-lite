@@ -16,11 +16,11 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_WCC_WCC_AUTO_H_
 #define EXAMPLES_ANALYTICAL_APPS_WCC_WCC_AUTO_H_
 
-#include <grape/grape.h>
-
 #include <queue>
 #include <utility>
 #include <vector>
+
+#include <grape/grape.h>
 
 #include "wcc/wcc_auto_context.h"
 

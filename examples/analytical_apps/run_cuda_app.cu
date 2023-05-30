@@ -13,11 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "run_cuda_app.h"
+
 #include <gflags/gflags.h>
 #include <gflags/gflags_declare.h>
 #include <glog/logging.h>
+
 #include "grape/cuda/utils/cuda_utils.h"
-#include "run_cuda_app.h"
 
 int main(int argc, char* argv[]) {
   FLAGS_stderrthreshold = 0;

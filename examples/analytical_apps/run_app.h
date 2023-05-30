@@ -16,15 +16,6 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_RUN_APP_H_
 #define EXAMPLES_ANALYTICAL_APPS_RUN_APP_H_
 
-#include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
-#include <glog/logging.h>
-#include <grape/fragment/immutable_edgecut_fragment.h>
-#include <grape/fragment/loader.h>
-#include <grape/grape.h>
-#include <grape/util.h>
-#include <grape/vertex_map/global_vertex_map.h>
-
 #include <algorithm>
 #include <iostream>
 #include <memory>
@@ -33,6 +24,16 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <gflags/gflags.h>
+#include <gflags/gflags_declare.h>
+#include <glog/logging.h>
+
+#include <grape/fragment/immutable_edgecut_fragment.h>
+#include <grape/fragment/loader.h>
+#include <grape/grape.h>
+#include <grape/util.h>
+#include <grape/vertex_map/global_vertex_map.h>
 
 #ifdef GRANULA
 #include "thirdparty/atlarge-research-granula/granula.hpp"
@@ -46,11 +47,11 @@ limitations under the License.
 #include "lcc/lcc.h"
 #include "lcc/lcc_auto.h"
 #include "pagerank/pagerank.h"
-#include "pagerank/pagerank_push.h"
 #include "pagerank/pagerank_auto.h"
 #include "pagerank/pagerank_local.h"
 #include "pagerank/pagerank_local_parallel.h"
 #include "pagerank/pagerank_parallel.h"
+#include "pagerank/pagerank_push.h"
 #include "sssp/sssp.h"
 #include "sssp/sssp_auto.h"
 #include "timer.h"

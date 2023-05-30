@@ -16,13 +16,14 @@ limitations under the License.
 #ifndef GRAPE_FRAGMENT_REBALANCER_H_
 #define GRAPE_FRAGMENT_REBALANCER_H_
 
-#include <glog/logging.h>
 #include <stddef.h>
 
 #include <memory>
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include <glog/logging.h>
 
 #include "grape/communication/shuffle.h"
 #include "grape/graph/edge.h"

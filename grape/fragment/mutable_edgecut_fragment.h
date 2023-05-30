@@ -638,9 +638,9 @@ class MutableEdgecutFragment
 
   using base_t::ivnum_;
   VID_T ovnum_;
+  using base_t::directed_;
   using base_t::fid_;
   using base_t::fnum_;
-  using base_t::directed_;
   using base_t::id_parser_;
 
   ska::flat_hash_map<VID_T, VID_T> ovg2i_;

@@ -215,8 +215,8 @@ class CSREdgecutFragmentBase
   }
 
   using base_t::GetFragId;
-  using base_t::GetInnerVerticesNum;
   using base_t::GetIncomingAdjList;
+  using base_t::GetInnerVerticesNum;
   using base_t::GetOutgoingAdjList;
 
  private:
