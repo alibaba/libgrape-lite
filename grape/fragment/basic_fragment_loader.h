@@ -48,7 +48,7 @@ struct LoadGraphSpec {
 
   bool serialize;
   std::string serialization_prefix;
-  
+
   bool deserialize;
   std::string deserialization_prefix;
 
