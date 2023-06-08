@@ -169,6 +169,15 @@ class Array {
                                         __tx.__pos_);
   }
 
+  inline void __destruct_all() {
+    pointer ptr = this->__base.__begin_;
+    pointer end = this->__base.__end_;
+    while (ptr != end) {
+      __alloc_traits::destroy(__alloc(), ptr);
+      ++ptr;
+    }
+  }
+
   inline void __destruct_at_end(pointer __new_last) {
     pointer __soon_to_be_end = this->__base.__end_;
     while (__new_last != __soon_to_be_end) {
@@ -372,7 +381,8 @@ class Array {
   }
 
   void clear() noexcept {
-    __destruct_at_end(this->__base.__begin_);
+    // __destruct_at_end(this->__base.__begin_);
+    __destruct_all();
     __vdeallocate();
   }
 };
