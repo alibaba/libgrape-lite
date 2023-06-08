@@ -19,8 +19,11 @@ option(BUILD_LIBGRAPELITE_DOCS "Build libgrape-lite documentation" ON)
 option(BUILD_LIBGRAPELITE_TESTS "Build libgrape-lite test cases" ON)
 option(WCC_USE_GID "Use global id as wcc component id" OFF)
 
-if (USE_HUGEPAGES AND LINUX)
-  add_definitions(-DUSE_HUGEPAGES)
+if (USE_HUGEPAGES)
+  if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    message(STATUS "Enable hugepage")
+    add_definitions(-DUSE_HUGEPAGES)
+  endif ()
 endif ()
 
 if (PROFILING)

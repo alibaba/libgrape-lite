@@ -21,6 +21,7 @@ limitations under the License.
 #include <algorithm>
 #include <utility>
 
+#include "grape/config.h"
 #include "thread_pool.h"
 
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
@@ -36,27 +37,27 @@ namespace grape {
 /**
  * @brief Bitset is a highly-optimized bitset implementation.
  */
-class Bitset {
+class Bitset : public Allocator<uint64_t> {
  public:
   Bitset() : data_(NULL), size_(0), size_in_words_(0) {}
   explicit Bitset(size_t size) : size_(size) {
     size_in_words_ = WORD_SIZE(size_);
-    data_ = static_cast<uint64_t*>(malloc(size_in_words_ * sizeof(uint64_t)));
+    data_ = this->allocate(size_in_words_);
     clear();
   }
   ~Bitset() {
     if (data_ != NULL) {
-      free(data_);
+      this->deallocate(data_, size_in_words_);
     }
   }
 
   void init(size_t size) {
     if (data_ != NULL) {
-      free(data_);
+      this->deallocate(data_, size_in_words_);
     }
     size_ = size;
     size_in_words_ = WORD_SIZE(size_);
-    data_ = static_cast<uint64_t*>(malloc(size_in_words_ * sizeof(uint64_t)));
+    data_ = this->allocate(size_in_words_);
     clear();
   }
 
@@ -73,8 +74,7 @@ class Bitset {
     }
     size_t new_size_in_words = WORD_SIZE(size);
     if (size_in_words_ != new_size_in_words) {
-      uint64_t* new_data =
-          static_cast<uint64_t*>(malloc(new_size_in_words * sizeof(uint64_t)));
+      uint64_t* new_data = this->allocate(new_size_in_words);
       if (size_in_words_ > new_size_in_words) {
         for (size_t i = 0; i < new_size_in_words; ++i) {
           new_data[i] = data_[i];
@@ -89,7 +89,7 @@ class Bitset {
           new_data[i] = 0;
         }
       }
-      free(data_);
+      this->deallocate(data_, size_in_words_);
       data_ = new_data;
     } else {
       if (size_ > size) {
@@ -104,12 +104,12 @@ class Bitset {
   void copy(const Bitset& other) {
     assert(this != &other);
     if (data_ != NULL) {
-      free(data_);
+      this->deallocate(data_, size_in_words_);
     }
     size_ = other.size_;
     size_in_words_ = other.size_in_words_;
     if (other.data_ != NULL) {
-      data_ = static_cast<uint64_t*>(malloc(size_in_words_ * sizeof(uint64_t)));
+      data_ = this->allocate(size_in_words_);
       memcpy(data_, other.data_, size_in_words_ * sizeof(uint64_t));
     } else {
       data_ = NULL;

@@ -29,11 +29,11 @@ template <typename T>
 class BinaryVecOut {
  public:
   BinaryVecOut(const std::vector<T>& id_vec,
-               const std::vector<uint8_t>& weight_vec)
+               const lcc_opt_impl::ref_vector<uint8_t>& weight_vec)
       : id_vec(id_vec), weight_vec(weight_vec) {}
 
   const std::vector<T>& id_vec;
-  const std::vector<uint8_t>& weight_vec;
+  const lcc_opt_impl::ref_vector<uint8_t>& weight_vec;
 };
 
 template <typename T>
@@ -152,31 +152,38 @@ class LCCDirected
           thread_num(), frag,
           [&ctx](int tid, vertex_t u, int msg) { ctx.global_degree[u] = msg; });
 
+      ctx.neighbor_pools.resize(thread_num());
+      ctx.weight_pools.resize(thread_num());
+
       ForEach(inner_vertices, [&frag, &ctx, &messages](int tid, vertex_t v) {
+        auto& nbr_pool = ctx.neighbor_pools[tid];
+        auto& weight_pool = ctx.weight_pools[tid];
         auto& nbr_vec = ctx.complete_neighbor[v];
         auto& weight_vec = ctx.neighbor_weight[v];
+        nbr_pool.reserve(ctx.global_degree[v]);
         auto oe = frag.GetOutgoingAdjList(v);
         for (auto& e : oe) {
-          nbr_vec.push_back(e.get_neighbor());
+          nbr_pool.push_back(e.get_neighbor());
         }
         auto ie = frag.GetIncomingAdjList(v);
         for (auto& e : ie) {
-          nbr_vec.push_back(e.get_neighbor());
+          nbr_pool.push_back(e.get_neighbor());
         }
-        std::sort(nbr_vec.begin(), nbr_vec.end());
-        size_t size = nbr_vec.size();
+        std::sort(nbr_pool.begin(), nbr_pool.end());
+        size_t size = nbr_pool.size();
+        weight_pool.reserve(size);
         size_t deduped_index = 0;
         for (size_t i = 0; i != size;) {
-          vertex_t cur = nbr_vec[i];
+          vertex_t cur = nbr_pool[i];
           size_t j = i + 1;
-          while (j != size && nbr_vec[j] == cur) {
+          while (j != size && nbr_pool[j] == cur) {
             ++j;
           }
-          nbr_vec[deduped_index++] = cur;
-          weight_vec.push_back(static_cast<uint8_t>(j - i));
+          nbr_pool[deduped_index++] = cur;
+          weight_pool.push_back(static_cast<uint8_t>(j - i));
           i = j;
         }
-        nbr_vec.resize(deduped_index);
+        nbr_pool.resize(deduped_index);
         ctx.deduped_degree[v] = deduped_index;
 
         vid_t v_gid_hash = IdHasher<vid_t>::hash(frag.GetInnerVertexGid(v));
@@ -184,18 +191,20 @@ class LCCDirected
         size_t filtered_index = 0;
         std::vector<vid_t> msg_vec;
         for (size_t i = 0; i < deduped_index; ++i) {
-          vertex_t u = nbr_vec[i];
+          vertex_t u = nbr_pool[i];
           if ((ctx.global_degree[u] > v_deg) ||
               ((ctx.global_degree[u] == v_deg) &&
                v_gid_hash > IdHasher<vid_t>::hash(frag.Vertex2Gid(u)))) {
-            nbr_vec[filtered_index] = u;
-            weight_vec[filtered_index] = weight_vec[i];
+            nbr_pool[filtered_index] = u;
+            weight_pool[filtered_index] = weight_pool[i];
             msg_vec.push_back(frag.Vertex2Gid(u));
             ++filtered_index;
           }
         }
-        nbr_vec.resize(filtered_index);
-        weight_vec.resize(filtered_index);
+        nbr_pool.resize(filtered_index);
+        weight_pool.resize(filtered_index);
+        nbr_vec = nbr_pool.finish();
+        weight_vec = weight_pool.finish();
         BinaryVecOut<vid_t> msg(msg_vec, weight_vec);
         messages.SendMsgThroughEdges<fragment_t, BinaryVecOut<vid_t>>(frag, v,
                                                                       msg, tid);
@@ -207,6 +216,8 @@ class LCCDirected
       messages.ParallelProcess<fragment_t, BinaryVecIn<vid_t>>(
           thread_num(), frag,
           [&frag, &ctx](int tid, vertex_t u, BinaryVecIn<vid_t>& msg) {
+            auto& nbr_pool = ctx.neighbor_pools[tid];
+            auto& weight_pool = ctx.weight_pools[tid];
             auto& nbr_vec = ctx.complete_neighbor[u];
             auto& weight_vec = ctx.neighbor_weight[u];
             vid_t gid;
@@ -223,10 +234,14 @@ class LCCDirected
                          const std::pair<vertex_t, uint8_t>& rhs) {
                         return lhs.first < rhs.first;
                       });
+            nbr_pool.reserve(vec.size());
+            weight_pool.reserve(vec.size());
             for (auto& pair : vec) {
-              nbr_vec.push_back(pair.first);
-              weight_vec.push_back(pair.second);
+              nbr_pool.push_back(pair.first);
+              weight_pool.push_back(pair.second);
             }
+            nbr_vec = nbr_pool.finish();
+            weight_vec = weight_pool.finish();
           });
 #ifdef HASH_INTERSECT
       std::vector<ska::flat_hash_map<vid_t, uint8_t>> weight_maps(thread_num());

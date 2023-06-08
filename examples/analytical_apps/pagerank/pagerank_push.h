@@ -122,14 +122,14 @@ class PageRankPush
 #endif
 
     if (ctx.step == ctx.max_round) {
-      ForEach(inner_vertices, [&frag, &ctx, base](int tid, vertex_t v) {
+      ForEach(inner_vertices, [&ctx, base](int tid, vertex_t v) {
         ctx.result[v] = base + ctx.delta * ctx.next_result[v];
       });
 #ifdef PROFILING
       ctx.exec_time += GetCurrentTime();
 #endif
     } else {
-      ForEach(inner_vertices, [&frag, &ctx, base](int tid, vertex_t v) {
+      ForEach(inner_vertices, [&ctx, base](int tid, vertex_t v) {
         ctx.result[v] = base + ctx.delta * ctx.next_result[v];
         ctx.next_result[v] = 0;
       });

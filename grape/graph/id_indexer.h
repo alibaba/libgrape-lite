@@ -22,6 +22,7 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "grape/types.h"
+#include "grape/config.h"
 #include "grape/utils/string_view_vector.h"
 
 namespace grape {
@@ -48,7 +49,7 @@ inline int8_t log2(size_t value) {
 
 template <typename T>
 struct KeyBuffer {
-  using type = std::vector<T>;
+  using type = std::vector<T, Allocator<T>>;
 
   template <typename IOADAPTOR_T>
   static void serialize(std::unique_ptr<IOADAPTOR_T>& writer, type& buffer) {
@@ -135,8 +136,8 @@ template <typename KEY_T, typename INDEX_T>
 class IdIndexer {
  public:
   using key_buffer_t = typename id_indexer_impl::KeyBuffer<KEY_T>::type;
-  using ind_buffer_t = std::vector<INDEX_T>;
-  using dist_buffer_t = std::vector<int8_t>;
+  using ind_buffer_t = std::vector<INDEX_T, Allocator<INDEX_T>>;
+  using dist_buffer_t = std::vector<int8_t, Allocator<int8_t>>;
 
   IdIndexer() : hasher_() { reset_to_empty_state(); }
   ~IdIndexer() {}

@@ -128,9 +128,9 @@ inline InArchive& operator<<(InArchive& in_archive,
   return in_archive;
 }
 
-template <typename T,
+template <typename T, typename ALLOC_T,
           typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
-inline InArchive& operator<<(InArchive& in_archive, const std::vector<T>& vec) {
+inline InArchive& operator<<(InArchive& in_archive, const std::vector<T, ALLOC_T>& vec) {
   size_t size = vec.size();
   in_archive << size;
   in_archive.AddBytes(vec.data(), size * sizeof(T));

@@ -83,10 +83,6 @@ class CDLPOptContext
   int step = 0;
   int max_round = 0;
   double threshold = 0;
-
-#ifdef RANDOM_LABEL
-  std::vector<std::mt19937> random_engines;
-#endif
 };
 }  // namespace grape
 

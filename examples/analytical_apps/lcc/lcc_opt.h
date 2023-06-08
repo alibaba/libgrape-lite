@@ -84,8 +84,8 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
     messages.ForceContinue();
   }
 
-  count_t intersect_with_bs(const std::vector<vertex_t>& small,
-                            const std::vector<vertex_t>& large,
+  count_t intersect_with_bs(const lcc_opt_impl::ref_vector<vertex_t>& small,
+                            const lcc_opt_impl::ref_vector<vertex_t>& large,
                             tricnt_list_t& result) {
     count_t ret = 0;
     auto from = large.begin();
@@ -104,8 +104,9 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
     return ret;
   }
 
-  count_t intersect(const std::vector<vertex_t>& lhs,
-                    const std::vector<vertex_t>& rhs, tricnt_list_t& result) {
+  count_t intersect(const lcc_opt_impl::ref_vector<vertex_t>& lhs,
+                    const lcc_opt_impl::ref_vector<vertex_t>& rhs,
+                    tricnt_list_t& result) {
     if (lhs.empty() || rhs.empty()) {
       return 0;
     }
@@ -151,27 +152,31 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
           thread_num(), frag,
           [&ctx](int tid, vertex_t u, int msg) { ctx.global_degree[u] = msg; });
       std::vector<size_t> max_degrees(thread_num(), 0);
+      ctx.memory_pools.resize(thread_num());
       ForEach(inner_vertices, [&frag, &ctx, &messages, &max_degrees](
                                   int tid, vertex_t v) {
         vid_t v_gid_hash = IdHasher<vid_t>::hash(frag.GetInnerVertexGid(v));
+        auto& pool = ctx.memory_pools[tid];
         auto& nbr_vec = ctx.complete_neighbor[v];
         int degree = ctx.global_degree[v];
         auto es = frag.GetOutgoingAdjList(v);
         static thread_local VecOutType msg_vec;
         msg_vec.clear();
+        pool.reserve(es.Size());
         for (auto& e : es) {
           auto u = e.get_neighbor();
           if (ctx.global_degree[u] > degree) {
-            nbr_vec.push_back(u);
+            pool.push_back(u);
             msg_vec.push_back(frag.Vertex2Gid(u));
           } else if (ctx.global_degree[u] == degree) {
             vid_t u_gid = frag.Vertex2Gid(u);
             if (v_gid_hash > IdHasher<vid_t>::hash(u_gid)) {
-              nbr_vec.push_back(u);
+              pool.push_back(u);
               msg_vec.push_back(u_gid);
             }
           }
         }
+        nbr_vec = pool.finish();
         if (nbr_vec.empty()) {
           return;
         }
@@ -193,14 +198,17 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
       messages.ParallelProcess<fragment_t, VecInType>(
           thread_num(), frag,
           [&frag, &ctx](int tid, vertex_t u, VecInType& msg) {
+            auto& pool = ctx.memory_pools[tid];
             auto& nbr_vec = ctx.complete_neighbor[u];
             vid_t gid;
+            pool.reserve(ctx.global_degree[u]);
             while (msg.pop(gid)) {
               vertex_t v;
               if (frag.Gid2Vertex(gid, v)) {
-                nbr_vec.push_back(v);
+                pool.push_back(v);
               }
             }
+            nbr_vec = pool.finish();
             std::sort(nbr_vec.begin(), nbr_vec.end());
           });
       std::vector<DenseVertexSet<typename FRAG_T::vertices_t>> vertexsets(

@@ -22,6 +22,8 @@ limitations under the License.
 #include <limits>
 #include <vector>
 
+#include "lcc_opt_context.h"
+
 namespace grape {
 /**
  * @brief Context for the parallel version of LCC.
@@ -69,9 +71,11 @@ class LCCDirectedContext : public VertexDataContext<FRAG_T, double> {
 
   typename FRAG_T::template vertex_array_t<int> global_degree;
   typename FRAG_T::template inner_vertex_array_t<int> deduped_degree;
-  typename FRAG_T::template vertex_array_t<std::vector<vertex_t>>
+  std::vector<lcc_opt_impl::memory_pool<vertex_t>> neighbor_pools;
+  typename FRAG_T::template vertex_array_t<lcc_opt_impl::ref_vector<vertex_t>>
       complete_neighbor;
-  typename FRAG_T::template vertex_array_t<std::vector<uint8_t>>
+  std::vector<lcc_opt_impl::memory_pool<uint8_t>> weight_pools;
+  typename FRAG_T::template vertex_array_t<lcc_opt_impl::ref_vector<uint8_t>>
       neighbor_weight;
   typename FRAG_T::template vertex_array_t<count_t> tricnt;
   int stage = 0;
