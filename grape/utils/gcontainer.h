@@ -174,7 +174,6 @@ class Array {
     while (__new_last != __soon_to_be_end) {
       __alloc_traits::destroy(__alloc(), --__soon_to_be_end);
     }
-    this->__base.__end_ = __new_last;
   }
 
   inline void __destruct_at_end(pointer __new_last, pointer __end) {
