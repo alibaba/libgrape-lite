@@ -76,7 +76,7 @@ public abstract class LibgrapeJob {
             args.add("--serialization_prefix");
             serialization_prefix += "/";
             serialization_prefix += graphName;
-            String nodes = config.getString("platform.graphscope.nodes");
+            String nodes = config.getString("platform.libgrape.nodes");
             int nodesNum = nodes.split(",").length;
             serialization_prefix += "-";
             serialization_prefix += Integer.toString(nodesNum);
