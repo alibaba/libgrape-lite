@@ -38,14 +38,14 @@ fi
 
 # check the existance of the tar of driver, build with maven if not exists.
 pushd ${LDBC_HOME}
-if [[ ! -f "graphalytics-1.0.0-libgrape-0.3-SNAPSHOT-bin.tar.gz" ]]; then
+if [[ ! -f "graphalytics-1.10.0-libgrape-0.3-SNAPSHOT-bin.tar.gz" ]]; then
     mvn clean package -DskipTests -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true -Dmaven.wagon.http.ssl.ignore.validity.dates=true
 fi
 
 # extract the driver to the workspace if not exists.
-if [[ ! -d "${WORKSPACE}/graphalytics-1.0.0-libgrape-0.3-SNAPSHOT" ]]; then
+if [[ ! -d "${WORKSPACE}/graphalytics-1.10.0-libgrape-0.3-SNAPSHOT" ]]; then
     mkdir -p ${WORKSPACE}
-    tar xzf graphalytics-1.0.0-libgrape-0.3-SNAPSHOT-bin.tar.gz -C ${WORKSPACE} # TODO: version 0.3
+    tar xzf graphalytics-1.10.0-libgrape-0.3-SNAPSHOT-bin.tar.gz -C ${WORKSPACE} # TODO: version 0.3
 fi
 
 pushd ${WORKSPACE}
@@ -62,7 +62,7 @@ if [[ ! -d "graphs" ]]; then
     fi
 fi
 
-pushd graphalytics-1.0.0-libgrape-0.3-SNAPSHOT
+pushd graphalytics-1.10.0-libgrape-0.3-SNAPSHOT
 
 # config the properties for ldbc-driver.
 if [[ ! -d "config" ]]; then
