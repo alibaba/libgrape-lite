@@ -14,12 +14,15 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <platform.name>libgrape</platform.name>
-        <graphalytics.version>1.0.0</graphalytics.version>
-        <log4j.version>2.5</log4j.version>
-        <fastutil.version>7.0.10</fastutil.version>
+        <graphalytics.version>1.10.0</graphalytics.version>
+        <commons.exec.version>1.3</commons.exec.version>
+        <fastutil.version>7.0.7</fastutil.version>
+        <hamcrest.version>1.3</hamcrest.version>
+        <junit.version>4.11</junit.version>
     </properties>
 
     <dependencies>
+        <!-- Graphalytics dependencies: core + resources, validation -->
         <dependency>
             <groupId>science.atlarge.graphalytics</groupId>
             <artifactId>graphalytics-core</artifactId>
@@ -40,99 +43,44 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Common software dependencies -->
         <dependency>
-            <groupId>science.atlarge.graphalytics</groupId>
-            <artifactId>graphalytics-plugins-granula</artifactId>
-            <version>0.9.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>${log4j.version}</version>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-exec</artifactId>
+            <version>${commons.exec.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>${log4j.version}</version>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
-            <version>${log4j.version}</version>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <version>${hamcrest.version}</version>
+            <scope>test</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20160810</version>
+        </dependency>
     </dependencies>
-
-
-    <profiles>
-        <profile>
-            <id>granula</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-shade-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>with-granula</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>shade</goal>
-                                </goals>
-                                <configuration>
-                                    <artifactSet>
-                                        <excludes>
-                                            <exclude>*:*:*:resources</exclude>
-                                        </excludes>
-                                    </artifactSet>
-                                    <finalName>${project.artifactId}-${project.version}-granula</finalName>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>bin</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>single</goal>
-                                </goals>
-                                <configuration>
-                                    <descriptors>
-                                        <descriptor>src/main/assembly/bin-granula.xml</descriptor>
-                                    </descriptors>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
-
 
     <build>
         <plugins>
-            <plugin>
-                <!-- Java compiler settings -->
+            <plugin><!-- Java compiler settings -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
+                    <source>1.8</source>
+                    <target>1.8</target>
                 </configuration>
             </plugin>
 
-            <plugin>
-                <!-- Plugin for constructing fat jars -->
+            <plugin><!-- Plugin for constructing fat jars -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>2.3</version>
@@ -166,7 +114,6 @@
                             <artifactSet>
                                 <excludes>
                                     <exclude>*:*:*:resources</exclude>
-                                    <exclude>org.apache.giraph:giraph-core-granula</exclude>
                                 </excludes>
                             </artifactSet>
                             <finalName>${project.artifactId}-${project.version}-default</finalName>
@@ -176,8 +123,7 @@
             </plugin>
 
 
-            <plugin>
-                <!-- Plugin for creating distribution archives -->
+            <plugin><!-- Plugin for creating distribution archives -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>2.5.3</version>
@@ -197,8 +143,7 @@
                             <descriptors>
                                 <descriptor>src/main/assembly/bin.xml</descriptor>
                             </descriptors>
-                            <finalName>graphalytics-${graphalytics.version}-${platform.name}-${project.version}
-                            </finalName>
+                            <finalName>graphalytics-${graphalytics.version}-${platform.name}-${project.version}</finalName>
                             <tarLongFileMode>posix</tarLongFileMode>
                             <outputDirectory>${project.basedir}</outputDirectory>
                         </configuration>
@@ -206,45 +151,7 @@
                 </executions>
             </plugin>
 
-            <plugin>
-                <!-- Plugin for ensuring the presence of license information -->
-                <groupId>com.mycila</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <version>2.10</version>
-                <configuration>
-                    <header>https://graphalytics.org/assets/copyright-notice-template</header>
-                    <properties>
-                        <owner>Delft University of Technology</owner>
-                        <project.inceptionYear>2015</project.inceptionYear>
-                    </properties>
-                    <excludes>
-                        <exclude>README</exclude>
-                        <exclude>LICENSE</exclude>
-                        <exclude>pom.xml</exclude>
-                        <exclude>src/test/resources/**</exclude>
-                        <exclude>src/main/resources/**</exclude>
-                        <exclude>src/main/assembly/**</exclude>
-                        <exclude>config-template/**</exclude>
-                        <exclude>**/*.txt</exclude>
-                    </excludes>
-                    <mapping>
-                        <java>SLASHSTAR_STYLE</java>
-                        <scala>SLASHSTAR_STYLE</scala>
-                        <cpp>SLASHSTAR_STYLE</cpp>
-                        <hpp>SLASHSTAR_STYLE</hpp>
-                    </mapping>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <!-- Maven release management -->
+            <plugin><!-- Plugin for maven release management -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-release-plugin</artifactId>
                 <version>2.5.1</version>
@@ -253,58 +160,6 @@
                     <autoVersionSubmodules>true</autoVersionSubmodules>
                     <pushChanges>false</pushChanges>
                 </configuration>
-            </plugin>
-
-            <plugin>
-                <!-- Unit tests management -->
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.9</version>
-            </plugin>
-
-            <plugin>
-                <!-- Integration tests management -->
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>2.13</version>
-                <configuration>
-                    <includes>
-                        <include>**/*IT.java</include>
-                    </includes>
-                    <excludes>
-                        <exclude>**/BreadthFirstSearchJobTestIT.java</exclude>
-                        <exclude>**/CommunityDetectionLPJobTestIT.java</exclude>
-                        <exclude>**/LocalClusteringCoefficientJobTestIT.java</exclude>
-                        <exclude>**/PageRankJobTestIT.java</exclude>
-                        <exclude>**/WeaklyConnectedComponentsJobTestIT.java</exclude>
-                    </excludes>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>failsafe-integration-tests</id>
-                        <phase>integration-test</phase>
-                        <goals>
-                            <goal>integration-test</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>buildnumber-maven-plugin</artifactId>
-                <version>1.3</version>
-                <executions>
-                    <execution>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>create</goal>
-                        </goals>
-                        <configuration>
-                            <doCheck>true</doCheck>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
 

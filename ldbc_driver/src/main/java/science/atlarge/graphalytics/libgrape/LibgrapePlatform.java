@@ -1,24 +1,6 @@
-/*
- * Copyright 2015 Delft University of Technology
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package science.atlarge.graphalytics.libgrape;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.FileVisitResult;
@@ -31,76 +13,45 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import science.atlarge.granula.archiver.PlatformArchive;
-import science.atlarge.granula.modeller.job.JobModel;
-import science.atlarge.granula.modeller.platform.Libgrape;
-import science.atlarge.granula.util.FileUtil;
 import org.apache.commons.io.output.TeeOutputStream;
-import science.atlarge.graphalytics.configuration.ConfigurationUtil;
-import science.atlarge.graphalytics.configuration.InvalidConfigurationException;
-import science.atlarge.graphalytics.execution.BenchmarkRunSetup;
-import science.atlarge.graphalytics.execution.RunSpecification;
-import science.atlarge.graphalytics.execution.RuntimeSetup;
-import science.atlarge.graphalytics.domain.graph.FormattedGraph;
-import science.atlarge.graphalytics.domain.graph.LoadedGraph;
-import science.atlarge.graphalytics.execution.BenchmarkRunner;
-import science.atlarge.graphalytics.report.result.BenchmarkMetric;
-import science.atlarge.graphalytics.report.result.BenchmarkMetrics;
-import science.atlarge.graphalytics.report.result.BenchmarkRunResult;
-import science.atlarge.graphalytics.domain.benchmark.BenchmarkRun;
-import science.atlarge.graphalytics.granula.GranulaAwarePlatform;
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.PropertiesConfiguration;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-import science.atlarge.graphalytics.execution.PlatformExecutionException;
-import science.atlarge.graphalytics.domain.algorithms.BreadthFirstSearchParameters;
-import science.atlarge.graphalytics.domain.algorithms.CommunityDetectionLPParameters;
-import science.atlarge.graphalytics.domain.algorithms.PageRankParameters;
-import science.atlarge.graphalytics.domain.algorithms.SingleSourceShortestPathsParameters;
+import science.atlarge.graphalytics.report.result.BenchmarkMetric;
 import science.atlarge.graphalytics.libgrape.algorithms.bfs.BreadthFirstSearchJob;
 import science.atlarge.graphalytics.libgrape.algorithms.cdlp.CommunityDetectionJob;
 import science.atlarge.graphalytics.libgrape.algorithms.wcc.ConnectedComponentsJob;
 import science.atlarge.graphalytics.libgrape.algorithms.pr.PageRankJob;
 import science.atlarge.graphalytics.libgrape.algorithms.sssp.SingleSourceShortestPathsJob;
 import science.atlarge.graphalytics.libgrape.algorithms.lcc.LocalClusteringCoefficientJob;
-import org.json.simple.JSONObject;
+import science.atlarge.graphalytics.configuration.ConfigurationUtil;
+import science.atlarge.graphalytics.configuration.InvalidConfigurationException;
+import science.atlarge.graphalytics.domain.algorithms.*;
+import science.atlarge.graphalytics.domain.benchmark.BenchmarkRun;
+import science.atlarge.graphalytics.domain.graph.FormattedGraph;
+import science.atlarge.graphalytics.domain.graph.LoadedGraph;
+import science.atlarge.graphalytics.execution.*;
+import science.atlarge.graphalytics.report.result.BenchmarkMetrics;
+import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-/**
- * libgrape implementation of the Graphalytics benchmark.
- *
- * @author Stijn Heldens
- */
-public class LibgrapePlatform implements GranulaAwarePlatform {
+import science.atlarge.graphalytics.execution.PlatformExecutionException;
+
+public class LibgrapePlatform implements Platform {
+	public static String LIBGRAPE_BINARY_NAME = "bin/standard/run_app";
+	public static final String BENCHMARK_PROPERTIES_FILE = "benchmark.properties";
 	protected static final Logger LOG = LogManager.getLogger();
 	private static PrintStream sysOut;
 	private static PrintStream sysErr;
-
-	public static final String BENCHMARK_PROPERTIES_FILE = "benchmark.properties";
-	private static final String GRANULA_PROPERTIES_FILE = "granula.properties";
-
-	public static final String GRANULA_ENABLE_KEY = "benchmark.run.granula.enabled";
-	public static String LIBGRAPE_BINARY_NAME = "bin/standard/run_app";
-
 	private Configuration benchmarkConfig;
 
-
 	public LibgrapePlatform() {
-
-		Configuration granulaConfig;
 		try {
 			benchmarkConfig = ConfigurationUtil.loadConfiguration(BENCHMARK_PROPERTIES_FILE);
-			granulaConfig = ConfigurationUtil.loadConfiguration(GRANULA_PROPERTIES_FILE);
 		} catch(InvalidConfigurationException e) {
 			LOG.warn("failed to load " + BENCHMARK_PROPERTIES_FILE, e);
-			LOG.warn("Could not find or load \"{}\"", GRANULA_PROPERTIES_FILE);
 			benchmarkConfig = new PropertiesConfiguration();
-			granulaConfig = new PropertiesConfiguration();
 		}
-
-		boolean granulaEnabled = granulaConfig.getBoolean(GRANULA_ENABLE_KEY, false);
-		LIBGRAPE_BINARY_NAME = granulaEnabled ? "./bin/granula/run_app": LIBGRAPE_BINARY_NAME;
 	}
 
 	@Override
@@ -114,13 +65,13 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 	}
 
 	@Override
-	public void deleteGraph(LoadedGraph loadedGraph) {
-		//
+	public void prepare(RunSpecification runSpecification) {
+
 	}
 
 	@Override
-	public void prepare(RunSpecification runSpecification) {
-
+	public void deleteGraph(LoadedGraph loadedGraph) {
+		//
 	}
 
 	@Override
@@ -130,43 +81,52 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 		BenchmarkRunSetup benchmarkRunSetup = runSpecification.getBenchmarkRunSetup();
 		RuntimeSetup runtimeSetup = runSpecification.getRuntimeSetup();
 
-		LibgrapeJob job;
-		Object params = benchmarkRun.getAlgorithmParameters();
-
-		String logPath = benchmarkRunSetup.getLogDir().resolve("platform").toString();
-
+    Algorithm algorithm = benchmarkRun.getAlgorithm();
 		boolean graphDirected = benchmarkRun.getFormattedGraph().isDirected();
 		String vertexFilePath = runtimeSetup.getLoadedGraph().getVertexPath();
 		String edgeFilePath = runtimeSetup.getLoadedGraph().getEdgePath();
 
-		switch(benchmarkRun.getAlgorithm()) {
+		Object params = benchmarkRun.getAlgorithmParameters();
+
+		String logPath = benchmarkRunSetup.getLogDir().resolve("platform").toString();
+
+    long vertexNum = benchmarkRun.getGraph().getNumberOfVertices();
+    long edgeNum = benchmarkRun.getGraph().getNumberOfEdges();
+
+    String graphName = benchmarkRun.getGraph().getName();
+
+		LibgrapeJob job;
+		switch(algorithm) {
 			case BFS:
-				job = new BreadthFirstSearchJob(benchmarkConfig, vertexFilePath, edgeFilePath,
+				job = new BreadthFirstSearchJob(benchmarkConfig, graphName, vertexFilePath, edgeFilePath,
 						graphDirected, (BreadthFirstSearchParameters) params, benchmarkRun.getId(), logPath);
 				break;
 			case WCC:
-				job = new ConnectedComponentsJob(benchmarkConfig, vertexFilePath, edgeFilePath,
+				job = new ConnectedComponentsJob(benchmarkConfig, graphName, vertexFilePath, edgeFilePath,
 						graphDirected, benchmarkRun.getId(), logPath);
 				break;
 			case LCC:
-				job = new LocalClusteringCoefficientJob(benchmarkConfig, vertexFilePath, edgeFilePath,
+				job = new LocalClusteringCoefficientJob(benchmarkConfig, graphName, vertexFilePath, edgeFilePath,
 						graphDirected, benchmarkRun.getId(), logPath);
 				break;
 			case CDLP:
-				job = new CommunityDetectionJob(benchmarkConfig, vertexFilePath, edgeFilePath,
+				job = new CommunityDetectionJob(benchmarkConfig, graphName, vertexFilePath, edgeFilePath,
 						graphDirected, (CommunityDetectionLPParameters) params, benchmarkRun.getId(), logPath);
 				break;
 			case PR:
-				job = new PageRankJob(benchmarkConfig, vertexFilePath, edgeFilePath,
+				job = new PageRankJob(benchmarkConfig, graphName, vertexFilePath, edgeFilePath,
 						graphDirected, (PageRankParameters) params, benchmarkRun.getId(), logPath);
 				break;
 			case SSSP:
-				job = new SingleSourceShortestPathsJob(benchmarkConfig, vertexFilePath, edgeFilePath,
+				job = new SingleSourceShortestPathsJob(benchmarkConfig, graphName, vertexFilePath, edgeFilePath,
 						graphDirected, (SingleSourceShortestPathsParameters) params, benchmarkRun.getId(), logPath);
 				break;
 			default:
 				throw new PlatformExecutionException("Unsupported algorithm");
 		}
+
+    job.setVertexNum(vertexNum);
+    job.setEdgeNum(edgeNum);
 
 		if (benchmarkRunSetup.isOutputRequired()) {
 			Path outputFile = benchmarkRunSetup.getOutputDir().resolve(benchmarkRun.getName());
@@ -174,7 +134,10 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 		}
 
 		try {
-			job.run();
+      int exitCode = job.run();
+      if (exitCode != 0) {
+        throw new PlatformExecutionException("Libgrape exited with an error code: " + exitCode);
+      }
 		} catch (IOException|InterruptedException e) {
 			throw new PlatformExecutionException("failed to execute command", e);
 		}
@@ -203,16 +166,21 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 			Files.walkFileTree(platformLogPath, new SimpleFileVisitor<Path>() {
 				@Override
 				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-					String logs = FileUtil.readFile(file);
-					for (String line : logs.split("\n")) {
-						if (line.contains("- run algorithm:")) {
-							Pattern regex = Pattern.compile(
-									".* - run algorithm: ([+-]?([0-9]*[.])?[0-9]+) sec.*");
-							Matcher matcher = regex.matcher(line);
-							matcher.find();
-							superstepTimes.add(Double.parseDouble(matcher.group(1)));
-						}
-					}
+          try (BufferedReader reader = new BufferedReader(new FileReader(file.toFile()))) {
+            String line;
+             while ((line = reader.readLine()) != null) {
+               try {
+                 if (line.contains("- run algorithm:")) {
+                   Pattern regex = Pattern.compile(".* - run algorithm: ([+-]?([0-9]*[.])?[0-9]+) sec.*");
+                   Matcher matcher = regex.matcher(line);
+                   matcher.find();
+                   superstepTimes.add(Double.parseDouble(matcher.group(1)));
+                 }
+               } catch (Exception e) {
+                 e.printStackTrace();
+               }
+             }
+          }
 					return FileVisitResult.CONTINUE;
 				}
 			});
@@ -234,22 +202,6 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 		} else {
 			LOG.error("Failed to find any metrics regarding superstep runtime.");
 			return new BenchmarkMetrics();
-		}
-	}
-
-	@Override
-	public void enrichMetrics(BenchmarkRunResult benchmarkRunResult, Path arcDirectory) {
-		try {
-			PlatformArchive platformArchive = PlatformArchive.readArchive(arcDirectory);
-			JSONObject processGraph = platformArchive.operation("ProcessGraph");
-			BenchmarkMetrics metrics = benchmarkRunResult.getMetrics();
-
-			Integer procTimeMS = Integer.parseInt(platformArchive.info(processGraph, "Duration"));
-			BigDecimal procTimeS = (new BigDecimal(procTimeMS)).divide(new BigDecimal(1000), 3, BigDecimal.ROUND_CEILING);
-			metrics.setProcessingTime(new BenchmarkMetric(procTimeS, "s"));
-
-		} catch(Exception e) {
-			LOG.error("Failed to enrich metrics.");
 		}
 	}
 
@@ -282,11 +234,6 @@ public class LibgrapePlatform implements GranulaAwarePlatform {
 		System.out.println("EndTime: " + System.currentTimeMillis());
 		System.setOut(sysOut);
 		System.setErr(sysErr);
-	}
-
-	@Override
-	public JobModel getJobModel() {
-		return new JobModel(new Libgrape());
 	}
 
 	@Override

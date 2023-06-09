@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+set -eo pipefail
 
 # Ensure the configuration file exists
 rootdir="$( cd "$(dirname "$0")/../.." >/dev/null 2>&1 ; pwd -P )"
@@ -34,17 +35,10 @@ if [ -z LIBGRAPE_HOME ]; then
     echo "Define the environment variable \$LIBGRAPE_HOME or modify platform.libgrape.home in $config/platform.properties"
     exit 1
 fi
-GRANULA_ENABLED=$(grep -E "^benchmark.run.granula.enabled[	 ]*[:=]" $config/granula.properties | sed 's/benchmark.run.granula.enabled[	 ]*[:=][	 ]*\([^	 ]*\).*/\1/g' | head -n 1)
-
 
 # Build binaries
 mkdir -p bin/standard
 (cd bin/standard && cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release ${LIBGRAPE_HOME} && make analytical_apps)
-
-if [ "$GRANULA_ENABLED" = "true" ] ; then
- mkdir -p bin/granula
- (cd bin/granula && cmake -DCMAKE_BUILD_TYPE=Release -DGRANULA=1 ${LIBGRAPE_HOME} && make analytical_apps)
-fi
 
 if [ $? -ne 0 ]
 then
