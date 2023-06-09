@@ -721,7 +721,9 @@ class ImmutableEdgecutFragment
   using base_t::fnum_;
   using base_t::id_parser_;
 
-  ska::flat_hash_map<VID_T, VID_T, std::hash<VID_T>, std::equal_to<VID_T>, Allocator<std::pair<VID_T, VID_T>>> ovg2l_;
+  ska::flat_hash_map<VID_T, VID_T, std::hash<VID_T>, std::equal_to<VID_T>,
+                     Allocator<std::pair<VID_T, VID_T>>>
+      ovg2l_;
   Array<VID_T, Allocator<VID_T>> ovgid_;
   Array<VDATA_T, Allocator<VDATA_T>> vdata_;
 

@@ -185,7 +185,8 @@ inline OutArchive& operator>>(OutArchive& out_archive,
 
 template <typename T, typename ALLOC_T,
           typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
-inline OutArchive& operator>>(OutArchive& out_archive, std::vector<T, ALLOC_T>& vec) {
+inline OutArchive& operator>>(OutArchive& out_archive,
+                              std::vector<T, ALLOC_T>& vec) {
   size_t size;
   out_archive >> size;
   vec.resize(size);
