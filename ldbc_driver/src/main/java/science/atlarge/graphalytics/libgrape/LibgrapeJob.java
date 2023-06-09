@@ -5,141 +5,141 @@ import org.apache.commons.exec.CommandLine;
 import org.apache.commons.exec.DefaultExecutor;
 import org.apache.commons.exec.Executor;
 import org.apache.commons.exec.PumpStreamHandler;
-import org.apache.commons.exec.util.StringUtils;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
 public abstract class LibgrapeJob {
-	private static final Logger LOG = LogManager.getLogger(LibgrapeJob.class);
+    private static final Logger LOG = LogManager.getLogger(LibgrapeJob.class);
 
-	private String jobId;
-  private String graphName;
-	private String verticesPath;
-	private String edgesPath;
-	private boolean graphDirected;
-	private File outputFile;
-	private Configuration config;
-	private String logPath;
-  private long vertexNum;
-  private long edgeNum;
+    private final String jobId;
+    private final String graphName;
+    private final String verticesPath;
+    private final String edgesPath;
+    private final boolean graphDirected;
+    private File outputFile;
+    private final Configuration config;
+    private final String logPath;
+    private long vertexNum;
+    private long edgeNum;
 
-	public LibgrapeJob(Configuration config, String graphName, String verticesPath, String edgesPath, boolean graphDirected, String jobId, String logPath) {
-		this.config = config;
-    this.graphName = graphName;
-		this.verticesPath = verticesPath;
-		this.edgesPath = edgesPath;
-		this.graphDirected = graphDirected;
-		this.jobId = jobId;
-		this.logPath = logPath;
-    this.vertexNum = -1;
-    this.edgeNum = -1;
-	}
-
-	abstract protected void addJobArguments(List<String> args);
-
-	public void setOutputFile(File file) {
-		outputFile = file;
-	}
-
-  public void setVertexNum(long v) { vertexNum = v; }
-
-  public void setEdgeNum(long e) { edgeNum = e; }
-
-	public int run() throws IOException, InterruptedException {
-		List<String> args = new ArrayList<>();
-    args.add("--opt");
-		args.add("--vfile");
-		args.add(verticesPath);
-		args.add("--efile");
-		args.add(edgesPath);
-
-    if (vertexNum != -1) {
-      args.add("--vertex_num");
-      args.add(String.valueOf(vertexNum));
-    }
-    if (edgeNum != -1) {
-      args.add("--edge_num");
-      args.add(String.valueOf(edgeNum));
+    public LibgrapeJob(Configuration config, String graphName, String verticesPath, String edgesPath, boolean graphDirected, String jobId, String logPath) {
+        this.config = config;
+        this.graphName = graphName;
+        this.verticesPath = verticesPath;
+        this.edgesPath = edgesPath;
+        this.graphDirected = graphDirected;
+        this.jobId = jobId;
+        this.logPath = logPath;
+        this.vertexNum = -1;
+        this.edgeNum = -1;
     }
 
-    String serialization_prefix = System.getenv("GRAPH_SERIALIZATION_DIR");
-    if (serialization_prefix != null && !serialization_prefix.isEmpty()) {
-      args.add("--deserialize");
-      args.add("--serialization_prefix");
-      serialization_prefix += "/";
-      serialization_prefix += graphName;
-      String nodes = config.getString("platform.graphscope.nodes");
-      int nodesNum = nodes.split(",").length;
-      serialization_prefix += "-";
-      serialization_prefix += Integer.toString(nodesNum);
-      args.add(serialization_prefix);
+    abstract protected void addJobArguments(List<String> args);
+
+    public void setOutputFile(File file) {
+        outputFile = file;
     }
 
-		args.add(graphDirected ? "--directed" : "--nodirected");
-		// args.add("--benchmarking");
-		addJobArguments(args);
+    public void setVertexNum(long v) {
+        vertexNum = v;
+    }
 
-		if (outputFile != null) {
-			args.add("--out_prefix");
-			args.add(outputFile.getParentFile().getAbsolutePath());
-		}
+    public void setEdgeNum(long e) {
+        edgeNum = e;
+    }
 
-		String libgrapeHome = config.getString("platform.libgrape.home");
-		String outputFilePath = outputFile.getAbsolutePath();
+    public int run() throws IOException, InterruptedException {
+        List<String> args = new ArrayList<>();
+        args.add("--opt");
+        args.add("--vfile");
+        args.add(verticesPath);
+        args.add("--efile");
+        args.add(edgesPath);
 
-		int numThreads = config.getInt("platform.libgrape.num-threads", -1);
+        if (vertexNum != -1) {
+            args.add("--vertex_num");
+            args.add(String.valueOf(vertexNum));
+        }
+        if (edgeNum != -1) {
+            args.add("--edge_num");
+            args.add(String.valueOf(edgeNum));
+        }
 
-		if (numThreads > 0) {
-			args.add("--ncpus");
-			args.add(String.valueOf(numThreads));
-		}
+        String serialization_prefix = System.getenv("GRAPH_SERIALIZATION_DIR");
+        if (serialization_prefix != null && !serialization_prefix.isEmpty()) {
+            args.add("--deserialize");
+            args.add("--serialization_prefix");
+            serialization_prefix += "/";
+            serialization_prefix += graphName;
+            String nodes = config.getString("platform.graphscope.nodes");
+            int nodesNum = nodes.split(",").length;
+            serialization_prefix += "-";
+            serialization_prefix += Integer.toString(nodesNum);
+            args.add(serialization_prefix);
+        }
 
-		args.add("--jobid");
-		args.add(jobId);
+        args.add(graphDirected ? "--directed" : "--nodirected");
+        // args.add("--benchmarking");
+        addJobArguments(args);
 
-		String argsString = "";
+        if (outputFile != null) {
+            args.add("--out_prefix");
+            args.add(outputFile.getParentFile().getAbsolutePath());
+        }
 
-		for (String arg : args) {
-			argsString += arg += " ";
-		}
+        String libgrapeHome = config.getString("platform.libgrape.home");
+        String outputFilePath = outputFile.getAbsolutePath();
 
-		String nodes = config.getString("platform.libgrape.nodes");
-		String cmd = String.format("./bin/sh/run-mpi.sh %s %s %s %s %s %s", nodes, logPath, libgrapeHome,
-				outputFilePath, LibgrapePlatform.LIBGRAPE_BINARY_NAME, argsString);
+        int numThreads = config.getInt("platform.libgrape.num-threads", -1);
 
-		LOG.info("executing command: " + cmd);
+        if (numThreads > 0) {
+            args.add("--ncpus");
+            args.add(String.valueOf(numThreads));
+        }
 
-	  CommandLine commandLine = CommandLine.parse(cmd);
-	  Executor executor = new DefaultExecutor();
-    executor.setStreamHandler(new PumpStreamHandler(System.out, System.err));
-    executor.setExitValue(0);
-    return executor.execute(commandLine);
+        args.add("--jobid");
+        args.add(jobId);
+
+        String argsString = "";
+
+        for (String arg : args) {
+            argsString += arg += " ";
+        }
+
+        String nodes = config.getString("platform.libgrape.nodes");
+        String cmd = String.format("./bin/sh/run-mpi.sh %s %s %s %s %s %s", nodes, logPath, libgrapeHome,
+                outputFilePath, LibgrapePlatform.LIBGRAPE_BINARY_NAME, argsString);
+
+        LOG.info("executing command: " + cmd);
+
+        CommandLine commandLine = CommandLine.parse(cmd);
+        Executor executor = new DefaultExecutor();
+        executor.setStreamHandler(new PumpStreamHandler(System.out, System.err));
+        executor.setExitValue(0);
+        return executor.execute(commandLine);
 
     /*
-		ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
-		pb.redirectErrorStream(true);
+        ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
+        pb.redirectErrorStream(true);
 
-		Process process = pb.start();
-		InputStreamReader isr = new InputStreamReader(process.getInputStream());
-		BufferedReader br = new BufferedReader(isr);
-		String line;
-		while ((line = br.readLine()) != null) {
-			System.out.println(line);
-		}
+        Process process = pb.start();
+        InputStreamReader isr = new InputStreamReader(process.getInputStream());
+        BufferedReader br = new BufferedReader(isr);
+        String line;
+        while ((line = br.readLine()) != null) {
+            System.out.println(line);
+        }
 
-		int exit = process.waitFor();
+        int exit = process.waitFor();
 
-		if (exit != 0) {
-			throw new IOException("unexpected error code");
-		}
+        if (exit != 0) {
+            throw new IOException("unexpected error code");
+        }
     */
-	}
+    }
 }
