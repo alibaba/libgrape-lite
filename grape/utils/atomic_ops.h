@@ -108,7 +108,7 @@ inline bool atomic_min(T& a, T b) {
  */
 template <typename T>
 inline void atomic_add(T& a, T b) {
-  __sync_fetch_and_add(&a, b);
+  __atomic_fetch_add(&a, b, __ATOMIC_RELAXED);
 }
 
 template <>
@@ -142,7 +142,7 @@ inline void atomic_add(double& a, double b) {
  */
 template <typename T>
 inline void atomic_sub(T& a, T b) {
-  __sync_fetch_and_sub(&a, b);
+  __atomic_fetch_sub(&a, b, __ATOMIC_RELAXED);
 }
 
 template <>

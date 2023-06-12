@@ -18,16 +18,20 @@ limitations under the License.
 
 #include <algorithm>
 #include <random>
-#include <unordered_map>
 #include <vector>
 
 #include <grape/grape.h>
 
 namespace grape {
+
+template <typename LABEL_T>
+using LabelMapType = std::map<LABEL_T, int>;
+
 template <typename LABEL_T, typename VERTEX_ARRAY_T, typename ADJ_LIST_T>
 inline LABEL_T update_label_fast(const ADJ_LIST_T& edges,
                                  const VERTEX_ARRAY_T& labels) {
-  std::vector<LABEL_T> local_labels;
+  static thread_local std::vector<LABEL_T> local_labels;
+  local_labels.clear();
   for (auto& e : edges) {
     local_labels.emplace_back(labels[e.get_neighbor()]);
   }
@@ -57,6 +61,143 @@ inline LABEL_T update_label_fast(const ADJ_LIST_T& edges,
   } else {
     return best_label;
   }
+}
+
+template <typename LABEL_T, typename VERTEX_ARRAY_T, typename ADJ_LIST_T>
+inline LABEL_T update_label_fast_jump(const ADJ_LIST_T& edges,
+                                      const VERTEX_ARRAY_T& labels) {
+  static thread_local std::vector<LABEL_T> local_labels;
+  local_labels.clear();
+  for (auto& e : edges) {
+    local_labels.emplace_back(labels[e.get_neighbor()]);
+  }
+  std::sort(local_labels.begin(), local_labels.end());
+
+  LABEL_T curr_label = local_labels[0];
+  int curr = 1;
+  int label_num = local_labels.size();
+
+  while ((curr != label_num) && (local_labels[curr] == curr_label)) {
+    ++curr;
+  }
+
+  LABEL_T best_label = curr_label;
+  int best_count = curr;
+
+  while ((curr + best_count) < label_num) {
+    curr_label = local_labels[curr];
+    int next = curr + best_count;
+    if (local_labels[next] == curr_label) {
+      do {
+        ++next;
+      } while (next != label_num && (local_labels[next] == curr_label));
+      best_count = (next - curr);
+      best_label = curr_label;
+      curr = next;
+    } else {
+      curr = next;
+      curr_label = local_labels[next];
+      while (local_labels[curr - 1] == curr_label) {
+        --curr;
+      }
+    }
+  }
+
+  return best_label;
+}
+
+template <typename LABEL_T, typename VERTEX_ARRAY_T, typename ADJ_LIST_T>
+inline LABEL_T update_label_fast_sparse(const ADJ_LIST_T& edges,
+                                        const VERTEX_ARRAY_T& labels) {
+  static thread_local LabelMapType<LABEL_T> labels_map;
+  labels_map.clear();
+  for (auto& e : edges) {
+    ++labels_map[labels[e.get_neighbor()]];
+  }
+  LABEL_T ret{};
+  int max_count = 0;
+  for (auto& pair : labels_map) {
+    if (pair.second > max_count ||
+        (pair.second == max_count && ret > pair.first)) {
+      ret = pair.first;
+      max_count = pair.second;
+    }
+  }
+  return ret;
+}
+
+template <typename T, typename CNT_T = int>
+class LabelHashMap {
+ public:
+  LabelHashMap() {}
+  ~LabelHashMap() {}
+
+  void resize(size_t n) {
+    entries_.resize(n);
+    counts_.resize(n, 0);
+  }
+
+  void emplace(const T& val) {
+    size_t len = entries_.size();
+    size_t index = val % len;
+    while (true) {
+      if (counts_[index] == 0) {
+        counts_[index] = 1;
+        entries_[index] = val;
+        index_.push_back(index);
+        break;
+      } else if (entries_[index] == val) {
+        ++counts_[index];
+        break;
+      }
+      index = (index + 1) % len;
+    }
+  }
+
+  T get_most_frequent_label() {
+    T ret = std::numeric_limits<T>::max();
+    CNT_T freq = 0;
+    if (index_.size() <= entries_.size() / 2) {
+      for (auto ind : index_) {
+        if (counts_[ind] > freq) {
+          freq = counts_[ind];
+          ret = entries_[ind];
+        } else if (counts_[ind] == freq && entries_[ind] < ret) {
+          ret = entries_[ind];
+        }
+        counts_[ind] = 0;
+      }
+    } else {
+      CNT_T num_entries = entries_.size();
+      for (CNT_T i = 0; i != num_entries; ++i) {
+        if (counts_[i] > freq) {
+          freq = counts_[i];
+          ret = entries_[i];
+        } else if (counts_[i] == freq && entries_[i] < ret) {
+          ret = entries_[i];
+        }
+        counts_[i] = 0;
+      }
+    }
+    index_.clear();
+    return ret;
+  }
+
+ private:
+  std::vector<T> entries_;
+  std::vector<CNT_T> counts_;
+  std::vector<CNT_T> index_;
+};
+
+template <typename LABEL_T, typename VERTEX_ARRAY_T, typename ADJ_LIST_T>
+inline LABEL_T update_label_fast_dense(const ADJ_LIST_T& edges,
+                                       const VERTEX_ARRAY_T& labels) {
+  static thread_local LabelHashMap<LABEL_T> labels_map;
+  labels_map.resize(edges.Size());
+  for (auto& e : edges) {
+    labels_map.emplace(labels[e.get_neighbor()]);
+  }
+  return labels_map.get_most_frequent_label();
 }
 
 }  // namespace grape

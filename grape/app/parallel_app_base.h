@@ -35,7 +35,8 @@ class ParallelMessageManager;
  * @tparam FRAG_T
  * @tparam CONTEXT_T
  */
-template <typename FRAG_T, typename CONTEXT_T>
+template <typename FRAG_T, typename CONTEXT_T,
+          typename MESSAGE_MANAGER_T = ParallelMessageManager>
 class ParallelAppBase {
  public:
   static constexpr bool need_split_edges = false;
@@ -44,7 +45,7 @@ class ParallelAppBase {
       MessageStrategy::kSyncOnOuterVertex;
   static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
 
-  using message_manager_t = ParallelMessageManager;
+  using message_manager_t = MESSAGE_MANAGER_T;
 
   ParallelAppBase() = default;
   virtual ~ParallelAppBase() = default;
@@ -83,6 +84,18 @@ class ParallelAppBase {
   using context_t = CONTEXT_T;                                    \
   using message_manager_t = grape::ParallelMessageManager;        \
   using worker_t = grape::ParallelWorker<APP_T>;                  \
+  virtual ~APP_T() {}                                             \
+  static std::shared_ptr<worker_t> CreateWorker(                  \
+      std::shared_ptr<APP_T> app, std::shared_ptr<FRAG_T> frag) { \
+    return std::shared_ptr<worker_t>(new worker_t(app, frag));    \
+  }
+
+#define INSTALL_PARALLEL_OPT_WORKER(APP_T, CONTEXT_T, FRAG_T)     \
+ public:                                                          \
+  using fragment_t = FRAG_T;                                      \
+  using context_t = CONTEXT_T;                                    \
+  using message_manager_t = grape::ParallelMessageManagerOpt;     \
+  using worker_t = grape::ParallelWorkerOpt<APP_T>;               \
   virtual ~APP_T() {}                                             \
   static std::shared_ptr<worker_t> CreateWorker(                  \
       std::shared_ptr<APP_T> app, std::shared_ptr<FRAG_T> frag) { \

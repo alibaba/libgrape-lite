@@ -156,8 +156,8 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
     PropagateLabelPull(frag, ctx, messages);
 
     if (!ctx.next_modified.PartialEmpty(
-          frag.Vertices().begin_value(),
-          frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
+            frag.Vertices().begin_value(),
+            frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 
@@ -197,8 +197,7 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 
     vid_t ivnum = frag.GetInnerVerticesNum();
     double rate = static_cast<double>(ctx.curr_modified.ParallelPartialCount(
-                      GetThreadPool(),
-                      frag.Vertices().begin_value(),
+                      GetThreadPool(), frag.Vertices().begin_value(),
                       frag.Vertices().begin_value() + ivnum)) /
                   static_cast<double>(ivnum);
     // If active vertices are few, pushing will be used.
@@ -214,8 +213,8 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 #endif
 
     if (!ctx.next_modified.PartialEmpty(
-          frag.Vertices().begin_value(),
-          frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
+            frag.Vertices().begin_value(),
+            frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 
@@ -226,6 +225,8 @@ class WCC : public ParallelAppBase<FRAG_T, WCCContext<FRAG_T>>,
 #endif
   }
 };
+
+#undef MIN_COMP_ID
 
 }  // namespace grape
 #endif  // EXAMPLES_ANALYTICAL_APPS_WCC_WCC_H_

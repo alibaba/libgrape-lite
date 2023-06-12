@@ -50,7 +50,7 @@ DEFINE_int64(sssp_source, 0, "source vertex of sssp.");
 DEFINE_bool(string_id, false, "whether to use string as origin id");
 DEFINE_bool(segmented_partition, true,
             "whether to use segmented partitioning.");
-DEFINE_bool(rebalance, true, "whether to rebalance graph after loading.");
+DEFINE_bool(rebalance, false, "whether to rebalance graph after loading.");
 DEFINE_int32(rebalance_vertex_factor, 0, "vertex factor of rebalancing.");
 DEFINE_bool(global_vertex_map, true, "whether to use global vertex map.");
 

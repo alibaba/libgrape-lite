@@ -27,6 +27,9 @@ DEFINE_string(out_prefix, "", "output directory of results");
 DEFINE_string(jobid, "", "jobid, only used in LDBC graphanalytics.");
 DEFINE_bool(directed, false, "input graph is directed or not.");
 
+DEFINE_int64(vertex_num, -1, "vertex number");
+DEFINE_int64(edge_num, -1, "edge number");
+
 /* flags related to specific applications. */
 DEFINE_int64(bfs_source, 0, "source vertex of bfs.");
 DEFINE_int32(cdlp_mr, 10, "max rounds of cdlp.");
@@ -36,9 +39,11 @@ DEFINE_int32(pr_mr, 10, "max rounds of pagerank");
 DEFINE_int32(degree_threshold, std::numeric_limits<int>::max(),
              "Filtering threshold for some algorithms");
 
+DEFINE_bool(opt, false, "whether to use optimization.");
+
 DEFINE_bool(segmented_partition, true,
             "whether to use segmented partitioning.");
-DEFINE_bool(rebalance, true, "whether to rebalance graph after loading.");
+DEFINE_bool(rebalance, false, "whether to rebalance graph after loading.");
 DEFINE_int32(rebalance_vertex_factor, 0, "vertex factor of rebalancing.");
 
 DEFINE_bool(serialize, false, "whether to serialize loaded graph.");

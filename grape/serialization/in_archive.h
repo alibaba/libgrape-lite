@@ -61,6 +61,8 @@ class InArchive {
 
   inline size_t GetSize() const { return buffer_.size(); }
 
+  inline void AddByte(char v) { buffer_.push_back(v); }
+
   inline void AddBytes(const void* head, size_t size) {
     size_t _size = buffer_.size();
     buffer_.resize(_size + size);
@@ -124,9 +126,10 @@ inline InArchive& operator<<(InArchive& in_archive,
   return in_archive;
 }
 
-template <typename T,
+template <typename T, typename ALLOC_T,
           typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
-inline InArchive& operator<<(InArchive& in_archive, const std::vector<T>& vec) {
+inline InArchive& operator<<(InArchive& in_archive,
+                             const std::vector<T, ALLOC_T>& vec) {
   size_t size = vec.size();
   in_archive << size;
   in_archive.AddBytes(vec.data(), size * sizeof(T));

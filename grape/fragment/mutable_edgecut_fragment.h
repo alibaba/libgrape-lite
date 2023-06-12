@@ -17,7 +17,6 @@ limitations under the License.
 #define GRAPE_FRAGMENT_MUTABLE_EDGECUT_FRAGMENT_H_
 
 #include "flat_hash_map/flat_hash_map.hpp"
-
 #include "grape/fragment/basic_fragment_mutator.h"
 #include "grape/fragment/csr_edgecut_fragment_base.h"
 #include "grape/graph/adj_list.h"
@@ -104,6 +103,9 @@ class MutableEdgecutFragment
   using base_t::buildCSR;
   using base_t::init;
   using base_t::IsInnerVertexGid;
+
+  static std::string type_info() { return ""; }
+
   void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
     init(fid, directed);
@@ -192,8 +194,8 @@ class MutableEdgecutFragment
     vertex_t v;
     if (!mutation.vertices_to_remove.empty() &&
         static_cast<double>(mutation.vertices_to_remove.size()) /
-            static_cast<double>(this->GetVerticesNum()) <
-        0.1) {
+                static_cast<double>(this->GetVerticesNum()) <
+            0.1) {
       std::set<vertex_t> sparse_set;
       for (auto gid : mutation.vertices_to_remove) {
         if (Gid2Vertex(gid, v)) {
