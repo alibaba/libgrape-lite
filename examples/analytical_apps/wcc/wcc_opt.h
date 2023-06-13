@@ -130,7 +130,7 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
     auto inner_vertices = frag.InnerVertices();
     auto outer_vertices = frag.OuterVertices();
 
-    messages.InitChannels(thread_num());
+    messages.InitChannels(thread_num(), 98304, 98304);
 
     ForEach(inner_vertices, [&frag, &ctx](int tid, vertex_t v) {
       auto es = frag.GetOutgoingInnerVertexAdjList(v);

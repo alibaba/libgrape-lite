@@ -51,7 +51,7 @@ class SSSPOpt : public ParallelAppBase<FRAG_T, SSSPOptContext<FRAG_T>,
    */
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
-    messages.InitChannels(thread_num());
+    messages.InitChannels(thread_num(), 98304, 98304);
 
     vertex_t source;
     bool native_source = frag.GetInnerVertex(ctx.source_id, source);

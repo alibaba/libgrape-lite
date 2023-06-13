@@ -54,7 +54,7 @@ class PageRankPushOpt
     if (ctx.max_round <= 0) {
       return;
     }
-    messages.InitChannels(thread_num());
+    messages.InitChannels(thread_num(), 98304, 98304);
 
     auto inner_vertices = frag.InnerVertices();
     auto outer_vertices = frag.OuterVertices();
