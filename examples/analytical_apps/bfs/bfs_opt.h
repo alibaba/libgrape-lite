@@ -45,7 +45,7 @@ class BFSOpt : public ParallelAppBase<FRAG_T, BFSOptContext<FRAG_T>,
              message_manager_t& messages) {
     using depth_type = typename context_t::depth_type;
 
-    messages.InitChannels(thread_num(), 2 * 1023 * 64, 2 * 1024 * 64);
+    messages.InitChannels(thread_num(), 32768, 32768);
 
     ctx.current_depth = 1;
 

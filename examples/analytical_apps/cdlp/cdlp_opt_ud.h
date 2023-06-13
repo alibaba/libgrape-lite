@@ -113,7 +113,7 @@ class CDLPOptUD : public ParallelAppBase<FRAG_T, CDLPOptContext<FRAG_T>,
     auto inner_vertices = frag.InnerVertices();
     auto outer_vertices = frag.OuterVertices();
 
-    messages.InitChannels(thread_num());
+    messages.InitChannels(thread_num(), 98304, 98304);
 
     ++ctx.step;
     if (ctx.step > ctx.max_round) {

@@ -86,10 +86,7 @@ void RunUndirectedPageRank(const CommSpec& comm_spec,
         static_cast<double>(total_ovnum) / static_cast<double>(total_ivnum);
 
     bool push = false;
-    if (avg_degree > 90) {
-      // too dense
-      push = false;
-    } else if (rate < 3) {
+    if (rate < 3) {
       // not to many outer vertices
       push = true;
     } else if (avg_degree / rate > 20) {
