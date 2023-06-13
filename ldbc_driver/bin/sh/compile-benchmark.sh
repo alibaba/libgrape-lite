@@ -38,7 +38,7 @@ fi
 
 # Build binaries
 mkdir -p bin/standard
-(cd bin/standard && cmake -DUSE_HUGEPAGES=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release ${LIBGRAPE_HOME} && make analytical_apps)
+(cd bin/standard && cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release ${LIBGRAPE_HOME} && make analytical_apps)
 
 if [ $? -ne 0 ]
 then
