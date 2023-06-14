@@ -13,6 +13,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <graphalytics.version>1.10.0</graphalytics.version>
         <commons.exec.version>1.3</commons.exec.version>
         <fastutil.version>7.0.7</fastutil.version>
         <hamcrest.version>1.3</hamcrest.version>
