@@ -25,6 +25,19 @@ struct AppConfig {
   double wl_alloc_factor_out_remote;
   LoadBalancing lb;
 };
+
+template <grape::LoadStrategy LS>
+struct MessageStrategyTrait {
+  static constexpr grape::MessageStrategy message_strategy =
+      grape::MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
+};
+
+template <>
+struct MessageStrategyTrait<grape::LoadStrategy::kBothOutIn> {
+  static constexpr grape::MessageStrategy message_strategy =
+      grape::MessageStrategy::kAlongEdgeToOuterVertex;
+};
+
 }  // namespace cuda
 }  // namespace grape
 #endif  // __CUDACC__

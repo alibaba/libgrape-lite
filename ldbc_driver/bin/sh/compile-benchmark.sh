@@ -36,9 +36,17 @@ if [ -z LIBGRAPE_HOME ]; then
     exit 1
 fi
 
+# Enable GPU or not
+GPU_ENABLED=$(grep -E "^platform.run.gpu.enabled[	 ]*[:=]" $config/platform.properties | sed 's/platform.run.gpu.enabled[	 ]*[:=][	 ]*\([^	 ]*\).*/\1/g' | head -n 1)
+
 # Build binaries
 mkdir -p bin/standard
-(cd bin/standard && cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release ${LIBGRAPE_HOME} && make analytical_apps)
+
+if [ "$GPU_ENABLED" = "true" ] ; then
+  (cd bin/standard && cmake -DCMAKE_BUILD_TYPE=Release ${LIBGRAPE_HOME} && make gpu_analytical_apps)
+else
+  (cd bin/standard && cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release ${LIBGRAPE_HOME} && make analytical_apps)
+fi
 
 if [ $? -ne 0 ]
 then

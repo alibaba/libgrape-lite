@@ -19,6 +19,9 @@ LDBC_HOME="${LIBGRAPE_HOME}/ldbc_driver"
 WORKSPACE="${LDBC_HOME}/workspace"
 LOG_FILE="${WORKSPACE}/output.log"
 
+# Enable GPU or not
+GPU_ENABLED="false"
+
 # MPI nodes, in the format of "10.149.0.55\,10.149.0.56".
 # extra slashes here is for escape
 HOST_NODES="127.0.0.1\\\,127.0.0.1"
@@ -69,6 +72,7 @@ if [[ ! -d "config" ]]; then
     cp -r ./config-template ./config
 
     # use '#' rather than '/' to avoid potential '/' in ${LIBGRAPE_HOME}
+    sed -i'.bak' '/^platform.run.gpu.enabled/ s#$# '"${GPU_ENABLED}"'#' config/platform.properties
     sed -i'.bak' '/^platform.libgrape.home/ s#$# '"${LIBGRAPE_HOME}"'#' config/platform.properties
     sed -i'.bak' '/^platform.libgrape.nodes/ s/$/ '"${HOST_NODES}"'/' config/platform.properties
     sed -i'.bak' -e '/^benchmark.executor.port/ s/$/ '"${EXECUTOR_PORT}"'/' -e '/^benchmark.runner.port/ s/$/ '"${RUNNER_PORT}"'/' config/benchmark.properties

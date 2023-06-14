@@ -37,7 +37,9 @@ limitations under the License.
 #include "cuda/bfs/bfs.h"
 #include "cuda/cdlp/cdlp.h"
 #include "cuda/lcc/lcc.h"
+#include "cuda/lcc/lcc_directed.h"
 #include "cuda/lcc/lcc_opt.h"
+#include "cuda/lcc/lcc_preprocess.h"
 #include "cuda/pagerank/pagerank.h"
 #include "cuda/sssp/sssp.h"
 #include "cuda/wcc/wcc.h"
@@ -49,6 +51,10 @@ limitations under the License.
 #include "grape/fragment/loader.h"
 #include "grape/worker/comm_spec.h"
 #include "timer.h"
+
+#ifndef __AFFINITY__
+#define __AFFINITY__ false
+#endif
 
 namespace grape {
 
@@ -72,11 +78,39 @@ void Finalize() {
 }
 
 template <typename FRAG_T, typename APP_T, typename... Args>
+void DoPreprocess(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
+                  const CommSpec& comm_spec, int dev_id,
+                  const std::string& out_prefix, Args... args) {
+  auto spec = MultiProcessSpec(comm_spec, __AFFINITY__);
+  if (FLAGS_app_concurrency != -1) {
+    spec.thread_num = FLAGS_app_concurrency;
+    if (__AFFINITY__) {
+      if (spec.cpu_list.size() >= spec.thread_num) {
+        spec.cpu_list.resize(spec.thread_num);
+      } else {
+        uint32_t num_to_append = spec.thread_num - spec.cpu_list.size();
+        for (uint32_t i = 0; i < num_to_append; ++i) {
+          spec.cpu_list.push_back(spec.cpu_list[i]);
+        }
+      }
+    }
+  }
+  auto worker = APP_T::CreateWorker(app, fragment);
+  worker->Init(comm_spec, spec);
+  MPI_Barrier(comm_spec.comm());
+  worker->Query(std::forward<Args>(args)...);
+  MPI_Barrier(comm_spec.comm());
+  std::ofstream ostream;
+  worker->Output(ostream);
+  worker->Finalize();
+}
+
+template <typename FRAG_T, typename APP_T, typename... Args>
 void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
              const CommSpec& comm_spec, int dev_id,
              const std::string& out_prefix, Args... args) {
   timer_next("load application");
-  auto worker = APP_T::CreateWorker(app, fragment);  // FIXME
+  auto worker = APP_T::CreateWorker(app, fragment);
   worker->Init(comm_spec, std::forward<Args>(args)...);
   MPI_Barrier(comm_spec.comm());
 
@@ -99,6 +133,71 @@ void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
   }
   worker->Finalize();
   timer_end();
+}
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
+          LoadStrategy load_strategy, template <class> class APP_T,
+          template <class> class PRE_T, typename... Args>
+void CreateAndQueryWithPreprocess(const grape::CommSpec& comm_spec,
+                                  const std::string& efile,
+                                  const std::string& vfile,
+                                  const std::string& out_prefix, Args... args) {
+  // using fragment_t = FRAG_T;
+  // using oid_t = typename FRAG_T::oid_t;
+  timer_next("load graph");
+  LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
+
+  graph_spec.set_directed(FLAGS_directed);
+  graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  if (FLAGS_deserialize) {
+    graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
+  } else if (FLAGS_serialize) {
+    graph_spec.set_serialize(true, FLAGS_serialization_prefix);
+  }
+  if (FLAGS_segmented_partition) {
+    using VERTEX_MAP_T =
+        GlobalVertexMap<OID_T, VID_T, SegmentedPartitioner<OID_T>>;
+    using FRAG_T = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                             load_strategy, VERTEX_MAP_T>;
+    std::shared_ptr<FRAG_T> fragment;
+    int dev_id = comm_spec.local_id();
+    int dev_count;
+
+    CHECK_CUDA(cudaGetDeviceCount(&dev_count));
+    CHECK_LE(comm_spec.local_num(), dev_count)
+        << "Only found " << dev_count << " GPUs, but " << comm_spec.local_num()
+        << " processes are launched";
+    CHECK_CUDA(cudaSetDevice(dev_id));
+    fragment = LoadGraph<FRAG_T>(efile, vfile, comm_spec, graph_spec);
+
+    auto app = std::make_shared<APP_T<FRAG_T>>();
+    auto pre = std::make_shared<PRE_T<FRAG_T>>();
+    DoPreprocess<FRAG_T, PRE_T<FRAG_T>, Args...>(fragment, pre, comm_spec,
+                                                 dev_id, out_prefix, args...);
+    DoQuery<FRAG_T, APP_T<FRAG_T>, Args...>(fragment, app, comm_spec, dev_id,
+                                            out_prefix, args...);
+  } else {
+    graph_spec.set_rebalance(false, 0);
+    using VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T, HashPartitioner<OID_T>>;
+    using FRAG_T = grape::cuda::HostFragment<OID_T, VID_T, VDATA_T, EDATA_T,
+                                             load_strategy, VERTEX_MAP_T>;
+    std::shared_ptr<FRAG_T> fragment;
+    int dev_id = comm_spec.local_id();
+    int dev_count;
+
+    CHECK_CUDA(cudaGetDeviceCount(&dev_count));
+    CHECK_LE(comm_spec.local_num(), dev_count)
+        << "Only found " << dev_count << " GPUs, but " << comm_spec.local_num()
+        << " processes are launched";
+    CHECK_CUDA(cudaSetDevice(dev_id));
+    fragment = LoadGraph<FRAG_T>(efile, vfile, comm_spec, graph_spec);
+
+    auto app = std::make_shared<APP_T<FRAG_T>>();
+    auto pre = std::make_shared<PRE_T<FRAG_T>>();
+    DoPreprocess<FRAG_T, PRE_T<FRAG_T>, Args...>(fragment, pre, comm_spec,
+                                                 dev_id, out_prefix, args...);
+    DoQuery<FRAG_T, APP_T<FRAG_T>, Args...>(fragment, app, comm_spec, dev_id,
+                                            out_prefix, args...);
+  }
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
@@ -181,9 +280,15 @@ void Run() {
   app_config.wl_alloc_factor_out_remote = 0.2;
 
   if (application == "bfs") {
-    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
-                   grape::LoadStrategy::kOnlyOut, BFS>(
-        comm_spec, efile, vfile, out_prefix, app_config, FLAGS_bfs_source);
+    if (FLAGS_directed) {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kBothOutIn, BFS>(
+          comm_spec, efile, vfile, out_prefix, app_config, FLAGS_bfs_source);
+    } else {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kOnlyOut, BFS>(
+          comm_spec, efile, vfile, out_prefix, app_config, FLAGS_bfs_source);
+    }
   } else if (application == "sssp") {
 #ifdef INT_WEIGHT
     using WeightT = uint32_t;
@@ -194,30 +299,53 @@ void Run() {
                    grape::LoadStrategy::kOnlyOut, SSSP>(
         comm_spec, efile, vfile, out_prefix, app_config, FLAGS_sssp_source, 0);
   } else if (application == "wcc") {
-    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
-                   grape::LoadStrategy::kOnlyOut, WCC>(comm_spec, efile, vfile,
-                                                       out_prefix, app_config);
+    if (FLAGS_directed) {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kBothOutIn, WCC>(
+          comm_spec, efile, vfile, out_prefix, app_config);
+    } else {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kOnlyOut, WCC>(
+          comm_spec, efile, vfile, out_prefix, app_config);
+    }
   } else if (application == "wcc_opt") {
     CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
                    grape::LoadStrategy::kOnlyOut, WCCOpt>(
         comm_spec, efile, vfile, out_prefix, app_config);
   } else if (application == "pagerank") {
-    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
-                   grape::LoadStrategy::kOnlyOut, Pagerank>(
-        comm_spec, efile, vfile, out_prefix, app_config, FLAGS_pr_d,
-        FLAGS_pr_mr);
+    if (FLAGS_directed) {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kBothOutIn, Pagerank>(
+          comm_spec, efile, vfile, out_prefix, app_config, FLAGS_pr_d,
+          FLAGS_pr_mr);
+    } else {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kOnlyOut, Pagerank>(
+          comm_spec, efile, vfile, out_prefix, app_config, FLAGS_pr_d,
+          FLAGS_pr_mr);
+    }
   } else if (application == "lcc") {
-    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
-                   grape::LoadStrategy::kOnlyOut, LCC>(comm_spec, efile, vfile,
-                                                       out_prefix, app_config);
-  } else if (application == "lcc_opt") {
-    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
-                   grape::LoadStrategy::kOnlyOut, LCC_OPT>(
-        comm_spec, efile, vfile, out_prefix, app_config);
+    if (FLAGS_directed) {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kBothOutIn, LCCD>(
+          comm_spec, efile, vfile, out_prefix, app_config);
+    } else {
+      VID_T** col = reinterpret_cast<VID_T**>(malloc(sizeof(VID_T*)));
+      size_t** row_offset = reinterpret_cast<size_t**>(malloc(sizeof(size_t*)));
+      CreateAndQueryWithPreprocess<OID_T, VID_T, VDATA_T, EDATA_T,
+                                   grape::LoadStrategy::kOnlyOut, LCCOPT, LCCP>(
+          comm_spec, efile, vfile, out_prefix, app_config, col, row_offset);
+    }
   } else if (application == "cdlp") {
-    CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
-                   grape::LoadStrategy::kOnlyOut, CDLP>(
-        comm_spec, efile, vfile, out_prefix, app_config, FLAGS_cdlp_mr);
+    if (FLAGS_directed) {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kBothOutIn, CDLP>(
+          comm_spec, efile, vfile, out_prefix, app_config, FLAGS_cdlp_mr);
+    } else {
+      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
+                     grape::LoadStrategy::kOnlyOut, CDLP>(
+          comm_spec, efile, vfile, out_prefix, app_config, FLAGS_cdlp_mr);
+    }
   } else {
     LOG(FATAL) << "Invalid app name: " << application;
   }

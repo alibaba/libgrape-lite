@@ -1,4 +1,4 @@
-/** Copyright 2022 Alibaba Group Holding Limited.
+/** Copyright 2023 Alibaba Group Holding Limited.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,13 +32,6 @@ class BFSContext : public grape::VoidContext<FRAG_T> {
 
   explicit BFSContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
 
-#ifdef PROFILING
-  ~BFSContext() {
-    LOG(INFO) << "Get msg time: " << get_msg_time * 1000;
-    LOG(INFO) << "BFS kernel time: " << traversal_kernel_time * 1000;
-  }
-#endif
-
   void Init(GPUMessageManager& messages, AppConfig app_config, oid_t src_id) {
     auto& frag = this->fragment();
     auto vertices = frag.Vertices();
@@ -50,7 +43,9 @@ class BFSContext : public grape::VoidContext<FRAG_T> {
     depth.Init(vertices, std::numeric_limits<depth_t>::max());
     depth.H2D();
     in_q.Init(iv.size());
-    out_q_local.Init(iv.size());
+    current_active_map.Init(iv);
+    next_active_map.Init(iv);
+    visited.Init(iv);
 
     messages.InitBuffer((sizeof(depth_t) + sizeof(vid_t)) * ov.size(),
                         (sizeof(depth_t) + sizeof(vid_t)) * iv.size());
@@ -68,14 +63,13 @@ class BFSContext : public grape::VoidContext<FRAG_T> {
   }
 
   oid_t src_id{};
+  double active_ratio;
   LoadBalancing lb{};
   depth_t curr_depth{};
   VertexArray<depth_t, vid_t> depth;
-  Queue<vertex_t, vid_t> in_q, out_q_local;
-#ifdef PROFILING
-  double get_msg_time{};
-  double traversal_kernel_time{};
-#endif
+  Queue<vertex_t, vid_t> in_q;
+  DenseVertexSet<vid_t> current_active_map, next_active_map;
+  DenseVertexSet<vid_t> visited;
 };
 
 template <typename FRAG_T>
@@ -89,6 +83,7 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
   using edata_t = typename fragment_t::edata_t;
   using vertex_t = typename dev_fragment_t::vertex_t;
   using nbr_t = typename dev_fragment_t::nbr_t;
+  static constexpr bool need_split_edges = true;
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
@@ -101,16 +96,18 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
           messages.stream(),
           [=] __device__(dev_fragment_t d_frag,
                          dev::VertexArray<depth_t, vid_t> depth,
-                         dev::Queue<vertex_t, vid_t> in_q) {
+                         dev::DenseVertexSet<vid_t> d_current_active_map,
+                         dev::DenseVertexSet<vid_t> d_visited) {
             auto tid = TID_1D;
 
             if (tid == 0) {
               depth[source] = 0;
-              in_q.Append(source);
+              d_current_active_map.Insert(source);
+              d_visited.Insert(source);
             }
           },
           frag.DeviceObject(), ctx.depth.DeviceObject(),
-          ctx.in_q.DeviceObject());
+          ctx.current_active_map.DeviceObject(), ctx.visited.DeviceObject());
     }
     messages.ForceContinue();
   }
@@ -118,71 +115,135 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
   void IncEval(const fragment_t& frag, context_t& ctx,
                message_manager_t& messages) {
     auto d_frag = frag.DeviceObject();
+    auto iv = frag.InnerVertices();
+    auto ov = frag.OuterVertices();
     auto d_depth = ctx.depth.DeviceObject();
     auto& in_q = ctx.in_q;
     auto d_in_q = in_q.DeviceObject();
-    auto& out_q_local = ctx.out_q_local;
-    auto d_out_q_local = out_q_local.DeviceObject();
+    auto& current_active_map = ctx.current_active_map;
+    auto d_current_active_map = current_active_map.DeviceObject();
+    auto& visited = ctx.visited;
+    auto d_visited = visited.DeviceObject();
+    auto& next_active_map = ctx.next_active_map;
+    auto d_next_active_map = next_active_map.DeviceObject();
     auto curr_depth = ctx.curr_depth;
     auto next_depth = curr_depth + 1;
     auto& stream = messages.stream();
     auto d_mm = messages.DeviceObject();
+    bool isDirected = frag.load_strategy == grape::LoadStrategy::kBothOutIn;
 
-#ifdef PROFILING
-    ctx.get_msg_time -= grape::GetCurrentTime();
-    auto process_msg_time = grape::GetCurrentTime();
-#endif
+    next_active_map.Clear(stream);
+    in_q.Clear(stream);
+
     messages.template ParallelProcess<dev_fragment_t, grape::EmptyType>(
         d_frag, [=] __device__(vertex_t v) mutable {
           assert(d_frag.IsInnerVertex(v));
 
           if (curr_depth < d_depth[v]) {
             d_depth[v] = curr_depth;
-            d_in_q.AppendWarp(v);
+            d_current_active_map.Insert(v);
+            d_visited.Insert(v);
           }
         });
-    auto in_size = in_q.size(stream);
 
-    WorkSourceArray<vertex_t> ws_in(in_q.data(), in_size);
+    auto ivnum = iv.size();
+    auto active = current_active_map.Count(stream);
+    auto visited_num = visited.Count(stream);
+    double active_ratio = (active + 0.0) / ivnum;
+    double visited_ratio = (visited_num + 0.0) / ivnum;
+    bool usePush = (2.5 * active_ratio < (1 - visited_ratio)) || (active == 0);
+    if (usePush) {
+      // push-based search
+      WorkSourceRange<vertex_t> ws_iv(*iv.begin(), iv.size());
+      ForEach(stream, ws_iv, [=] __device__(vertex_t v) mutable {
+        if (d_current_active_map.Exist(v)) {
+          d_in_q.AppendWarp(v);
+        }
+      });
+      WorkSourceArray<vertex_t> ws_in(in_q.data(), in_q.size(stream));
 
-#ifdef PROFILING
-    VLOG(1) << "Frag " << frag.fid() << " In: " << in_size;
-    process_msg_time = grape::GetCurrentTime() - process_msg_time;
-    ctx.get_msg_time += grape::GetCurrentTime();
-    auto traversal_kernel_time = grape::GetCurrentTime();
-#endif
+      ForEachOutgoingEdge(
+          stream, d_frag, ws_in,
+          [=] __device__(const vertex_t& u, const nbr_t& nbr) mutable {
+            vertex_t v = nbr.get_neighbor();
 
-    ForEachOutgoingEdge(
-        stream, d_frag, ws_in,
-        [=] __device__(const vertex_t& u, const nbr_t& nbr) mutable {
-          vertex_t v = nbr.get_neighbor();
-
-          if (next_depth < d_depth[v]) {
-            d_depth[v] = next_depth;
-
-            if (d_frag.IsInnerVertex(v)) {
-              d_out_q_local.AppendWarp(v);
-            } else {
+            if (next_depth < d_depth[v]) {
+              d_depth[v] = next_depth;
+              if (d_frag.IsInnerVertex(v)) {
+                d_next_active_map.Insert(v);
+                d_visited.Insert(v);
+              } else {
+                d_mm.SyncStateOnOuterVertex(d_frag, v);
+              }
+            }
+          },
+          ctx.lb);
+    } else {
+      // pull-based search
+      WorkSourceRange<vertex_t> ws_ov(*ov.begin(), ov.size());
+      depth_t MAX_DEPTH = std::numeric_limits<depth_t>::max();
+      ForEach(stream, ws_ov, [=] __device__(vertex_t v) mutable {
+        if (d_depth[v] == MAX_DEPTH) {
+          auto ies = d_frag.GetIncomingAdjList(v);
+          for (auto& e : ies) {
+            auto u = e.get_neighbor();
+            assert(d_frag.IsInnerVertex(u));
+            if (d_current_active_map.Exist(u)) {
+              d_depth[v] = next_depth;
               d_mm.SyncStateOnOuterVertex(d_frag, v);
+              break;
             }
           }
-        },
-        ctx.lb);
+        }
+      });
+
+      WorkSourceRange<vertex_t> ws_iv(*iv.begin(), iv.size());
+      ForEach(stream, ws_iv, [=] __device__(vertex_t v) mutable {
+        if (!d_visited.Exist(v)) {
+          d_in_q.AppendWarp(v);
+        }
+      });
+      WorkSourceArray<vertex_t> ws_in(in_q.data(), in_q.size(stream));
+
+      if (isDirected) {
+        ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
+          auto ies = d_frag.GetIncomingInnerVertexAdjList(v);
+          for (auto& e : ies) {
+            auto u = e.get_neighbor();
+            if (d_current_active_map.Exist(u)) {
+              d_depth[v] = next_depth;
+              d_next_active_map.Insert(v);
+              d_visited.Insert(v);
+              break;
+            }
+          }
+        });
+      } else {
+        ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
+          auto oes = d_frag.GetOutgoingInnerVertexAdjList(v);
+          for (auto& e : oes) {
+            auto u = e.get_neighbor();
+            assert(d_frag.IsInnerVertex(u));
+            if (d_current_active_map.Exist(u)) {
+              d_depth[v] = next_depth;
+              d_next_active_map.Insert(v);
+              d_visited.Insert(v);
+              break;
+            }
+          }
+        });
+      }
+    }
+
+    auto has_work = next_active_map.Count(stream);
     stream.Sync();
-    auto local_out_size = out_q_local.size(stream);
-#ifdef PROFILING
-    traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;
-    VLOG(2) << "Frag " << frag.fid() << " Local out: " << local_out_size
-            << " ProcessMsg time: " << process_msg_time * 1000
-            << " Kernel time: " << traversal_kernel_time * 1000;
-    ctx.traversal_kernel_time += traversal_kernel_time;
-#endif
-    in_q.Clear(stream);
-    out_q_local.Swap(in_q);
-    ctx.curr_depth = next_depth;
-    if (local_out_size > 0) {
+
+    if (has_work > 0) {
       messages.ForceContinue();
     }
+
+    ctx.curr_depth = next_depth;
+    current_active_map.Swap(next_active_map);
   }
 };
 }  // namespace cuda

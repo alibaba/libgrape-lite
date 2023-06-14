@@ -203,6 +203,16 @@ class GPUMessageManager {
     }
   }
 
+  void DropBuffer() {
+    for (fid_t fid = 0; fid < fnum_; fid++) {
+      if (fid != fid_) {
+        to_send_.resize(fid, 0);
+        d_to_send_[fid] = to_send_.DeviceObject(fid);
+        to_recv_.resize(fid, 0);
+      }
+    }
+  }
+
   /**
    * @brief This function will be called before Init step of applications.
    */

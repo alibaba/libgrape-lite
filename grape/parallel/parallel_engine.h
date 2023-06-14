@@ -251,8 +251,8 @@ class ParallelEngine {
    * iterating on vertexes.
    * @param chunk_size Vertices granularity to be scheduled by threads.
    */
-  template <typename ITERATOR_T, typename INIT_FUNC_T,
-            typename ITER_FUNC_T, typename FINALIZE_FUNC_T>
+  template <typename ITERATOR_T, typename INIT_FUNC_T, typename ITER_FUNC_T,
+            typename FINALIZE_FUNC_T>
   inline void ForEach(const ITERATOR_T& begin, const ITERATOR_T& end,
                       const INIT_FUNC_T& init_func,
                       const ITER_FUNC_T& iter_func,
@@ -261,9 +261,9 @@ class ParallelEngine {
     std::atomic<size_t> offset(0);
     std::vector<std::future<void>> results(thread_num_);
     for (uint32_t tid = 0; tid < thread_num_; ++tid) {
-      results[tid] = thread_pool_.enqueue(
-          [&offset, chunk_size, &init_func, &iter_func, &finalize_func, begin,
-           end, tid] {
+      results[tid] =
+          thread_pool_.enqueue([&offset, chunk_size, &init_func, &iter_func,
+                                &finalize_func, begin, end, tid] {
             init_func(tid);
 
             while (true) {

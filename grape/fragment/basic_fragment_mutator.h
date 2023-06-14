@@ -162,7 +162,7 @@ class BasicFragmentMutator {
 
     for (auto& buffers : got_edges_to_remove_) {
       foreach(buffers, [this](const internal_oid_t& src,
-                               const internal_oid_t& dst) {
+                              const internal_oid_t& dst) {
         vid_t src_gid, dst_gid;
         if (vm_ptr_->_GetGid(src, src_gid) && vm_ptr_->_GetGid(dst, dst_gid)) {
           mutation_.edges_to_remove.emplace_back(src_gid, dst_gid);

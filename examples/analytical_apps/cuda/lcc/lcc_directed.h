@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_H_
-#define EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_H_
+#ifndef EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_DIRECTED_H_
+#define EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_DIRECTED_H_
 #ifdef __CUDACC__
 #include <iomanip>
 #include <iostream>
@@ -22,24 +22,24 @@ limitations under the License.
 #include "cuda/app_config.h"
 #include "grape/grape.h"
 
-#define LCC_M 16
-#define LCC_CHUNK_SIZE(I, N, m) (((I) < ((N) % (m))) + (N) / (m))
-#define LCC_CHUNK_START(I, N, m) \
+#define LCCD_M 24
+#define LCCD_CHUNK_SIZE(I, N, m) (((I) < ((N) % (m))) + (N) / (m))
+#define LCCD_CHUNK_START(I, N, m) \
   (((I) < ((N) % (m)) ? (I) : ((N) % (m))) + (I) * ((N) / (m)))
 
 namespace grape {
 namespace cuda {
 template <typename FRAG_T>
-class LCCContext : public grape::VoidContext<FRAG_T> {
+class LCCDContext : public grape::VoidContext<FRAG_T> {
  public:
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
   using msg_t = vid_t;
 
-  explicit LCCContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
+  explicit LCCDContext(const FRAG_T& frag) : grape::VoidContext<FRAG_T>(frag) {}
 
 #ifdef PROFILING
-  ~LCCContext() {
+  ~LCCDContext() {
     VLOG(1) << "Get msg time: " << get_msg_time * 1000;
     VLOG(1) << "Pagerank kernel time: " << traversal_kernel_time * 1000;
     VLOG(1) << "Send msg time: " << send_msg_time * 1000;
@@ -58,7 +58,6 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
     tricnt.Init(vertices, 0);
     tricnt.H2D();
 
-    valid_out_degree.resize(vertices.size() + 1, 0);
     row_offset.resize(vertices.size() + 1, 0);
     compact_row_offset.resize(vertices.size() + 1, 0);
 
@@ -66,13 +65,14 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
     size_t n_vertices = 0;
     using nbr_t = typename FRAG_T::nbr_t;
     for (auto u : frag.InnerVertices()) {
-      n_edges += frag.GetLocalOutDegree(u);
+      n_edges += frag.GetLocalOutDegree(u) + frag.GetLocalInDegree(u);
       n_vertices += 1;
     }
 
     messages.InitBuffer(
-        std::max((n_edges / LCC_M + 1) * (sizeof(thrust::pair<vid_t, msg_t>)),
-                 n_vertices * (sizeof(size_t))),
+        std::max(
+            (n_edges / LCCD_M + 1) * 2 * (sizeof(thrust::pair<vid_t, msg_t>)),
+            n_vertices * (sizeof(size_t))),
         1 * (sizeof(thrust::pair<vid_t, msg_t>)));  // rely on syncLengths()
   }
 
@@ -86,9 +86,8 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
     for (auto v : iv) {
       double score = 0;
       if (global_degree[v] >= 2) {
-        score = 2.0 * (tricnt[v]) /
-                (static_cast<int64_t>(global_degree[v]) *
-                 (static_cast<int64_t>(global_degree[v]) - 1));
+        score = (tricnt[v]) / (2.0 * static_cast<int64_t>(global_degree[v]) *
+                               (static_cast<int64_t>(global_degree[v]) - 1));
       }
       os << frag.GetId(v) << " " << std::scientific << std::setprecision(15)
          << score << std::endl;
@@ -96,14 +95,15 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
   }
 
   LoadBalancing lb{};
-  VertexArray<msg_t, vid_t> global_degree;
+  VertexArray<size_t, vid_t> global_degree;
   VertexArray<size_t, vid_t> filling_offset;
   VertexArray<size_t, vid_t> tricnt;
   thrust::device_vector<size_t> row_offset;
   thrust::device_vector<size_t> compact_row_offset;
-  thrust::device_vector<msg_t> valid_out_degree;
   thrust::device_vector<msg_t> col_indices;
   thrust::device_vector<msg_t> col_sorted_indices;
+  thrust::device_vector<char> col_dup_indices;
+  thrust::device_vector<char> col_double_indices;
   int stage{};
 #ifdef PROFILING
   double get_msg_time{};
@@ -113,10 +113,10 @@ class LCCContext : public grape::VoidContext<FRAG_T> {
 };
 
 template <typename FRAG_T>
-class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
-            public ParallelEngine {
+class LCCD : public GPUAppBase<FRAG_T, LCCDContext<FRAG_T>>,
+             public ParallelEngine {
  public:
-  INSTALL_GPU_WORKER(LCC<FRAG_T>, LCCContext<FRAG_T>, FRAG_T)
+  INSTALL_GPU_WORKER(LCCD<FRAG_T>, LCCDContext<FRAG_T>, FRAG_T)
   using dev_fragment_t = typename fragment_t::device_t;
   using vid_t = typename fragment_t::vid_t;
   using edata_t = typename fragment_t::edata_t;
@@ -125,10 +125,10 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
   using msg_t = vid_t;
 
   static constexpr grape::MessageStrategy message_strategy =
-      grape::MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
+      grape::MessageStrategy::kAlongEdgeToOuterVertex;
   static constexpr grape::LoadStrategy load_strategy =
-      grape::LoadStrategy::kOnlyOut;
-  // static constexpr bool need_build_device_vm = false;
+      grape::LoadStrategy::kBothOutIn;
+  static constexpr bool need_build_device_vm = true;
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
@@ -140,57 +140,9 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                                     inner_vertices.size());
 
     ForEach(messages.stream(), ws_in, [=] __device__(vertex_t v) mutable {
-      msg_t degree = d_frag.GetLocalOutDegree(v);
+      msg_t degree = d_frag.GetLocalOutDegree(v) + d_frag.GetLocalInDegree(v);
       d_global_degree[v] = degree;
-      d_mm.template SendMsgThroughOEdges(d_frag, v, degree);
-    });
-    messages.ForceContinue();
-  }
-
-  void SyncOuterDeg(const fragment_t& frag, context_t& ctx,
-                    message_manager_t& messages) {
-    auto dev_frag = frag.DeviceObject();
-    auto& stream = messages.stream();
-    auto iv = frag.InnerVertices();
-    auto vertices = frag.Vertices();
-    auto d_global_degree = ctx.global_degree.DeviceObject();
-    auto* d_valid_out_degree =
-        thrust::raw_pointer_cast(ctx.valid_out_degree.data());
-    auto d_mm = messages.DeviceObject();
-
-    // Recieve outer degrees.
-    messages.template ParallelProcess<dev_fragment_t, msg_t>(
-        dev_frag, [=] __device__(vertex_t v, msg_t degree) mutable {
-          d_global_degree[v] = degree;
-        });
-
-    WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
-
-    // breaking isomorphism since we are working on a undirected graph.
-    // For triangle like 1-2-3. For vertex 1 we only count 1-2-3, since 1-3-2
-    // must exist.
-    ForEachOutgoingEdge(
-        stream, dev_frag, ws_in,
-        [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
-          vertex_t v = nbr.get_neighbor();
-          msg_t u_degree = d_global_degree[u];
-          msg_t v_degree = d_global_degree[v];
-
-          if (u_degree > v_degree) {
-            atomicAdd(&d_valid_out_degree[u.GetValue()], 1);
-          } else {
-            vid_t u_gid = dev_frag.GetInnerVertexGid(u);
-            vid_t v_gid = dev_frag.Vertex2Gid(v);
-            if ((u_degree == v_degree && u_gid > v_gid)) {
-              atomicAdd(&d_valid_out_degree[u.GetValue()], 1);
-            }
-          }
-        },
-        ctx.lb);
-
-    ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-      d_mm.template SendMsgThroughOEdges(dev_frag, v,
-                                         d_valid_out_degree[v.GetValue()]);
+      d_mm.template SendMsgThroughEdges(d_frag, v, degree);
     });
     messages.ForceContinue();
   }
@@ -202,32 +154,29 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
     auto vertices = frag.Vertices();
     auto iv = frag.InnerVertices();
     auto d_global_degree = ctx.global_degree.DeviceObject();
-    auto* d_valid_out_degree =
-        thrust::raw_pointer_cast(ctx.valid_out_degree.data());
     auto d_mm = messages.DeviceObject();
     auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
     auto d_filling_offset = ctx.filling_offset.DeviceObject();
-
+    // Recieve outer degrees.
     messages.template ParallelProcess<dev_fragment_t, msg_t>(
         dev_frag, [=] __device__(vertex_t v, msg_t degree) mutable {
-          d_valid_out_degree[v.GetValue()] = degree;
+          d_global_degree[v] = degree;
         });
 
-    ExclusiveSum64<msg_t, size_t>(d_valid_out_degree, d_row_offset,
-                                  vertices.size() + 1, stream.cuda_stream());
+    InclusiveSum(d_global_degree.data(), d_row_offset + 1, vertices.size(),
+                 stream.cuda_stream());
 
     CHECK_CUDA(cudaMemcpyAsync(d_filling_offset.data(), d_row_offset,
                                sizeof(size_t) * vertices.size(),
                                cudaMemcpyDeviceToDevice, stream.cuda_stream()));
+
     stream.Sync();
-
     auto n_filtered_edges = ctx.row_offset[vertices.size()];
-
     ctx.col_indices.resize(n_filtered_edges);
+    ctx.col_sorted_indices.resize(n_filtered_edges);
+    ctx.col_dup_indices.resize(n_filtered_edges);
 
     auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
-    auto* d_msg_col_indices =
-        thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
     WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
 
     // filling edges with precomputed gids
@@ -235,70 +184,58 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
         stream, dev_frag, ws_in,
         [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
           vertex_t v = nbr.get_neighbor();
-          vid_t u_degree = d_global_degree[u];
-          vid_t v_degree = d_global_degree[v];
-          vid_t u_gid = dev_frag.GetInnerVertexGid(u);
-          vid_t v_gid = dev_frag.Vertex2Gid(v);
-
-          if ((u_degree > v_degree) ||
-              (u_degree == v_degree && u_gid > v_gid)) {
-            auto pos = dev::atomicAdd64(&d_filling_offset[u], 1);
-            assert(pos <= d_row_offset[u.GetValue() + 1]);
-            d_col_indices[pos] = v.GetValue();
-          }
+          auto pos = dev::atomicAdd64(&d_filling_offset[u], 1);
+          d_col_indices[pos] = v.GetValue();
         },
         ctx.lb);
-    stream.Sync();
+    ForEachIncomingEdge(
+        stream, dev_frag, ws_in,
+        [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
+          vertex_t v = nbr.get_neighbor();
+          auto pos = dev::atomicAdd64(&d_filling_offset[u], 1);
+          d_col_indices[pos] = v.GetValue();
+        },
+        ctx.lb);
   }
 
   void TransferAdjList(const fragment_t& frag, context_t& ctx,
                        message_manager_t& messages) {
-    size_t K = ctx.stage - 1;
+    int K = ctx.stage;
     auto dev_frag = frag.DeviceObject();
     auto& stream = messages.stream();
     auto iv = frag.InnerVertices();
     auto d_mm = messages.DeviceObject();
     auto d_filling_offset = ctx.filling_offset.DeviceObject();
+    auto* d_row_offset_hi = d_filling_offset.data();
     auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
     auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
-
-    auto vertices = frag.Vertices();
-    auto n_filtered_edges = ctx.row_offset[vertices.size()];
-    size_t vsize = vertices.size();
 
     if (K > 0) {
       messages.template ParallelProcess<dev_fragment_t, msg_t>(
           dev_frag, [=] __device__(vertex_t u, msg_t v_gid) mutable {
             vertex_t v;
-            size_t max_size = n_filtered_edges;
-            size_t v_size = vsize;
             assert(dev_frag.IsOuterVertex(u));
             if (dev_frag.Gid2Vertex(v_gid, v)) {
               auto pos = dev::atomicAdd64(&d_filling_offset[u], 1);
               assert(pos + 1 <= d_row_offset[u.GetValue() + 1]);
-              assert(u.GetValue() + 1 <= v_size);
-              assert(d_row_offset[u.GetValue() + 1] <= d_row_offset[v_size]);
-              assert(pos < n_filtered_edges);
               d_col_indices[pos] = v.GetValue();
             }
           });
     }
 
-    if (K < LCC_M) {
+    if (K < LCCD_M) {
       WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
       ForEachWithIndex(
           stream, ws_in, [=] __device__(uint32_t idx, vertex_t u) mutable {
             // TODO(mengke): replace it with ForEachOutgoingEdge
-            size_t length = (d_row_offset[idx + 1] - d_row_offset[idx]);
+            size_t length = (d_row_offset_hi[idx] - d_row_offset[idx]);
             size_t chunk_start =
-                d_row_offset[idx] + LCC_CHUNK_START(K, length, LCC_M);
-            size_t chunk_end = chunk_start + LCC_CHUNK_SIZE(K, length, LCC_M);
+                d_row_offset[idx] + LCCD_CHUNK_START(K, length, LCCD_M);
+            size_t chunk_end = chunk_start + LCCD_CHUNK_SIZE(K, length, LCCD_M);
 
             for (auto begin = chunk_start; begin < chunk_end; begin++) {
-              assert(begin < n_filtered_edges);
-              assert(begin <= d_row_offset[idx + 1]);
               msg_t v_gid = dev_frag.Vertex2Gid(vertex_t(d_col_indices[begin]));
-              d_mm.template SendMsgThroughOEdges(dev_frag, u, v_gid);
+              d_mm.template SendMsgThroughEdges(dev_frag, u, v_gid);
             }
           });
       stream.Sync();
@@ -311,23 +248,16 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
     auto dev_frag = frag.DeviceObject();
     auto& stream = messages.stream();
     auto vertices = frag.Vertices();
-    auto* d_valid_out_degree =
-        thrust::raw_pointer_cast(ctx.valid_out_degree.data());
     auto d_mm = messages.DeviceObject();
-    auto d_filling_offset = ctx.filling_offset.DeviceObject();
-    auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
-    auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
+    auto size = vertices.size();
+    size_t valid_esize = 0;
+    msg_t* buffer_col;
 
     // Make space;
     frag.OffloadTopology();
-    messages.DropBuffer();
-
-    auto size = vertices.size();
-    size_t valid_esize = 0;
     {  // cacluate valid edges
-      auto* d_valid_out_degree =
-          thrust::raw_pointer_cast(ctx.valid_out_degree.data());
-      auto* d_offsets = thrust::raw_pointer_cast(ctx.row_offset.data());
+      auto d_global_degree = ctx.global_degree.DeviceObject();
+      auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
       auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
       WorkSourceRange<vertex_t> ws_in(*vertices.begin(), vertices.size());
       ForEachWithIndex(
@@ -336,30 +266,74 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             size_t length = (d_filling_offset[idx] - d_row_offset[idx]);
             assert(d_filling_offset[idx] >= d_row_offset[idx] &&
                    d_filling_offset[idx] <= d_row_offset[idx + 1]);
-            d_valid_out_degree[u.GetValue()] = length;
+            d_global_degree[u] = length;
           });
     }
 
+    {
+      WorkSourceRange<vertex_t> ws_in(*vertices.begin(), vertices.size());
+      size_t n_vertices = vertices.size();
+      size_t num_items = ctx.col_indices.size();  // n_edges;
+      size_t num_segments = n_vertices;
+      auto* d_offsets = thrust::raw_pointer_cast(ctx.row_offset.data());
+      auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
+      auto* d_keys_in = thrust::raw_pointer_cast(ctx.col_indices.data());
+      auto* d_keys_out =
+          thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
+
+      stream.Sync();
+      sorted_col = SegmentSort(d_keys_in, d_keys_out, d_offsets,
+                               d_filling_offset, num_items, num_segments);
+      if (sorted_col == d_keys_in) {
+        buffer_col = d_keys_out;
+      } else if (sorted_col == d_keys_out) {
+        buffer_col = d_keys_in;
+      } else {
+        assert(false);
+      }
+    }
+
+    {
+      auto* d_offsets = thrust::raw_pointer_cast(ctx.row_offset.data());
+      auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
+      auto* d_dup = thrust::raw_pointer_cast(ctx.col_dup_indices.data());
+      auto d_global_degree = ctx.global_degree.DeviceObject();
+      WorkSourceRange<vertex_t> ws_in(*vertices.begin(), vertices.size());
+      ForEachWithIndex(stream, ws_in,
+                       [=] __device__(uint32_t idx, vertex_t u) mutable {
+                         for (auto begin = d_offsets[idx] + 1;
+                              begin < d_filling_offset[idx]; begin++) {
+                           auto pre = sorted_col[begin - 1];
+                           auto cur = sorted_col[begin];
+                           if (pre == cur) {
+                             d_dup[begin - 1] = 1;  // mark as double
+                             d_dup[begin] = 2;      // mark as deleted
+                             d_global_degree[u] -= 1;
+                           }
+                         }
+                       });
+    }
+
     {  // compact col index
-      auto* d_valid_out_degree =
-          thrust::raw_pointer_cast(ctx.valid_out_degree.data());
+      auto d_global_degree = ctx.global_degree.DeviceObject();
       auto* d_compact_row_offset =
           thrust::raw_pointer_cast(ctx.compact_row_offset.data());
 
-      ExclusiveSum64(d_valid_out_degree, d_compact_row_offset,
-                     vertices.size() + 1, stream.cuda_stream());
+      InclusiveSum(d_global_degree.data(), d_compact_row_offset + 1,
+                   vertices.size(), stream.cuda_stream());
       stream.Sync();
       valid_esize = ctx.compact_row_offset[vertices.size()];
 
-      ctx.col_sorted_indices.resize(valid_esize);
+      ctx.col_double_indices.resize(valid_esize);
 
       auto* d_offsets = thrust::raw_pointer_cast(ctx.row_offset.data());
       auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
       auto* d_compact_offset =
           thrust::raw_pointer_cast(ctx.compact_row_offset.data());
-      auto* d_keys_in = thrust::raw_pointer_cast(ctx.col_indices.data());
-      auto* d_keys_out =
-          thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
+      auto* d_keys_in = sorted_col;
+      auto* d_keys_out = buffer_col;
+      auto* d_dup = thrust::raw_pointer_cast(ctx.col_dup_indices.data());
+      auto* d_double = thrust::raw_pointer_cast(ctx.col_double_indices.data());
       WorkSourceRange<vertex_t> ws_in(*vertices.begin(), vertices.size());
       ForEachWithIndex(stream, ws_in,
                        [=] __device__(uint32_t idx, vertex_t u) mutable {
@@ -367,15 +341,16 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                          size_t tmp = d_compact_offset[idx];
                          for (auto begin = d_offsets[idx];
                               begin < d_filling_offset[idx]; begin++) {
-                           d_keys_out[tmp++] = d_keys_in[begin];
+                           if (d_dup[begin] != 2) {
+                             d_keys_out[tmp] = d_keys_in[begin];
+                             d_double[tmp] = d_dup[begin] + 1;  // 0->1 ; 1->2;
+                             tmp++;
+                           }
                          }
                          assert(tmp <= d_compact_offset[idx + 1]);
                        });
       stream.Sync();
-
-      ctx.col_indices.clear();
-      ctx.col_indices.shrink_to_fit();
-      ctx.col_indices.resize(valid_esize);
+      sorted_col = buffer_col;
     }
     return valid_esize;
   }
@@ -392,41 +367,16 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
     auto d_mm = messages.DeviceObject();
 
     {
-      WorkSourceRange<vertex_t> ws_in(*vertices.begin(), vertices.size());
-      size_t n_vertices = vertices.size();
-      size_t num_items = valid_esize;  // n_edges;
-      size_t num_segments = n_vertices;
-      auto* d_offsets = thrust::raw_pointer_cast(ctx.compact_row_offset.data());
-      auto* d_filling_offset = d_offsets + 1;
-      auto* d_keys_in = thrust::raw_pointer_cast(ctx.col_indices.data());
-      auto* d_keys_out =
-          thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
-
-      stream.Sync();
-      sorted_col = SegmentSort(d_keys_out, d_keys_in, d_offsets,
-                               d_filling_offset, num_items, num_segments);
-
-      if (sorted_col == d_keys_out) {
-        ctx.col_indices.clear();
-        ctx.col_indices.shrink_to_fit();
-      } else {
-        ctx.col_sorted_indices.clear();
-        ctx.col_sorted_indices.shrink_to_fit();
-      }
-      messages.InitBuffer(frag.OuterVertices().size() * (sizeof(size_t)),
-                          1 * (sizeof(size_t)));  // rely on syncLengths()
-    }
-
-    {
       WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
       auto* d_row_offset =
           thrust::raw_pointer_cast(ctx.compact_row_offset.data());
+      auto* d_double = thrust::raw_pointer_cast(ctx.col_double_indices.data());
       auto* d_filling_offset = d_row_offset + 1;
       auto* d_col_indices = sorted_col;
       ForEachWithIndexWarp(
           stream, ws_in,
           [=] __device__(size_t lane, size_t idx, vertex_t u) mutable {
-            int triangle_count = 0;
+            size_t triangle_count = 0;
             for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
                  eid++) {
               vertex_t v(d_col_indices[eid]);
@@ -436,15 +386,12 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
                    edge_end_v = d_filling_offset[v.GetValue()];
               size_t degree_u = edge_end_u - edge_begin_u;
               size_t degree_v = edge_end_v - edge_begin_v;
-              size_t tmp = dev::intersect_num(
+              size_t num = dev::intersect_num_directed(
                   &d_col_indices[edge_begin_u], degree_u,
                   &d_col_indices[edge_begin_v], degree_v,
-                  [=] __device__(msg_t key) mutable {
-                    dev::atomicAdd64(&d_tricnt[vertex_t(key)], 1);
-                  });
+                  &d_double[edge_begin_v]);
               if (lane == 0) {
-                dev::atomicAdd64(&d_tricnt[v], tmp);
-                triangle_count += tmp;
+                triangle_count += num;
               }
             }
             if (lane == 0) {
@@ -452,57 +399,23 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
             }
           });
     }
-
-    {  // send d_tricnt
-      WorkSourceRange<vertex_t> ws_in(*ov.begin(), ov.size());
-      ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-        if (d_tricnt[v] != 0) {
-          d_mm.template SyncStateOnOuterVertex(dev_frag, v, d_tricnt[v]);
-        }
-      });
-    }
-
-    messages.ForceContinue();
   }
 
   void IncEval(const fragment_t& frag, context_t& ctx,
                message_manager_t& messages) {
-    auto dev_frag = frag.DeviceObject();
-    auto& stream = messages.stream();
-    auto vertices = frag.Vertices();
-    auto iv = frag.InnerVertices();
-    auto ov = frag.OuterVertices();
-    auto& global_degree = ctx.global_degree;
-    auto d_global_degree = global_degree.DeviceObject();
-    auto d_valid_out_degree =
-        thrust::raw_pointer_cast(ctx.valid_out_degree.data());
-    auto d_tricnt = ctx.tricnt.DeviceObject();
-    auto d_mm = messages.DeviceObject();
-
     if (ctx.stage == 0) {
-      // Get degree of outer vertices
-      SyncOuterDeg(frag, ctx, messages);
-    }
-    if (ctx.stage == 1) {
       PopulateAdjList(frag, ctx, messages);
     }
 
-    if (ctx.stage >= 1 && ctx.stage <= 1 + LCC_M) {
+    if (ctx.stage >= 0 && ctx.stage <= LCCD_M) {
       TransferAdjList(frag, ctx, messages);
     }
 
-    if (ctx.stage == 1 + LCC_M) {
+    if (ctx.stage == LCCD_M) {
       msg_t* sorted_col = NULL;
       size_t valid_esize = CompressAdjList(frag, ctx, messages, sorted_col);
       // Sort destinations with segmented sort
       TriangleCounting(frag, ctx, messages, sorted_col, valid_esize);
-    }
-
-    if (ctx.stage == 2 + LCC_M) {
-      messages.template ParallelProcess<dev_fragment_t, size_t>(
-          dev_frag, [=] __device__(vertex_t v, size_t tri_cnt) mutable {
-            dev::atomicAdd64(&d_tricnt[v], tri_cnt);
-          });
     }
 
     ctx.stage = ctx.stage + 1;
@@ -512,4 +425,4 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
 }  // namespace cuda
 }  // namespace grape
 #endif  // __CUDACC__
-#endif  // EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_H_
+#endif  // EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_DIRECTED_H_

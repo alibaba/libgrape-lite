@@ -36,8 +36,10 @@ import java.util.regex.Pattern;
 
 public class LibgrapePlatform implements Platform {
     public static final String BENCHMARK_PROPERTIES_FILE = "benchmark.properties";
+    public static final String GPU_ENABLE_KEY = "platform.run.gpu.enabled";
     protected static final Logger LOG = LogManager.getLogger();
     public static String LIBGRAPE_BINARY_NAME = "bin/standard/run_app";
+    public static String LIBGRAPE_GPU_BINARY_NAME = "bin/standard/run_cuda_app";
     private static PrintStream sysOut;
     private static PrintStream sysErr;
     private Configuration benchmarkConfig;
@@ -48,6 +50,8 @@ public class LibgrapePlatform implements Platform {
         } catch (InvalidConfigurationException e) {
             LOG.warn("failed to load " + BENCHMARK_PROPERTIES_FILE, e);
             benchmarkConfig = new PropertiesConfiguration();
+            boolean gpuEnabled = benchmarkConfig.getBoolean(GPU_ENABLE_KEY, false);
+            LIBGRAPE_BINARY_NAME =  gpuEnabled ? LIBGRAPE_GPU_BINARY_NAME : LIBGRAPE_BINARY_NAME;
         }
     }
 
@@ -236,5 +240,4 @@ public class LibgrapePlatform implements Platform {
     public String getPlatformName() {
         return "libgrape";
     }
-
 }

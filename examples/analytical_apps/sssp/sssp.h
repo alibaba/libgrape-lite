@@ -157,8 +157,8 @@ class SSSP : public ParallelAppBase<FRAG_T, SSSPContext<FRAG_T>>,
             });
 
     if (!ctx.next_modified.PartialEmpty(
-          frag.Vertices().begin_value(),
-          frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
+            frag.Vertices().begin_value(),
+            frag.Vertices().begin_value() + frag.GetInnerVerticesNum())) {
       messages.ForceContinue();
     }
 

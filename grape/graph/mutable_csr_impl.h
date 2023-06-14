@@ -285,8 +285,8 @@ inline void binary_update_one(Nbr<VID_T, EDATA_T>* begin,
 
 template <typename VID_T, typename EDATA_T>
 inline const Nbr<VID_T, EDATA_T>* binary_search_one(
-    const Nbr<VID_T, EDATA_T>* begin,
-    const Nbr<VID_T, EDATA_T>* end, VID_T target) {
+    const Nbr<VID_T, EDATA_T>* begin, const Nbr<VID_T, EDATA_T>* end,
+    VID_T target) {
   const Nbr<VID_T, EDATA_T>* original_end = end;
   while (begin != end) {
     int l2 = (end - begin) >> 1;

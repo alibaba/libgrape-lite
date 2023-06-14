@@ -179,6 +179,24 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
         },
         ctx.lb);
 
+    if (frag.load_strategy == grape::LoadStrategy::kBothOutIn) {
+      ForEachIncomingEdge(
+          stream, d_frag, ws_in,
+          [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
+            label_t u_label = d_label[u];
+            vertex_t v = nbr.get_neighbor();
+
+            if (u_label < atomicMin(&d_label[v], u_label)) {
+              if (d_frag.IsInnerVertex(v)) {
+                d_out_q_local.Insert(v);
+              } else {
+                d_out_q_remote.Insert(v);
+              }
+            }
+          },
+          ctx.lb);
+    }
+
     for (fid_t fid = 0; fid < frag.fnum(); fid++) {
       auto ov = frag.OuterVertices(fid);
       auto ws_in = WorkSourceRange<vertex_t>(*ov.begin(), ov.size());

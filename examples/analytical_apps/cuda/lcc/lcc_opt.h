@@ -1,4 +1,4 @@
-/** Copyright 2022 Alibaba Group Holding Limited.
+/** Copyright 2023 Alibaba Group Holding Limited.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 #define EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_OPT_H_
 #ifdef __CUDACC__
 #include <iomanip>
+#include <iostream>
 
 #include "cuda/app_config.h"
 #include "grape/grape.h"
@@ -24,49 +25,60 @@ limitations under the License.
 namespace grape {
 namespace cuda {
 template <typename FRAG_T>
-class LCC_OPTContext : public grape::VoidContext<FRAG_T> {
+class LCCOPTContext : public grape::VoidContext<FRAG_T> {
  public:
   using vid_t = typename FRAG_T::vid_t;
   using vertex_t = typename FRAG_T::vertex_t;
+  using msg_t = vid_t;
 
-  explicit LCC_OPTContext(const FRAG_T& frag)
+  explicit LCCOPTContext(const FRAG_T& frag)
       : grape::VoidContext<FRAG_T>(frag) {}
 
 #ifdef PROFILING
-  ~LCC_OPTContext() {
+  ~LCCOPTContext() {
     VLOG(1) << "Get msg time: " << get_msg_time * 1000;
     VLOG(1) << "Pagerank kernel time: " << traversal_kernel_time * 1000;
     VLOG(1) << "Send msg time: " << send_msg_time * 1000;
   }
 #endif
 
-  void Init(GPUMessageManager& messages, AppConfig app_config) {
+  void Init(GPUMessageManager& messages, AppConfig app_config,
+            msg_t** sorted_col, size_t** offset) {
     auto& frag = this->fragment();
     auto vertices = frag.Vertices();
+    auto iv = frag.InnerVertices();
+    auto ov = frag.OuterVertices();
 
     this->lb = app_config.lb;
     this->stage = 0;
 
-    valid_out_degree.Init(vertices, 0);
     global_degree.Init(vertices, 0);
-    filling_offset.Init(vertices, 0);
     tricnt.Init(vertices, 0);
+    hi_q.Init(iv.size());
+    mid_q.Init(iv.size());
+    lo_q.Init(iv.size());
     tricnt.H2D();
 
     row_offset.resize(vertices.size() + 1, 0);
+    size_t n_vertices = vertices.size();
 
-    size_t n_edges = 0;
-    size_t n_vertices = 0;
     using nbr_t = typename FRAG_T::nbr_t;
-    for (auto u : frag.InnerVertices()) {
-      n_edges += frag.GetLocalOutDegree(u) + frag.GetLocalInDegree(u);
-      n_vertices += 1;
-    }
 
-    // VLOG(1) << "Message buffer size is 2*" << n_edges << "*" << sizeof(nbr_t)
-    // + sizeof(vid_t) << "=" << 2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t));
-    messages.InitBuffer(2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)),
-                        2 * n_edges * (sizeof(nbr_t) + sizeof(vid_t)));
+    messages.InitBuffer(
+        ov.size() * (sizeof(thrust::pair<vid_t, size_t>)),
+        1 * (sizeof(thrust::pair<vid_t, msg_t>)));  // rely on syncLengths()
+
+    size_t n_edges = (*offset)[n_vertices];
+    col_indices.resize(n_edges, 0);
+    auto* d_col_indices = thrust::raw_pointer_cast(col_indices.data());
+    CHECK_CUDA(cudaMemcpy(d_col_indices, *sorted_col, sizeof(msg_t) * n_edges,
+                          cudaMemcpyHostToDevice));
+
+    auto* d_row_offset = thrust::raw_pointer_cast(row_offset.data());
+
+    CHECK_CUDA(cudaMemcpy(d_row_offset, *offset,
+                          sizeof(size_t) * (n_vertices + 1),
+                          cudaMemcpyHostToDevice));
   }
 
   void Output(std::ostream& os) override {
@@ -89,35 +101,36 @@ class LCC_OPTContext : public grape::VoidContext<FRAG_T> {
   }
 
   LoadBalancing lb{};
-  VertexArray<int, vid_t> valid_out_degree;
-  VertexArray<vid_t, vid_t> global_degree;
-  VertexArray<int, vid_t> filling_offset;
-  VertexArray<int, vid_t> tricnt;
-  thrust::device_vector<int> row_offset;
-  thrust::device_vector<vid_t> col_indices;
-  thrust::device_vector<vid_t> col_sorted_indices;
+  VertexArray<msg_t, vid_t> global_degree;
+  VertexArray<size_t, vid_t> tricnt;
+  thrust::device_vector<size_t> row_offset;
+  thrust::device_vector<msg_t> col_indices;
+  Queue<vertex_t, vid_t> hi_q, mid_q, lo_q;
   int stage{};
+#ifdef PROFILING
   double get_msg_time{};
   double traversal_kernel_time{};
   double send_msg_time{};
+#endif
 };
 
 template <typename FRAG_T>
-class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
-                public ParallelEngine {
+class LCCOPT : public GPUAppBase<FRAG_T, LCCOPTContext<FRAG_T>>,
+               public ParallelEngine {
  public:
-  INSTALL_GPU_WORKER(LCC_OPT<FRAG_T>, LCC_OPTContext<FRAG_T>, FRAG_T)
+  INSTALL_GPU_WORKER(LCCOPT<FRAG_T>, LCCOPTContext<FRAG_T>, FRAG_T)
   using dev_fragment_t = typename fragment_t::device_t;
   using vid_t = typename fragment_t::vid_t;
   using edata_t = typename fragment_t::edata_t;
   using vertex_t = typename dev_fragment_t::vertex_t;
   using nbr_t = typename dev_fragment_t::nbr_t;
+  using msg_t = vid_t;
 
   static constexpr grape::MessageStrategy message_strategy =
       grape::MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
   static constexpr grape::LoadStrategy load_strategy =
       grape::LoadStrategy::kOnlyOut;
-  static constexpr bool need_build_device_vm = true;
+  // static constexpr bool need_build_device_vm = true;  // for debug
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
@@ -129,268 +142,218 @@ class LCC_OPT : public GPUAppBase<FRAG_T, LCC_OPTContext<FRAG_T>>,
                                     inner_vertices.size());
 
     ForEach(messages.stream(), ws_in, [=] __device__(vertex_t v) mutable {
-      vid_t degree = d_frag.GetLocalOutDegree(v);
-
+      msg_t degree = d_frag.GetLocalOutDegree(v);
       d_global_degree[v] = degree;
-      d_mm.template SendMsgThroughOEdges(d_frag, v, degree);
     });
+    messages.ForceContinue();
+  }
+
+  void TriangleCounting(const fragment_t& frag, context_t& ctx,
+                        message_manager_t& messages) {
+    auto d_frag = frag.DeviceObject();
+    auto& stream = messages.stream();
+    auto vertices = frag.Vertices();
+    auto iv = frag.InnerVertices();
+    auto ov = frag.OuterVertices();
+    auto d_tricnt = ctx.tricnt.DeviceObject();
+    auto d_mm = messages.DeviceObject();
+    auto& lo_q = ctx.lo_q;
+    auto& hi_q = ctx.hi_q;
+    auto& mid_q = ctx.mid_q;
+    auto d_lo_q = ctx.lo_q.DeviceObject();
+    auto d_hi_q = ctx.hi_q.DeviceObject();
+    auto d_mid_q = ctx.mid_q.DeviceObject();
+
+    {
+      WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
+      auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
+      ForEach(stream, ws_in, [=] __device__(vertex_t u) mutable {
+        size_t idx = u.GetValue();
+        size_t degree = d_row_offset[idx + 1] - d_row_offset[idx];
+        if (degree > 2048) {
+          d_hi_q.Append(u);
+        } else if (degree < 31) {
+          d_lo_q.Append(u);
+        } else {
+          d_mid_q.Append(u);
+        }
+      });
+    }
+
+    {
+      WorkSourceArray<vertex_t> ws_in(lo_q.data(), lo_q.size(stream));
+      auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
+      auto* d_filling_offset = d_row_offset + 1;
+      auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
+      thrust::device_vector<msg_t> bins;
+      size_t nblocks = 256;
+      size_t bucket_stride = 256;
+      size_t bucket_num = 32;
+      size_t bucket_size = 31;
+      size_t cached_size = 31;
+      bins.resize(bucket_stride * (bucket_size - cached_size) * nblocks, 0);
+      auto* global_data = thrust::raw_pointer_cast(bins.data());
+      ForEachWithIndexWarpShared(
+          stream, ws_in,
+          [=] __device__(uint32_t * shm, size_t lane, size_t cid, size_t csize,
+                         size_t cnum, size_t idx, vertex_t u) mutable {
+            dev::ShmHashTable<uint32_t> hash_table;
+            hash_table.init(shm, global_data, threadIdx.x / csize * bucket_num,
+                            bucket_size, cached_size, bucket_num,
+                            bucket_stride);
+
+            hash_table.clear(lane, csize);
+            __syncwarp();
+
+            idx = u.GetValue();
+            size_t triangle_count = 0;
+            for (auto eid = d_row_offset[idx] + lane;
+                 eid < d_filling_offset[idx]; eid += csize) {
+              if (!hash_table.insert(d_col_indices[eid])) {
+                assert(false);
+              }
+            }
+            __syncwarp();
+
+            for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
+                 eid++) {
+              size_t tmp = 0;
+              vertex_t v(d_col_indices[eid]);
+              auto edge_begin_v = d_row_offset[v.GetValue()],
+                   edge_end_v = d_filling_offset[v.GetValue()];
+              for (auto i = lane + edge_begin_v; i < edge_end_v; i += csize) {
+                auto w = vertex_t(d_col_indices[i]);
+                if (hash_table.lookup(w.GetValue())) {
+                  tmp++;
+                  dev::atomicAdd64(&d_tricnt[w], 1);
+                }
+              }
+              size_t v_cnt = dev::warp_reduce(tmp);
+              if (lane == 0) {
+                dev::atomicAdd64(&d_tricnt[v], v_cnt);
+                triangle_count += v_cnt;
+              }
+            }
+            __syncwarp();
+            if (lane == 0) {
+              dev::atomicAdd64(&d_tricnt[u], triangle_count);
+            }
+          });
+    }
+
+    {
+      WorkSourceArray<vertex_t> ws_in(mid_q.data(), mid_q.size(stream));
+      auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
+      auto* d_filling_offset = d_row_offset + 1;
+      auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
+      ForEachWithIndexWarpDynamic(
+          stream, ws_in,
+          [=] __device__(size_t lane, size_t idx, vertex_t u) mutable {
+            idx = u.GetValue();
+            size_t triangle_count = 0;
+            for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
+                 eid++) {
+              vertex_t v(d_col_indices[eid]);
+              auto edge_begin_u = d_row_offset[u.GetValue()],
+                   edge_end_u = d_filling_offset[u.GetValue()];
+              auto edge_begin_v = d_row_offset[v.GetValue()],
+                   edge_end_v = d_filling_offset[v.GetValue()];
+              size_t degree_u = edge_end_u - edge_begin_u;
+              size_t degree_v = edge_end_v - edge_begin_v;
+              size_t tmp = dev::intersect_num(
+                  &d_col_indices[edge_begin_u], degree_u,
+                  &d_col_indices[edge_begin_v], degree_v,
+                  [=] __device__(msg_t key) mutable {
+                    dev::atomicAdd64(&d_tricnt[vertex_t(key)], 1);
+                  });
+              if (lane == 0) {
+                dev::atomicAdd64(&d_tricnt[v], tmp);
+                triangle_count += tmp;
+              }
+            }
+            if (lane == 0) {
+              dev::atomicAdd64(&d_tricnt[u], triangle_count);
+            }
+          });
+    }
+
+    {
+      WorkSourceArray<vertex_t> ws_in(hi_q.data(), hi_q.size(stream));
+      auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
+      auto* d_filling_offset = d_row_offset + 1;
+      auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
+      ForEachWithIndexBlockDynamic(
+          stream, ws_in,
+          [=] __device__(size_t lane, size_t idx, vertex_t u) mutable {
+            idx = u.GetValue();
+            size_t triangle_count = 0;
+            for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
+                 eid++) {
+              vertex_t v(d_col_indices[eid]);
+              auto edge_begin_u = d_row_offset[u.GetValue()],
+                   edge_end_u = d_filling_offset[u.GetValue()];
+              auto edge_begin_v = d_row_offset[v.GetValue()],
+                   edge_end_v = d_filling_offset[v.GetValue()];
+              size_t degree_u = edge_end_u - edge_begin_u;
+              size_t degree_v = edge_end_v - edge_begin_v;
+              size_t tmp = dev::intersect_num_blk(
+                  &d_col_indices[edge_begin_u], degree_u,
+                  &d_col_indices[edge_begin_v], degree_v,
+                  [=] __device__(msg_t key) mutable {
+                    dev::atomicAdd64(&d_tricnt[vertex_t(key)], 1);
+                  });
+              if (lane == 0) {
+                dev::atomicAdd64(&d_tricnt[v], tmp);
+                triangle_count += tmp;
+              }
+              __syncthreads();
+            }
+            __syncthreads();
+            if (lane == 0) {
+              dev::atomicAdd64(&d_tricnt[u], triangle_count);
+            }
+          });
+    }
+
+    {  // send d_tricnt
+      WorkSourceRange<vertex_t> ws_in(*ov.begin(), ov.size());
+      ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
+        if (d_tricnt[v] != 0) {
+          d_mm.template SyncStateOnOuterVertex(d_frag, v, d_tricnt[v]);
+        }
+      });
+    }
+
     messages.ForceContinue();
   }
 
   void IncEval(const fragment_t& frag, context_t& ctx,
                message_manager_t& messages) {
-    auto dev_frag = frag.DeviceObject();
+    auto d_frag = frag.DeviceObject();
     auto& stream = messages.stream();
     auto vertices = frag.Vertices();
     auto iv = frag.InnerVertices();
     auto ov = frag.OuterVertices();
     auto& global_degree = ctx.global_degree;
     auto d_global_degree = global_degree.DeviceObject();
-    auto d_valid_out_degree = ctx.valid_out_degree.DeviceObject();
     auto d_tricnt = ctx.tricnt.DeviceObject();
     auto d_mm = messages.DeviceObject();
 
     if (ctx.stage == 0) {
-      ctx.stage = 1;
-      // Get degree of outer vertices
-      messages.template ParallelProcess<dev_fragment_t, vid_t>(
-          dev_frag, [=] __device__(vertex_t v, vid_t degree) mutable {
-            d_global_degree[v] = degree;
-          });
+      TriangleCounting(frag, ctx, messages);
+    }
 
-      WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
-
-      ForEachOutgoingEdge(
-          stream, dev_frag, ws_in,
-          [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
-            vertex_t v = nbr.get_neighbor();
-            vid_t u_degree = d_global_degree[u];
-            vid_t v_degree = d_global_degree[v];
-            vid_t u_gid = dev_frag.GetInnerVertexGid(u);
-            vid_t v_gid = dev_frag.Vertex2Gid(v);
-            vid_t cnt = 0;
-
-            if (u_degree > v_degree ||
-                (u_degree == v_degree && u_gid > v_gid)) {
-              cnt++;
-            }
-            atomicAdd(&d_valid_out_degree[u], cnt);
-          },
-          ctx.lb);
-
-      ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-        d_mm.template SendMsgThroughOEdges(dev_frag, v, d_valid_out_degree[v]);
-      });
-      messages.ForceContinue();
-    } else if (ctx.stage == 1) {
-      ctx.stage = 2;
-      messages.template ParallelProcess<dev_fragment_t, int>(
-          dev_frag, [=] __device__(vertex_t v, int degree) mutable {
-            d_valid_out_degree[v] = degree;
-          });
-
-      void* d_temp_storage = nullptr;
-      size_t temp_storage_bytes = 0;
-      // d_row_offset[0] should be 0
-      int* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
-      auto size = vertices.size();
-
-      CHECK_CUDA(cub::DeviceScan::InclusiveSum(
-          d_temp_storage, temp_storage_bytes, d_valid_out_degree.data(),
-          d_row_offset + 1, size, stream.cuda_stream()));
-      CHECK_CUDA(cudaMalloc(&d_temp_storage, temp_storage_bytes));
-      CHECK_CUDA(cub::DeviceScan::InclusiveSum(
-          d_temp_storage, temp_storage_bytes, d_valid_out_degree.data(),
-          d_row_offset + 1, size, stream.cuda_stream()));
-      CHECK_CUDA(cudaFree(d_temp_storage));
-
-      auto d_filling_offset = ctx.filling_offset.DeviceObject();
-
-      CHECK_CUDA(cudaMemcpyAsync(d_filling_offset.data(), d_row_offset,
-                                 sizeof(int) * size, cudaMemcpyDeviceToDevice,
-                                 stream.cuda_stream()));
-
-      auto n_filtered_edges = ctx.row_offset[size];
-
-#ifdef PROFILING
-      LOG(INFO) << "Filtered edges: " << n_filtered_edges;
-#endif
-
-      ctx.col_indices.resize(n_filtered_edges);
-      ctx.col_sorted_indices.resize(n_filtered_edges);
-
-      auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
-      auto* d_msg_col_indices =
-          thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
-      WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
-
-      // filling edges with precomputed gids
-      ForEachOutgoingEdge(
-          stream, dev_frag, ws_in,
-          [=] __device__(vertex_t u, const nbr_t& nbr) mutable {
-            vertex_t v = nbr.get_neighbor();
-            vid_t u_degree = d_global_degree[u];
-            vid_t v_degree = d_global_degree[v];
-            vid_t u_gid = dev_frag.GetInnerVertexGid(u);
-            vid_t v_gid = dev_frag.Vertex2Gid(v);
-
-            if (u_degree > v_degree ||
-                (u_degree == v_degree && u_gid > v_gid)) {
-              auto pos = atomicAdd(&d_filling_offset[u], 1);
-              d_col_indices[pos] = v.GetValue();
-              d_msg_col_indices[pos] = v_gid;
-            }
-          },
-          ctx.lb);
-
-      ForEachWithIndex(
-          stream, ws_in, [=] __device__(size_t idx, vertex_t u) mutable {
-            // TODO(mengke): replace it with ForEachOutgoingEdge
-            for (auto begin = d_row_offset[idx]; begin < d_row_offset[idx + 1];
-                 begin++) {
-              auto v_gid = d_msg_col_indices[begin];
-
-              d_mm.template SendMsgThroughOEdges(dev_frag, u, v_gid);
-            }
-          });
-
-      stream.Sync();
-      messages.ForceContinue();
-    } else if (ctx.stage == 2) {
-      ctx.stage = 3;
-      auto d_filling_offset = ctx.filling_offset.DeviceObject();
-      auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
-      auto* d_col_indices = thrust::raw_pointer_cast(ctx.col_indices.data());
-
-      messages.template ParallelProcess<dev_fragment_t, vid_t>(
-          dev_frag, [=] __device__(vertex_t u, vid_t v_gid) mutable {
-            vertex_t v;
-            assert(dev_frag.IsOuterVertex(u));
-            if (dev_frag.Gid2Vertex(v_gid, v)) {
-              auto pos = atomicAdd(&d_filling_offset[u], 1);
-              assert(pos + 1 <= d_row_offset[u.GetValue() + 1]);
-              d_col_indices[pos] = v.GetValue();
-            }
-          });
-
-      // ctx.filling_offset.resize(0);
-
-      // Sort destinations with segmented sort
-      {
-        WorkSourceRange<vertex_t> ws_in(*vertices.begin(), vertices.size());
-        int n_vertices = vertices.size();
-        int n_edges = ctx.col_sorted_indices.size();
-        int num_items = n_edges;
-        int num_segments = n_vertices;
-        auto* d_offsets = thrust::raw_pointer_cast(ctx.row_offset.data());
-        auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
-        auto* d_keys_in = thrust::raw_pointer_cast(ctx.col_indices.data());
-        auto* d_keys_out =
-            thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
-
-        auto begin = grape::GetCurrentTime();
-        // Determine temporary device storage requirements
-        void* d_temp_storage = nullptr;
-        size_t temp_storage_bytes = 0;
-        CHECK_CUDA(cub::DeviceSegmentedRadixSort::SortKeys(
-            d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out,
-            num_items, num_segments, d_offsets, d_filling_offset));
-        // Allocate temporary storage
-        CHECK_CUDA(cudaMalloc(&d_temp_storage, temp_storage_bytes));
-        // Run sorting operation
-        CHECK_CUDA(cub::DeviceSegmentedRadixSort::SortKeys(
-            d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out,
-            num_items, num_segments, d_offsets, d_filling_offset));
-        CHECK_CUDA(cudaFree(d_temp_storage));
-#ifdef PROFILING
-        LOG(INFO) << "Sort time: " << grape::GetCurrentTime() - begin;
-#endif
-      }
-
-      {
-        WorkSourceRange<vertex_t> ws_in(*iv.begin(), iv.size());
-
-        auto* d_row_offset = thrust::raw_pointer_cast(ctx.row_offset.data());
-        auto* d_filling_offset = ctx.filling_offset.DeviceObject().data();
-        auto* d_col_indices =
-            thrust::raw_pointer_cast(ctx.col_sorted_indices.data());
-
-        // Calculate intersection
-        ForEachWithIndexWarp(
-            stream, ws_in,
-            [=] __device__(size_t lane, size_t idx, vertex_t u) mutable {
-              int triangle_count = 0;
-
-              for (auto eid = d_row_offset[idx]; eid < d_filling_offset[idx];
-                   eid++) {
-                vertex_t v(d_col_indices[eid]);
-
-                auto edge_begin_u = d_row_offset[u.GetValue()],
-                     edge_end_u = d_filling_offset[u.GetValue()];
-                auto edge_begin_v = d_row_offset[v.GetValue()],
-                     edge_end_v = d_filling_offset[v.GetValue()];
-                auto degree_u = edge_end_u - edge_begin_u;
-                auto degree_v = edge_end_v - edge_begin_v;
-
-                if (degree_u > 0 && degree_v > 0) {
-                  auto min_degree = min(degree_u, degree_v);
-                  auto max_degree = max(degree_u, degree_v);
-                  // auto total_degree = degree_u + degree_v;
-
-                  auto min_edge_begin =
-                      degree_u < degree_v ? edge_begin_u : edge_begin_v;
-                  auto min_edge_end = min_edge_begin + min_degree;
-                  auto max_edge_begin =
-                      degree_u < degree_v ? edge_begin_v : edge_begin_u;
-                  ArrayView<vid_t> dst_gids(&d_col_indices[max_edge_begin],
-                                            max_degree);
-                  auto mins = d_col_indices[min_edge_begin];
-                  auto mine = d_col_indices[min_edge_begin + min_degree - 1];
-                  auto maxs = d_col_indices[max_edge_begin];
-                  auto maxe = d_col_indices[max_edge_begin + max_degree - 1];
-                  if (mins > maxe || maxs > mine)
-                    continue;
-                  for (; min_edge_begin < min_edge_end; min_edge_begin++) {
-                    auto dst_gid_from_small = d_col_indices[min_edge_begin];
-
-                    if (dev::BinarySearchWarp(dst_gids, dst_gid_from_small)) {
-                      // convert from dst_gid_from_small to lid without
-                      // calling Gid2Vertex
-                      vertex_t comm_vertex(d_col_indices[min_edge_begin]);
-
-                      triangle_count += 1;
-                      if (lane == 0)
-                        atomicAdd(&d_tricnt[comm_vertex], 1);
-                      if (lane == 0)
-                        atomicAdd(&d_tricnt[v], 1);
-                    }
-                  }
-                }
-              }
-
-              if (lane == 0)
-                atomicAdd(&d_tricnt[u], triangle_count);
-            });
-      }
-
-      {
-        WorkSourceRange<vertex_t> ws_in(*ov.begin(), ov.size());
-        ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-          if (d_tricnt[v] != 0) {
-            d_mm.template SyncStateOnOuterVertex(dev_frag, v, d_tricnt[v]);
-          }
-        });
-      }
-
-      messages.ForceContinue();
-    } else if (ctx.stage == 3) {
-      messages.template ParallelProcess<dev_fragment_t, int>(
-          dev_frag, [=] __device__(vertex_t v, int tri_cnt) mutable {
-            atomicAdd(&d_tricnt[v], tri_cnt);
+    if (ctx.stage == 1) {
+      messages.template ParallelProcess<dev_fragment_t, size_t>(
+          d_frag, [=] __device__(vertex_t v, size_t tri_cnt) mutable {
+            dev::atomicAdd64(&d_tricnt[v], tri_cnt);
           });
     }
+
+    ctx.stage = ctx.stage + 1;
   }
 };
+
 }  // namespace cuda
 }  // namespace grape
 #endif  // __CUDACC__
