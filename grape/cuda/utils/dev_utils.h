@@ -64,27 +64,32 @@ DEV_INLINE float atomicMinFloat(float* addr, float value) {
 }
 
 DEV_INLINE int64_t atomicMin64(int64_t* address, int64_t val) {
-  signed long long int* address_as_ull = (signed long long int*) address;
-  signed long long int val_as_ull = (signed long long) val;
+  signed long long int* address_as_ull =                     // NOLINT
+      (signed long long int*) address;                       // NOLINT
+  signed long long int val_as_ull = (signed long long) val;  // NOLINT
   return (int64_t) atomicMin(address_as_ull, val_as_ull);
 }
 
 DEV_INLINE int64_t atomicMax64(int64_t* address, int64_t val) {
-  signed long long int* address_as_ull = (signed long long int*) address;
-  signed long long int val_as_ull = (signed long long) val;
+  signed long long int* address_as_ull =                     // NOLINT
+      (signed long long int*) address;                       // NOLINT
+  signed long long int val_as_ull = (signed long long) val;  // NOLINT
   return (int64_t) atomicMax(address_as_ull, val_as_ull);
 }
 
 DEV_INLINE int64_t atomicCAS64(int64_t* address, int64_t compare, int64_t val) {
-  unsigned long long int* address_as_ull = (unsigned long long int*) address;
-  unsigned long long int compare_as_ull = (unsigned long long int) compare;
-  unsigned long long int val_as_ull = (unsigned long long) val;
+  unsigned long long int* address_as_ull =                       // NOLINT
+      (unsigned long long int*) address;                         // NOLINT
+  unsigned long long int compare_as_ull =                        // NOLINT
+      (unsigned long long int) compare;                          // NOLINT
+  unsigned long long int val_as_ull = (unsigned long long) val;  // NOLINT
   return (int64_t) atomicCAS(address_as_ull, compare_as_ull, val_as_ull);
 }
 
 DEV_INLINE size_t atomicAdd64(size_t* address, size_t val) {
-  unsigned long long int* address_as_ull = (unsigned long long int*) address;
-  unsigned long long int val_as_ull = (unsigned long long) val;
+  unsigned long long int* address_as_ull =                       // NOLINT
+      (unsigned long long int*) address;                         // NOLINT
+  unsigned long long int val_as_ull = (unsigned long long) val;  // NOLINT
   return (size_t) atomicAdd(address_as_ull, val_as_ull);
 }
 
@@ -385,7 +390,7 @@ class MFLCounter {
                                        int csize, int width, T dft) {
     uint32_t* my_shm_data =
         shm_data + cid * ((1 + width) * ht_size + cms_size * cms_k);
-    this->shm_ht = (T*) (void*) my_shm_data;
+    this->shm_ht = reinterpret_cast<T*>(my_shm_data);
     this->shm_ht_size = ht_size;
     this->shm_cnt = my_shm_data + ht_size * width;
 

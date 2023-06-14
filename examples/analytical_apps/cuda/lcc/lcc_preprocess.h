@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef EXAMPLES_ANALYTICAL_APPS_LCCP_LCCP_H_
-#define EXAMPLES_ANALYTICAL_APPS_LCCP_LCCP_H_
+#ifndef EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_PREPROCESS_H_
+#define EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_PREPROCESS_H_
 
 #include <cstdlib>
 #include <cstring>
@@ -55,7 +55,8 @@ class LCCPContext : public grape::VoidContext<FRAG_T> {
     auto& frag = this->fragment();
     auto vertices = frag.Vertices();
     size_t size = vertices.size();
-    *row_offset = (size_t*) malloc((size + 1) * sizeof(size_t));
+    *row_offset =
+        reinterpret_cast<size_t*>(malloc((size + 1) * sizeof(size_t)));
     memset(*row_offset, 0, sizeof(size_t) * (size + 1));
     for (auto v : vertices) {
       auto& nbrs = complete_neighbor[v];
@@ -63,7 +64,7 @@ class LCCPContext : public grape::VoidContext<FRAG_T> {
       (*row_offset)[idx + 1] = (*row_offset)[idx] + nbrs.size();
     }
     size_t edge_size = (*row_offset)[size];
-    *sorted_col = (vid_t*) malloc(edge_size * sizeof(vid_t));
+    *sorted_col = reinterpret_cast<vid_t*>(malloc(edge_size * sizeof(vid_t)));
     for (auto v : vertices) {
       auto& nbrs = complete_neighbor[v];
       size_t base = (*row_offset)[v.GetValue()];
@@ -188,4 +189,4 @@ class LCCP : public ParallelAppBase<FRAG_T, LCCPContext<FRAG_T>>,
 };
 }  // namespace grape
 
-#endif  // EXAMPLES_ANALYTICAL_APPS_LCCP_LCCP_H_
+#endif  // EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_PREPROCESS_H_

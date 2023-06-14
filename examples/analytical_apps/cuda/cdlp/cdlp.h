@@ -374,7 +374,7 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
         stream, ws_iv,
         [=] __device__(uint32_t * shm, size_t lane, size_t cid, size_t csize,
                        size_t cnum, size_t idx, vertex_t u) mutable {
-          label_t* shmd = (label_t*) (void*) shm;
+          label_t* shmd = reinterpret_cast<label_t*>(shm);
           for (int i = threadIdx.x; i < 8192; i += blockDim.x) {
             if (i < bucket_size) {
               shmd[i] = -1;
@@ -628,14 +628,13 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
         uint32_t count = __popc(lmask);
         uint32_t max_count = dev::reduce_max_sync(vmask, count);
 
-        unsigned long long candidate = 0xffffffffffffffff;
+        uint64_t candidate = 0xffffffffffffffff;
         if (lane < chunk_size) {
           assert(max_count != 0);
           candidate =
               max_count == count ? labels[offset + lane] : 0xffffffffffffffff;
         }
-        unsigned long long min_candidate =
-            dev::reduce_min_sync(vmask, candidate);
+        uint64_t min_candidate = dev::reduce_min_sync(vmask, candidate);
         label_t new_label = min_candidate;
         uint32_t leader = __ffs(vmask) - 1;
 

@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef EXAMPLES_ANALYTICAL_APPS_CUDA_LCCD_LCCD_H_
-#define EXAMPLES_ANALYTICAL_APPS_CUDA_LCCD_LCCD_H_
+#ifndef EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_DIRECTED_H_
+#define EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_DIRECTED_H_
 #ifdef __CUDACC__
 #include <iomanip>
 #include <iostream>
@@ -425,4 +425,4 @@ class LCCD : public GPUAppBase<FRAG_T, LCCDContext<FRAG_T>>,
 }  // namespace cuda
 }  // namespace grape
 #endif  // __CUDACC__
-#endif  // EXAMPLES_ANALYTICAL_APPS_CUDA_LCCD_LCCD_H_
+#endif  // EXAMPLES_ANALYTICAL_APPS_CUDA_LCC_LCC_DIRECTED_H_

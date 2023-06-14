@@ -178,81 +178,49 @@ inline void ReportHostMemoryUsage(std::string marker) {
   printf("%s: Host Memory[Used] (Gb): %.3f\n", marker.c_str(), bytes / giga);
 }
 
-// clang-format off
-template <typename            KeyT,
-          typename            OffsetIteratorT>
-static cudaError_t SortKeys64(
-    void                *d_temp_storage,                        ///< [in] %Device-accessible allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
-    size_t              &temp_storage_bytes,                    ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
-    cub::DoubleBuffer<KeyT>  &d_keys,                                ///< [in,out] Reference to the double-buffer of keys whose "current" device-accessible buffer contains the unsorted input keys and, upon return, is updated to point to the sorted output keys
-    int64_t             num_items,                              ///< [in] The total number of items to sort (across all segments)
-    int64_t             num_segments,                           ///< [in] The number of segments that comprise the sorting data
-    OffsetIteratorT     d_begin_offsets,                        ///< [in] Pointer to the sequence of beginning offsets of length \p num_segments, such that <tt>d_begin_offsets[i]</tt> is the first element of the <em>i</em><sup>th</sup> data segment in <tt>d_keys_*</tt> and <tt>d_values_*</tt>
-    OffsetIteratorT     d_end_offsets,                          ///< [in] Pointer to the sequence of ending offsets of length \p num_segments, such that <tt>d_end_offsets[i]-1</tt> is the last element of the <em>i</em><sup>th</sup> data segment in <tt>d_keys_*</tt> and <tt>d_values_*</tt>.  If <tt>d_end_offsets[i]-1</tt> <= <tt>d_begin_offsets[i]</tt>, the <em>i</em><sup>th</sup> is considered empty.
-    int                 begin_bit           = 0,                ///< [in] <b>[optional]</b> The least-significant bit index (inclusive)  needed for key comparison
-    int                 end_bit             = sizeof(KeyT) * 8, ///< [in] <b>[optional]</b> The most-significant bit index (exclusive) needed for key comparison (e.g., sizeof(unsigned int) * 8)
-    cudaStream_t        stream              = 0,                ///< [in] <b>[optional]</b> CUDA stream to launch kernels within.  Default is stream<sub>0</sub>.
-    bool                debug_synchronous   = false) {          ///< [in] <b>[optional]</b> Whether or not to synchronize the stream after every kernel launch to check for errors.  Also causes launch configurations to be printed to the console.  Default is \p false.
-
+template <typename KeyT, typename OffsetIteratorT>
+static cudaError_t SortKeys64(void* d_temp_storage, size_t& temp_storage_bytes,
+                              cub::DoubleBuffer<KeyT>& d_keys,
+                              int64_t num_items, int64_t num_segments,
+                              OffsetIteratorT d_begin_offsets,
+                              OffsetIteratorT d_end_offsets, int begin_bit = 0,
+                              int end_bit = sizeof(KeyT) * 8,
+                              cudaStream_t stream = 0,
+                              bool debug_synchronous = false) {
   // Signed integer type for global offsets
   typedef int64_t OffsetT;
 
   // Null value type
   cub::DoubleBuffer<cub::NullType> d_values;
 
-  return cub::DispatchSegmentedRadixSort<false, KeyT, cub::NullType, OffsetIteratorT, OffsetT>::Dispatch(
-      d_temp_storage,
-      temp_storage_bytes,
-      d_keys,
-      d_values,
-      num_items,
-      num_segments,
-      d_begin_offsets,
-      d_end_offsets,
-      begin_bit,
-      end_bit,
-      true,
-      stream,
-      debug_synchronous);
+  return cub::DispatchSegmentedRadixSort<
+      false, KeyT, cub::NullType, OffsetIteratorT,
+      OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values,
+                         num_items, num_segments, d_begin_offsets,
+                         d_end_offsets, begin_bit, end_bit, true, stream,
+                         debug_synchronous);
 }
 
-template <typename            InputIteratorT,
-          typename            OutputIteratorT>
-static cudaError_t PrefixSumKernel64(
-    void*               d_temp_storage,                 ///< [in] %Device-accessible allocation of temporary storage.  When NULL, the required allocation size is written to \p temp_storage_bytes and no work is done.
-    size_t&             temp_storage_bytes,             ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
-    InputIteratorT      d_in,                           ///< [in] Pointer to the input sequence of data items
-    OutputIteratorT     d_out,                          ///< [out] Pointer to the output sequence of data items
-    int                 num_items,                      ///< [in] Total number of input items (i.e., the length of \p d_in)
-    cudaStream_t        stream             = 0,         ///< [in] <b>[optional]</b> CUDA stream to launch kernels within.  Default is stream<sub>0</sub>.
-    bool                debug_synchronous  = false)     ///< [in] <b>[optional]</b> Whether or not to synchronize the stream after every kernel launch to check for errors.  May cause significant slowdown.  Default is \p false.
-{
-    // Signed integer type for global offsets
-    typedef int OffsetT;
+template <typename InputIteratorT, typename OutputIteratorT>
+static cudaError_t PrefixSumKernel64(void* d_temp_storage,
+                                     size_t& temp_storage_bytes,
+                                     InputIteratorT d_in, OutputIteratorT d_out,
+                                     int num_items, cudaStream_t stream = 0,
+                                     bool debug_synchronous = false) {
+  // Signed integer type for global offsets
+  typedef int OffsetT;
 
-    // use size_t for aggregated value.
-    return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum, size_t, OffsetT>::Dispatch(
-        d_temp_storage,
-        temp_storage_bytes,
-        d_in,
-        d_out,
-        cub::Sum(),
-        0,
-        num_items,
-        stream,
-        debug_synchronous);
+  // use size_t for aggregated value.
+  return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum, size_t,
+                           OffsetT>::Dispatch(d_temp_storage,
+                                              temp_storage_bytes, d_in, d_out,
+                                              cub::Sum(), 0, num_items, stream,
+                                              debug_synchronous);
 }
-// clang-format on
 
 template <typename T>
-// clang-format off
-T* SegmentSort(T* d_keys_in, 
-               T* d_keys_buffer, 
-               size_t* d_offset_lo,
-               size_t* d_offset_hi, 
-               size_t num_items, 
-               size_t num_segments) {
-  // clang-format on
+T* SegmentSort(T* d_keys_in, T* d_keys_buffer, size_t* d_offset_lo,
+               size_t* d_offset_hi, size_t num_items, size_t num_segments) {
   if (num_items <= 0 || num_segments <= 0)
     return d_keys_in;
   void* d_temp_storage = nullptr;
@@ -290,15 +258,9 @@ T* SegmentSort(T* d_keys_in,
 }
 
 template <typename I, typename O>
-// clang-format off
 // Force the accumulate type as size_t, and it will always be ExclusiveSum
-void ExclusiveSum64(
-    I* d_keys_in,
-    O* d_keys_out,
-    size_t size,
-    cudaStream_t d_stream
-    ) {
-  // clang-format on
+void ExclusiveSum64(I* d_keys_in, O* d_keys_out, size_t size,
+                    cudaStream_t d_stream) {
   void* d_temp_storage = nullptr;
   size_t temp_storage_bytes = 0;
   const size_t MAX_SIZE = (1ul << 31) - 1ul;
@@ -313,15 +275,9 @@ void ExclusiveSum64(
 }
 
 template <typename I, typename O>
-// clang-format off
 // The accumulate type is I;
-void InclusiveSum(
-    I* d_keys_in,
-    O* d_keys_out,
-    size_t size,
-    cudaStream_t d_stream
-    ) {
-  // clang-format on
+void InclusiveSum(I* d_keys_in, O* d_keys_out, size_t size,
+                  cudaStream_t d_stream) {
   void* d_temp_storage = nullptr;
   size_t temp_storage_bytes = 0;
   const size_t MAX_SIZE = (1ul << 31) - 1ul;

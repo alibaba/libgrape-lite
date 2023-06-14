@@ -181,7 +181,7 @@ inline void ForEachWithIndexWarpDynamic(const Stream& stream,
   if (work_source.size() == 0) {
     return;
   }
-  thrust::device_vector<unsigned long long int> ticket;
+  thrust::device_vector<unsigned long long int> ticket;  // NOLINT
   ticket.resize(1, 256 * 256 / 32);
   auto* d_ticket = thrust::raw_pointer_cast(ticket.data());
   LaunchKernelFix(
@@ -243,7 +243,7 @@ inline void ForEachWithIndexBlockDynamic(const Stream& stream,
   if (work_source.size() == 0) {
     return;
   }
-  thrust::device_vector<unsigned long long int> ticket;
+  thrust::device_vector<unsigned long long int> ticket;  // NOLINT
   ticket.resize(1, 256);
   auto* d_ticket = thrust::raw_pointer_cast(ticket.data());
   LaunchKernelFix(

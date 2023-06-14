@@ -330,8 +330,8 @@ void Run() {
                      grape::LoadStrategy::kBothOutIn, LCCD>(
           comm_spec, efile, vfile, out_prefix, app_config);
     } else {
-      VID_T** col = (VID_T**) malloc(sizeof(VID_T*));
-      size_t** row_offset = (size_t**) malloc(sizeof(size_t*));
+      VID_T** col = reinterpret_cast<VID_T**>(malloc(sizeof(VID_T*)));
+      size_t** row_offset = reinterpret_cast<size_t**>(malloc(sizeof(size_t*)));
       CreateAndQueryWithPreprocess<OID_T, VID_T, VDATA_T, EDATA_T,
                                    grape::LoadStrategy::kOnlyOut, LCCOPT, LCCP>(
           comm_spec, efile, vfile, out_prefix, app_config, col, row_offset);

@@ -188,11 +188,10 @@ class LCC : public GPUAppBase<FRAG_T, LCCContext<FRAG_T>>,
         },
         ctx.lb);
 
-    // clang-format off
     ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-      d_mm.template SendMsgThroughOEdges(dev_frag, v, d_valid_out_degree[v.GetValue()]);
+      d_mm.template SendMsgThroughOEdges(dev_frag, v,
+                                         d_valid_out_degree[v.GetValue()]);
     });
-    // clang-format on
     messages.ForceContinue();
   }
 
