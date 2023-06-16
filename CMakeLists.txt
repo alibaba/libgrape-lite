@@ -28,6 +28,7 @@ if (USE_HUGEPAGES)
 endif ()
 
 if (USE_SIMD)
+  message(STATUS "Enable SIMD")
   add_definitions(-DUSE_BMISS_STTNI_INTERSECT)
 endif ()
 

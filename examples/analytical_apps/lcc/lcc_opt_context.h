@@ -97,11 +97,26 @@ class memory_pool : public ::grape::Allocator<T> {
   const T* begin() const { return cur_begin_; }
   const T* end() const { return cur_end_; }
 
+#ifndef USE_BMISS_STTNI_INTERSECT
   ref_vector<T> finish() {
     ref_vector<T> ret = ref_vector<T>(cur_begin_, cur_end_ - cur_begin_);
     cur_begin_ = cur_end_;
     return ret;
   }
+#else
+  T* align_to(T* input, size_t bytes = 16) {
+    size_t ptr_val = reinterpret_cast<size_t>(input);
+    ptr_val = (ptr_val + bytes - 1) / bytes * bytes;
+    return reinterpret_cast<T*>(ptr_val);
+  }
+
+  ref_vector<T> finish() {
+    ref_vector<T> ret = ref_vector<T>(cur_begin_, cur_end_ - cur_begin_);
+    cur_begin_ = align_to(cur_end_);
+    cur_end_ = cur_begin_;
+    return ret;
+  }
+#endif
 
  private:
   T* cur_begin_;

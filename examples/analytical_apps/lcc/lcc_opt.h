@@ -303,7 +303,7 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
 #ifdef USE_BMISS_STTNI_INTERSECT
 
 template <typename FRAG_T, typename COUNT_T>
-class LCCOpt<FRAG_T, COUNT_T, std::is_same<typename FRAG_T::vid_t, uint32_t>>
+class LCCOpt<FRAG_T, COUNT_T, typename std::enable_if<std::is_same<typename FRAG_T::vid_t, uint32_t>::value>::type>
     : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
                              ParallelMessageManagerOpt>,
       public ParallelEngine {
@@ -334,6 +334,7 @@ class LCCOpt<FRAG_T, COUNT_T, std::is_same<typename FRAG_T::vid_t, uint32_t>>
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
+	  LOG(INFO) << "here";
     auto inner_vertices = frag.InnerVertices();
 
     messages.InitChannels(thread_num());
@@ -400,7 +401,7 @@ class LCCOpt<FRAG_T, COUNT_T, std::is_same<typename FRAG_T::vid_t, uint32_t>>
         j = left;
 
         if (set_a[i] == set_b[j]) {
-          atomic_add(result[list_a[i]], 1);
+          atomic_add(result[list_a[i]], static_cast<count_t>(1));
           ++size_c;
         }
       }
@@ -432,7 +433,7 @@ class LCCOpt<FRAG_T, COUNT_T, std::is_same<typename FRAG_T::vid_t, uint32_t>>
         __m128i cmp_mask = _mm_cmpeq_epi32(v_a, v_b);
         int mask = _mm_movemask_ps((__m128) cmp_mask);
         if (mask != 0) {
-          atomic_add(result[list_a[i]], 1);
+          atomic_add(result[list_a[i]], static_cast<count_t>(1));
           ++size_c;
         }
       }
@@ -443,10 +444,14 @@ class LCCOpt<FRAG_T, COUNT_T, std::is_same<typename FRAG_T::vid_t, uint32_t>>
       int qs_b = size_b - (size_b & 7);
 
       while (i < qs_a && j < qs_b) {
-        __m128i v_a0 = _mm_lddqu_si128((__m128i*) (set_a + i));
-        __m128i v_a1 = _mm_lddqu_si128((__m128i*) (set_a + i + 4));
-        __m128i v_b0 = _mm_lddqu_si128((__m128i*) (set_b + j));
-        __m128i v_b1 = _mm_lddqu_si128((__m128i*) (set_b + j + 4));
+        // __m128i v_a0 = _mm_lddqu_si128((__m128i*) (set_a + i));
+        // __m128i v_a1 = _mm_lddqu_si128((__m128i*) (set_a + i + 4));
+        // __m128i v_b0 = _mm_lddqu_si128((__m128i*) (set_b + j));
+        // __m128i v_b1 = _mm_lddqu_si128((__m128i*) (set_b + j + 4));
+        __m128i v_a0 = _mm_load_si128((__m128i*) (set_a + i));
+        __m128i v_a1 = _mm_load_si128((__m128i*) (set_a + i + 4));
+        __m128i v_b0 = _mm_load_si128((__m128i*) (set_b + j));
+        __m128i v_b1 = _mm_load_si128((__m128i*) (set_b + j + 4));
 
         // byte-wise check by STTNI:
         __m128i byte_group_a0 = _mm_shuffle_epi8(v_a0, BMISS_BC_ORD[0]);
