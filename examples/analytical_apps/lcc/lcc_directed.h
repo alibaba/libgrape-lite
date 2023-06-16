@@ -427,9 +427,9 @@ class LCCDirected<FRAG_T, COUNT_T,
       for (int i = 0; i < size_a; ++i) {
         int r = 1;
         while (j + r < size_b && set_a[i] > set_b[j + r]) {
-          r << 1;
+          r <<= 1;
         }
-        int right = (j + r < size_b) ? j + r : (size_b - 1);
+        int right = (j + r < size_b) ? (j + r) : (size_b - 1);
         if (set_b[right] < set_a[i]) {
           break;
         }
@@ -478,19 +478,23 @@ class LCCDirected<FRAG_T, COUNT_T,
         while (r) {
           int p = _mm_popcnt_u32((~r) & (r - 1));
           r &= (r - 1);
-          __m128i wc_a = _mm_set_epi32(set_a[i + p], set_a[i + p], set_a[i + p],
-                                       set_a[i + p]);
-          if (!_mm_test_all_zeros(_mm_cmpeq_epi32(wc_a, v_b0), all_one_si128) ||
-              !_mm_test_all_zeros(_mm_cmpeq_epi32(wc_a, v_b1), all_one_si128)) {
+          unsigned qm = _mm_movemask_epi8(_mm_cmpeq_epi32(wc_a, v_b0));
+          if (qm) {
             atomic_add(result[list_a[i + p]], static_cast<count_t>(uv_weight));
             *b_ret_ptr += weight_a_ptr[i + p];
-          }
 
-          __m128i wc_b = _mm_set_epi32(set_b[j + p], set_b[j + p], set_b[j + p],
-                                       set_b[j + p]);
-          if (!_mm_test_all_zeros(_mm_cmpeq_epi32(wc_b, v_a0), all_one_si128) ||
-              !_mm_test_all_zeros(_mm_cmpeq_epi32(wc_b, v_a1), all_one_si128)) {
-            *a_ret_ptr += weight_b_ptr[j + p];
+            int q = (__builtin_ctz(qm) >> 2);
+            *a_ret_ptr += weight_b_ptr[j + q];
+          } else {
+            qm = _mm_movemask_epi8(_mm_cmpeq_epi32(wc_a, v_b1));
+            if (qm) {
+              atomic_add(result[list_a[i + p]],
+                         static_cast<count_t>(uv_weight));
+              *b_ret_ptr += weight_a_ptr[i + p];
+
+              int q = (__builtin_ctz(qm) >> 2) + 4;
+              *a_ret_ptr += weight_b_ptr[j + q];
+            }
           }
         }
 
@@ -506,7 +510,7 @@ class LCCDirected<FRAG_T, COUNT_T,
 
       while (i < size_a && j < size_b) {
         if (set_a[i] == set_b[j]) {
-          atomic_add(result[list_a[i]], static_cast<count_t>(1));
+          atomic_add(result[list_a[i]], static_cast<count_t>(uv_weight));
           *a_ret_ptr += weight_b_ptr[j];
           *b_ret_ptr += weight_a_ptr[i];
           i++;
@@ -610,7 +614,7 @@ class LCCDirected<FRAG_T, COUNT_T,
               }
             }
             std::pair<int, uint8_t>* vec_ptr =
-                reinterpret_cast<std::pair<vertex_t, uint8_t>*>(vec.data());
+                reinterpret_cast<std::pair<int, uint8_t>*>(vec.data());
             std::sort(vec_ptr, vec_ptr + vec.size(),
                       [](const std::pair<int, uint8_t>& lhs,
                          const std::pair<int, uint8_t>& rhs) {
@@ -626,7 +630,7 @@ class LCCDirected<FRAG_T, COUNT_T,
             weight_vec = weight_pool.finish();
           });
 
-      ForEach(inner_vertices, [&ctx](int tid, vertex_t v) {
+      ForEach(inner_vertices, [&ctx, this](int tid, vertex_t v) {
         auto& v_nbr_vec = ctx.complete_neighbor[v];
         if (v_nbr_vec.size() <= 1) {
           return;

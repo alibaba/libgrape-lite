@@ -384,7 +384,7 @@ class LCCOpt<FRAG_T, COUNT_T,
       for (int i = 0; i < size_a; ++i) {
         int r = 1;
         while (j + r < size_b && set_a[i] > set_b[j + r]) {
-          r << 1;
+          r <<= 1;
         }
         int right = (j + r < size_b) ? j + r : (size_b - 1);
         if (set_b[right] < set_a[i]) {
@@ -436,6 +436,18 @@ class LCCOpt<FRAG_T, COUNT_T,
         if (mask != 0) {
           atomic_add(result[list_a[i]], static_cast<count_t>(1));
           ++size_c;
+        }
+      }
+      while (i < size_a && j < size_b) {
+        if (set_a[i] == set_b[j]) {
+          atomic_add(result[list_a[i]], static_cast<count_t>(1));
+          ++size_c;
+          ++i;
+          ++j;
+        } else if (set_a[i] < set_b[j]) {
+          ++i;
+        } else {
+          ++j;
         }
       }
 #endif
