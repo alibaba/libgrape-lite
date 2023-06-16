@@ -303,7 +303,9 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
 #ifdef USE_BMISS_STTNI_INTERSECT
 
 template <typename FRAG_T, typename COUNT_T>
-class LCCOpt<FRAG_T, COUNT_T, typename std::enable_if<std::is_same<typename FRAG_T::vid_t, uint32_t>::value>::type>
+class LCCOpt<FRAG_T, COUNT_T,
+             typename std::enable_if<
+                 std::is_same<typename FRAG_T::vid_t, uint32_t>::value>::type>
     : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
                              ParallelMessageManagerOpt>,
       public ParallelEngine {
@@ -334,7 +336,6 @@ class LCCOpt<FRAG_T, COUNT_T, typename std::enable_if<std::is_same<typename FRAG
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
-	  LOG(INFO) << "here";
     auto inner_vertices = frag.InnerVertices();
 
     messages.InitChannels(thread_num());
@@ -406,7 +407,7 @@ class LCCOpt<FRAG_T, COUNT_T, typename std::enable_if<std::is_same<typename FRAG
         }
       }
 #else
-      int i = 0, j = 0, size_c = 0;
+      int i = 0, j = 0;
       int qs_b = size_b - (size_b & 3);
       for (i = 0; i < size_a; ++i) {
         int r = 1;
@@ -439,15 +440,11 @@ class LCCOpt<FRAG_T, COUNT_T, typename std::enable_if<std::is_same<typename FRAG
       }
 #endif
     } else {
-      int i = 0, j = 0, size_c = 0;
+      int i = 0, j = 0;
       int qs_a = size_a - (size_a & 7);
       int qs_b = size_b - (size_b & 7);
 
       while (i < qs_a && j < qs_b) {
-        // __m128i v_a0 = _mm_lddqu_si128((__m128i*) (set_a + i));
-        // __m128i v_a1 = _mm_lddqu_si128((__m128i*) (set_a + i + 4));
-        // __m128i v_b0 = _mm_lddqu_si128((__m128i*) (set_b + j));
-        // __m128i v_b1 = _mm_lddqu_si128((__m128i*) (set_b + j + 4));
         __m128i v_a0 = _mm_load_si128((__m128i*) (set_a + i));
         __m128i v_a1 = _mm_load_si128((__m128i*) (set_a + i + 4));
         __m128i v_b0 = _mm_load_si128((__m128i*) (set_b + j));
@@ -474,7 +471,7 @@ class LCCOpt<FRAG_T, COUNT_T, typename std::enable_if<std::is_same<typename FRAG
                                        set_a[i + p]);
           if (!_mm_test_all_zeros(_mm_cmpeq_epi32(wc_a, v_b0), all_one_si128) ||
               !_mm_test_all_zeros(_mm_cmpeq_epi32(wc_a, v_b1), all_one_si128)) {
-            result[list_a[i + p]]++;
+            atomic_add(result[list_a[i + p]], static_cast<count_t>(1));
             ++size_c;
           }
         }
@@ -491,7 +488,7 @@ class LCCOpt<FRAG_T, COUNT_T, typename std::enable_if<std::is_same<typename FRAG
 
       while (i < size_a && j < size_b) {
         if (set_a[i] == set_b[j]) {
-          result[list_a[i]]++;
+          atomic_add(result[list_a[i]], static_cast<count_t>(1));
           ++size_c;
           i++;
           j++;
