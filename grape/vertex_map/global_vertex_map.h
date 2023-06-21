@@ -303,6 +303,22 @@ class GlobalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
     std::swap(indexers_, new_indexers);
   }
 
+  std::pair<OID_T, OID_T> MinMaxId() const {
+    std::pair<OID_T, OID_T> ret(std::numeric_limits<OID_T>::max(),
+                                std::numeric_limits<OID_T>::min());
+    for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
+      auto& indexer = indexers_[fid];
+      auto pair = indexer.min_max_keys();
+      if (pair.first < ret.first) {
+        ret.first = pair.first;
+      }
+      if (pair.second > ret.second) {
+        ret.second = pair.second;
+      }
+    }
+    return ret;
+  }
+
  private:
   template <typename _OID_T, typename _VID_T, typename _PARTITIONER_T>
   friend class GlobalVertexMapBuilder;

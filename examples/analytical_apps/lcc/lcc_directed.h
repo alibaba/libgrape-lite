@@ -21,8 +21,12 @@ limitations under the License.
 #include <vector>
 
 #include "lcc/lcc.h"
-#include "lcc/lcc_opt.h"
 #include "lcc/lcc_directed_context.h"
+#include "lcc/lcc_opt.h"
+
+#ifdef USE_SIMD_SORT
+#include "x86-simd-sort/avx512-32bit-qsort.hpp"
+#endif
 
 namespace grape {
 
@@ -479,7 +483,7 @@ class LCCDirected<FRAG_T, COUNT_T,
         while (r) {
           int p = _mm_popcnt_u32((~r) & (r - 1));
           r &= (r - 1);
-	  __m128i wc_a = _mm_set_epi32(set_a[i + p], set_a[i + p], set_a[i + p],
+          __m128i wc_a = _mm_set_epi32(set_a[i + p], set_a[i + p], set_a[i + p],
                                        set_a[i + p]);
           unsigned qm = _mm_movemask_epi8(_mm_cmpeq_epi32(wc_a, v_b0));
           if (qm) {
@@ -557,7 +561,11 @@ class LCCDirected<FRAG_T, COUNT_T,
         }
         int* nbr_ptr = reinterpret_cast<int*>(nbr_pool.begin());
         size_t size = nbr_pool.size();
+#ifdef USE_SIMD_SORT
+        avx512_qsort(nbr_ptr, size);
+#else
         std::sort(nbr_ptr, nbr_ptr + size);
+#endif
         weight_pool.reserve(size);
         size_t deduped_index = 0;
         for (size_t i = 0; i != size;) {

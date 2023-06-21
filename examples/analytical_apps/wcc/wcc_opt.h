@@ -22,8 +22,6 @@ limitations under the License.
 
 namespace grape {
 
-#define MIN_COMP_ID(a, b) ((a) < (b) ? (a) : (b))
-
 /**
  * @brief WCC application, determines the weakly connected component each vertex
  * belongs to, which only works on both undirected graph.
@@ -34,17 +32,30 @@ namespace grape {
  *
  * @tparam FRAG_T
  */
-template <typename FRAG_T>
-class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
+template <typename FRAG_T, typename LABEL_T>
+class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T, LABEL_T>,
                                       ParallelMessageManagerOpt>,
                public ParallelEngine {
-  INSTALL_PARALLEL_OPT_WORKER(WCCOpt<FRAG_T>, WCCOptContext<FRAG_T>, FRAG_T)
+ public:
+  using fragment_t = FRAG_T;
+  using label_t = LABEL_T;
+  using context_t = WCCOptContext<fragment_t, label_t>;
+  using message_manager_t = ParallelMessageManagerOpt;
+  using worker_t = ParallelWorkerOpt<WCCOpt<fragment_t, label_t>>;
+  using vid_t = typename fragment_t ::vid_t;
   using vertex_t = typename fragment_t::vertex_t;
-  using oid_t = typename fragment_t::oid_t;
-  using vid_t = typename fragment_t::vid_t;
+
+  virtual ~WCCOpt() {}
+
+  static std::shared_ptr<worker_t> CreateWorker(
+      std::shared_ptr<WCCOpt<FRAG_T, LABEL_T>> app,
+      std::shared_ptr<FRAG_T> frag) {
+    return std::shared_ptr<worker_t>(new worker_t(app, frag));
+  }
 
   static constexpr bool need_split_edges = true;
 
+ private:
   void PropagateLabelPull(const fragment_t& frag, context_t& ctx,
                           message_manager_t& messages) {
     auto inner_vertices = frag.InnerVertices();
@@ -59,7 +70,7 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
       auto es = frag.GetOutgoingInnerVertexAdjList(v);
       for (auto& e : es) {
         auto u = e.get_neighbor();
-        new_cid = MIN_COMP_ID(ctx.comp_id[ctx.tree[u]], new_cid);
+        new_cid = std::min(ctx.comp_id[ctx.tree[u]], new_cid);
       }
       if (new_cid < old_cid) {
         atomic_min(ctx.comp_id[parent], new_cid);
@@ -74,15 +85,15 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
       auto es = frag.GetIncomingAdjList(v);
       for (auto& e : es) {
         auto u = e.get_neighbor();
-        new_cid = MIN_COMP_ID(ctx.comp_id[ctx.tree[u]], new_cid);
+        new_cid = std::min(ctx.comp_id[ctx.tree[u]], new_cid);
       }
       if (new_cid < old_cid) {
         atomic_min(ctx.comp_id[parent], new_cid);
         ctx.next_modified.Insert(parent);
       }
       if (new_cid < ctx.comp_id[v]) {
-        channels[tid].SyncStateOnOuterVertex<fragment_t, oid_t>(frag, v,
-                                                                new_cid);
+        channels[tid].SyncStateOnOuterVertex<fragment_t, label_t>(frag, v,
+                                                                  new_cid);
         ctx.comp_id[v] = new_cid;
       }
     });
@@ -117,8 +128,8 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
       auto parent = ctx.tree[v];
       auto new_cid = ctx.comp_id[parent];
       if (new_cid < ctx.comp_id[v]) {
-        messages.SyncStateOnOuterVertex<fragment_t, oid_t>(frag, v, new_cid,
-                                                           tid);
+        messages.SyncStateOnOuterVertex<fragment_t, label_t>(frag, v, new_cid,
+                                                             tid);
         ctx.comp_id[v] = new_cid;
       }
     });
@@ -136,10 +147,10 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
       auto es = frag.GetOutgoingInnerVertexAdjList(v);
       vertex_t parent = v;
       for (auto& e : es) {
-        parent = MIN_COMP_ID(parent, e.get_neighbor());
+        parent = std::min(parent, e.get_neighbor());
       }
       ctx.tree[v] = parent;
-      ctx.comp_id[v] = std::numeric_limits<oid_t>::max();
+      ctx.comp_id[v] = std::numeric_limits<label_t>::max();
     });
     ForEach(inner_vertices, [&ctx, &frag](int tid, vertex_t v) {
       auto cur = v;
@@ -147,18 +158,18 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
         cur = ctx.tree[cur];
       }
       ctx.tree[v] = cur;
-      oid_t cid = frag.GetInnerVertexId(v);
+      label_t cid = frag.GetInnerVertexId(v);
       atomic_min(ctx.comp_id[cur], cid);
     });
     ForEach(outer_vertices, [&ctx, &frag](int tid, vertex_t v) {
       auto es = frag.GetIncomingAdjList(v);
       vertex_t parent = v;
       for (auto& e : es) {
-        parent = MIN_COMP_ID(parent, ctx.tree[e.get_neighbor()]);
+        parent = std::min(parent, ctx.tree[e.get_neighbor()]);
       }
       ctx.tree[v] = parent;
 
-      oid_t cid = frag.GetOuterVertexId(v);
+      label_t cid = frag.GetOuterVertexId(v);
       atomic_min(ctx.comp_id[parent], cid);
       ctx.comp_id[v] = cid;
     });
@@ -177,8 +188,8 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
     ctx.next_modified.ParallelClear(GetThreadPool());
 
     // aggregate messages
-    messages.ParallelProcess<fragment_t, oid_t>(
-        thread_num(), frag, [&ctx](int tid, vertex_t u, oid_t msg) {
+    messages.ParallelProcess<fragment_t, label_t>(
+        thread_num(), frag, [&ctx](int tid, vertex_t u, label_t msg) {
           vertex_t root = ctx.tree[u];
           if (ctx.comp_id[root] > msg) {
             atomic_min(ctx.comp_id[root], msg);
@@ -195,8 +206,6 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
     ctx.curr_modified.Swap(ctx.next_modified);
   }
 };
-
-#undef MIN_COMP_ID
 
 }  // namespace grape
 #endif  // EXAMPLES_ANALYTICAL_APPS_WCC_WCC_OPT_H_

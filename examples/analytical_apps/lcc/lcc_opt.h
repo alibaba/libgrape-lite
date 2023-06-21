@@ -36,6 +36,9 @@ static const __m128i* BMISS_BC_ORD = (__m128i*) (bmiss_sttni_bc_array);
 static const __m128i all_one_si128 =
     _mm_set_epi32(0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff);
 #endif
+#ifdef USE_SIMD_SORT
+#include "x86-simd-sort/avx512-32bit-qsort.hpp"
+#endif
 
 namespace grape {
 
@@ -553,7 +556,11 @@ class LCCOpt<FRAG_T, COUNT_T,
           return;
         }
         int* nbr_ptr = reinterpret_cast<int*>(nbr_vec.data());
+#ifdef USE_SIMD_SORT
+        avx512_qsort(nbr_ptr, nbr_vec.size());
+#else
         std::sort(nbr_ptr, nbr_ptr + nbr_vec.size());
+#endif
         messages.SendMsgThroughOEdges<fragment_t, VecOutType>(frag, v, msg_vec,
                                                               tid);
       });
@@ -575,7 +582,11 @@ class LCCOpt<FRAG_T, COUNT_T,
             }
             nbr_vec = pool.finish();
             int* nbr_ptr = reinterpret_cast<int*>(nbr_vec.data());
+#ifdef USE_SIMD_SORT
+            avx512_qsort(nbr_ptr, nbr_vec.size());
+#else
             std::sort(nbr_ptr, nbr_ptr + nbr_vec.size());
+#endif
           });
 
       ForEach(inner_vertices, [this, &ctx](int tid, vertex_t v) {
