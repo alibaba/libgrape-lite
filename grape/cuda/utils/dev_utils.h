@@ -1,4 +1,4 @@
-/** Copyright 2022 Alibaba Group Holding Limited.
+/** Copyright 2023 Alibaba Group Holding Limited.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ namespace dev {
 
 #define WARP_SIZE 32
 #define BLK_SIZE 256
-#define WARP_SHM_SIZE 256
+#define WARP_SHM_SIZE 1024
 #define BLK_SHM_SIZE 8192
 
 DEV_HOST_INLINE size_t round_up(size_t numerator, size_t denominator) {
@@ -559,16 +559,16 @@ class ShmHashTable {
 
 template <typename T>
 DEV_INLINE int64_t binary_search_2phase(T* list, T* cache, T key, size_t size,
-                                        size_t shm_per_warp) {
+                                        size_t cache_size) {
   int mid = 0;
   // phase 1: search in the cache
   int bottom = 0;
-  int top = shm_per_warp;
+  int top = cache_size;
   while (top > bottom + 1) {
     mid = (top + bottom) / 2;
     T y = cache[mid];
     if (key == y)
-      return mid * size / shm_per_warp;
+      return mid * size / cache_size;
     if (key < y)
       top = mid;
     if (key > y)
@@ -576,8 +576,8 @@ DEV_INLINE int64_t binary_search_2phase(T* list, T* cache, T key, size_t size,
   }
 
   // phase 2: search in global memory
-  bottom = bottom * size / shm_per_warp;
-  top = top * size / shm_per_warp - 1;
+  bottom = bottom * size / cache_size;
+  top = top * size / cache_size - 1;
   while (top >= bottom) {
     mid = (top + bottom) / 2;
     T y = list[mid];
@@ -692,6 +692,145 @@ DEV_INLINE size_t intersect_num_blk(T* a, size_t size_a, T* b, size_t size_b,
   size_t blk_cnt = block_reduce(t_cnt);
   __syncthreads();
   return blk_cnt;
+}
+
+template <typename T, typename Y>
+DEV_INLINE void intersect_num_bs_cache_d(T* a, size_t size_a, T* b,
+                                         size_t size_b, char* wa, size_t* a_cnt,
+                                         char* wb, size_t* b_cnt, Y callback) {
+  if (size_a == 0 || size_b == 0)
+    return;
+  int thread_lane =
+      threadIdx.x & (WARP_SIZE - 1);        // thread index within the warp
+  int warp_lane = threadIdx.x / WARP_SIZE;  // warp index within the CTA
+  int nwarp = BLK_SIZE / WARP_SIZE;
+  __shared__ T cache[WARP_SHM_SIZE];
+  int shm_size = WARP_SHM_SIZE;
+  int shm_per_warp = shm_size / nwarp;
+  int shm_per_thd = shm_size / BLK_SIZE;
+  T* my_cache = cache + warp_lane * shm_per_warp;
+  T* lookup = a;
+  T* search = b;
+  size_t lookup_size = size_a;
+  size_t search_size = size_b;
+  bool is_reverse = false;
+  if (size_a > size_b) {
+    is_reverse = true;
+    lookup = b;
+    search = a;
+    lookup_size = size_b;
+    search_size = size_a;
+  }
+  for (int i = 0; i < shm_per_thd; ++i) {
+    my_cache[i * WARP_SIZE + thread_lane] =
+        search[(thread_lane + i * WARP_SIZE) * search_size / shm_per_warp];
+  }
+  __syncwarp();
+
+  for (auto i = thread_lane; i < lookup_size; i += WARP_SIZE) {
+    auto key = lookup[i];  // each thread picks a vertex as the key
+    auto search_loc =
+        binary_search_2phase(search, my_cache, key, search_size, shm_per_warp);
+    auto lookup_loc = i;
+    if (search_loc >= 0) {
+      callback(key);
+      if (is_reverse) {
+        *a_cnt += wb[lookup_loc];
+        *b_cnt += wa[search_loc];
+      } else {
+        *a_cnt += wb[search_loc];
+        *b_cnt += wa[lookup_loc];
+      }
+    }
+  }
+  return;
+}
+
+template <typename T, typename Y>
+DEV_INLINE void intersect_num_d(T* a, size_t size_a, T* b, size_t size_b,
+                                char* wa, size_t* a_cnt, char* wb,
+                                size_t* b_cnt, Y callback) {
+  intersect_num_bs_cache_d(a, size_a, b, size_b, wa, a_cnt, wb, b_cnt,
+                           callback);
+  __syncwarp();
+  size_t l_a_cnt = *a_cnt;
+  size_t l_b_cnt = *b_cnt;
+  l_a_cnt = warp_reduce(l_a_cnt);
+  l_b_cnt = warp_reduce(l_b_cnt);
+  *a_cnt = l_a_cnt;
+  *b_cnt = l_b_cnt;
+  __syncwarp();
+  return;
+}
+
+template <typename T, typename Y>
+DEV_INLINE void intersect_num_bs_cache_blk_d(T* a, size_t size_a, T* b,
+                                             size_t size_b, char* wa,
+                                             size_t* a_cnt, char* wb,
+                                             size_t* b_cnt, Y callback) {
+  if (size_a == 0 || size_b == 0)
+    return;
+  int thread_lane =
+      threadIdx.x & (BLK_SIZE - 1);        // thread index within the warp
+  int warp_lane = threadIdx.x / BLK_SIZE;  // warp index within the CTA
+  int nwarp = BLK_SIZE / BLK_SIZE;
+  __shared__ T cache[BLK_SHM_SIZE];
+  int shm_size = BLK_SHM_SIZE;
+  int shm_per_warp = shm_size / nwarp;
+  int shm_per_thd = shm_size / BLK_SIZE;
+  T* my_cache = cache + warp_lane * shm_per_warp;
+  T* lookup = a;
+  T* search = b;
+  size_t lookup_size = size_a;
+  size_t search_size = size_b;
+  bool is_reverse = false;
+  if (size_a > size_b) {
+    is_reverse = true;
+    lookup = b;
+    search = a;
+    lookup_size = size_b;
+    search_size = size_a;
+  }
+  for (int i = 0; i < shm_per_thd; ++i) {
+    my_cache[i * BLK_SIZE + thread_lane] =
+        search[(thread_lane + i * BLK_SIZE) * search_size / shm_per_warp];
+  }
+  __syncthreads();
+
+  for (auto i = thread_lane; i < lookup_size; i += BLK_SIZE) {
+    auto key = lookup[i];  // each thread picks a vertex as the key
+    auto search_loc =
+        binary_search_2phase(search, my_cache, key, search_size, shm_per_warp);
+    auto lookup_loc = i;
+    if (search_loc >= 0) {
+      callback(key);
+      if (is_reverse) {
+        *a_cnt += wb[lookup_loc];
+        *b_cnt += wa[search_loc];
+      } else {
+        *a_cnt += wb[search_loc];
+        *b_cnt += wa[lookup_loc];
+      }
+    }
+  }
+  return;
+}
+
+template <typename T, typename Y>
+DEV_INLINE void intersect_num_blk_d(T* a, size_t size_a, T* b, size_t size_b,
+                                    char* wa, size_t* a_cnt, char* wb,
+                                    size_t* b_cnt, Y callback) {
+  intersect_num_bs_cache_blk_d(a, size_a, b, size_b, wa, a_cnt, wb, b_cnt,
+                               callback);
+  __syncthreads();
+  size_t l_a_cnt = *a_cnt;
+  size_t l_b_cnt = *b_cnt;
+  l_a_cnt = block_reduce(l_a_cnt);
+  l_b_cnt = block_reduce(l_b_cnt);
+  __syncthreads();
+  *a_cnt = l_a_cnt;
+  *b_cnt = l_b_cnt;
+  return;
 }
 
 template <typename T>

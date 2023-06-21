@@ -197,16 +197,13 @@ class WCC : public GPUAppBase<FRAG_T, WCCContext<FRAG_T>>,
           ctx.lb);
     }
 
-    for (fid_t fid = 0; fid < frag.fnum(); fid++) {
-      auto ov = frag.OuterVertices(fid);
-      auto ws_in = WorkSourceRange<vertex_t>(*ov.begin(), ov.size());
+    auto ws_ov = WorkSourceRange<vertex_t>(*ov.begin(), ov.size());
 
-      ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {
-        if (d_out_q_remote.Exist(v)) {
-          d_mm.template SyncStateOnOuterVertexWarpOpt(d_frag, v, d_label[v]);
-        }
-      });
-    }
+    ForEach(stream, ws_ov, [=] __device__(vertex_t v) mutable {
+      if (d_out_q_remote.Exist(v)) {
+        d_mm.template SyncStateOnOuterVertexWarpOpt(d_frag, v, d_label[v]);
+      }
+    });
     auto local_size = out_q_local.Count(stream);
 #ifdef PROFILING
     traversal_kernel_time = grape::GetCurrentTime() - traversal_kernel_time;

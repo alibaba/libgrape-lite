@@ -49,6 +49,24 @@ class InArchive {
   }
 
   template <typename T>
+  DEV_INLINE void AddBytesWarpOpt(int fid, const T& elem) {
+    auto g = cooperative_groups::coalesced_threads();
+    uint32_t mask = g.match_any(fid);
+    uint32_t prefix = (1 << g.thread_rank()) - 1;
+    uint32_t prefix_num = __popc(mask & prefix);
+    uint32_t count = __popc(mask);
+    uint32_t leader = __ffs(mask) - 1;
+    int warp_res;
+    if (g.thread_rank() == leader) {
+      warp_res = atomicAdd(size_, count * sizeof(T));
+    }
+    auto begin = g.shfl(warp_res, leader) + prefix_num * sizeof(T);
+
+    assert(begin < buffer_.size());
+    *reinterpret_cast<T*>(buffer_.data() + begin) = elem;
+  }
+
+  template <typename T>
   DEV_INLINE void AddBytesWarp(const T& elem) {
     auto g = cooperative_groups::coalesced_threads();
     int warp_res;

@@ -38,6 +38,8 @@ limitations under the License.
 #include "cuda/cdlp/cdlp.h"
 #include "cuda/lcc/lcc.h"
 #include "cuda/lcc/lcc_directed.h"
+#include "cuda/lcc/lcc_directed_opt.h"
+#include "cuda/lcc/lcc_directed_preprocess.h"
 #include "cuda/lcc/lcc_opt.h"
 #include "cuda/lcc/lcc_preprocess.h"
 #include "cuda/pagerank/pagerank.h"
@@ -325,13 +327,18 @@ void Run() {
           FLAGS_pr_mr);
     }
   } else if (application == "lcc") {
+    VID_T** col = reinterpret_cast<VID_T**>(malloc(sizeof(VID_T*)));
+    size_t** row_offset = reinterpret_cast<size_t**>(malloc(sizeof(size_t*)));
     if (FLAGS_directed) {
-      CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T,
-                     grape::LoadStrategy::kBothOutIn, LCCD>(
-          comm_spec, efile, vfile, out_prefix, app_config);
+      char** weight = reinterpret_cast<char**>(malloc(sizeof(char*)));
+      size_t** true_degree =
+          reinterpret_cast<size_t**>(malloc(sizeof(size_t*)));
+      CreateAndQueryWithPreprocess<OID_T, VID_T, VDATA_T, EDATA_T,
+                                   grape::LoadStrategy::kBothOutIn, LCCDOPT,
+                                   LCCDP>(comm_spec, efile, vfile, out_prefix,
+                                          app_config, col, row_offset, weight,
+                                          true_degree);
     } else {
-      VID_T** col = reinterpret_cast<VID_T**>(malloc(sizeof(VID_T*)));
-      size_t** row_offset = reinterpret_cast<size_t**>(malloc(sizeof(size_t*)));
       CreateAndQueryWithPreprocess<OID_T, VID_T, VDATA_T, EDATA_T,
                                    grape::LoadStrategy::kOnlyOut, LCCOPT, LCCP>(
           comm_spec, efile, vfile, out_prefix, app_config, col, row_offset);

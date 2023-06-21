@@ -34,11 +34,13 @@ class Bitset<uint32_t> {
  public:
   __host__ __device__ Bitset(ArrayView<uint64_t> data, uint32_t size,
                              uint32_t* positive_count)
-      : data_(data), size_(size), positive_count_(positive_count) {}
+      : data_(reinterpret_cast<uint32_t*>(data.data()), 2 * data.size()),
+        size_(size),
+        positive_count_(positive_count) {}
 
   __device__ __forceinline__ bool set_bit(uint32_t pos) {
     assert(pos < size_);
-    auto bit = (uint64_t) 1l << bit_offset(pos);
+    auto bit = (uint32_t) 1 << bit_offset(pos);
     if (data_[word_offset(pos)] & bit) {
       return false;
     }
@@ -49,22 +51,10 @@ class Bitset<uint32_t> {
 
   __device__ __forceinline__ bool set_bit_atomic(uint32_t pos) {
     assert(pos < size_);
-    uint64_t old_val, new_val;
-    do {
-      old_val = data_[word_offset(pos)];
-      if (old_val & ((uint64_t) 1l << bit_offset(pos))) {
-        return false;
-      }
-      new_val = old_val | ((uint64_t) 1l << bit_offset(pos));
-    } while (
-        old_val !=
-        atomicCAS(
-            reinterpret_cast<unsigned long long int*>(  // NOLINT(runtime/int)
-                data_.data() + word_offset(pos)),
-            old_val, new_val));
+    auto bit = (uint32_t) 1 << bit_offset(pos);
+    uint32_t old_val = atomicOr((data_.data() + word_offset(pos)), bit);
     if ((old_val & (1l << bit_offset(pos))) == 0) {
       auto g = cooperative_groups::coalesced_threads();
-
       if (g.thread_rank() == 0) {
         atomicAdd(positive_count_, g.size());
       }
@@ -98,16 +88,16 @@ class Bitset<uint32_t> {
   }
 
  private:
-  __device__ __forceinline__ uint64_t word_offset(uint32_t n) const {
+  __device__ __forceinline__ uint32_t word_offset(uint32_t n) const {
     return n / kBitsPerWord;
   }
 
-  __device__ __forceinline__ uint64_t bit_offset(uint32_t n) const {
+  __device__ __forceinline__ uint32_t bit_offset(uint32_t n) const {
     return n & (kBitsPerWord - 1);
   }
-  static const uint32_t kBitsPerWord = 64;
+  static const uint32_t kBitsPerWord = 32;
 
-  ArrayView<uint64_t> data_;
+  ArrayView<uint32_t> data_;
   uint32_t size_{};
   uint32_t* positive_count_{};
 };

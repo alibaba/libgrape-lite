@@ -599,6 +599,7 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
             break;
           }
         }
+        __syncwarp();
         if (chunk_size == 0) {
           break;
         }
@@ -606,8 +607,10 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
         if (lane < v_size) {
           deg = row_offset[offset + lane];
         }
+        __syncwarp();
         WarpScan(temp_storage[threadIdx.x / 32])
             .ExclusiveSum(deg, row_offset[threadIdx.x]);
+        __syncwarp();
         assert(chunk_size <= warp_size);
         if (lane < chunk_size) {
           int loc = thrust::upper_bound(thrust::seq, row_offset + offset,
@@ -621,6 +624,7 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
           V[offset + lane] = 0xffffffff;
           labels[offset + lane] = 0xffffffffffffffff;
         }
+        __syncwarp();
 
         uint32_t active_mask = __ballot_sync(0xffffffff, lane < chunk_size);
         uint32_t vmask = __match_any_sync(active_mask, V[offset + lane]);
@@ -634,6 +638,7 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
           candidate =
               max_count == count ? labels[offset + lane] : 0xffffffffffffffff;
         }
+        __syncwarp();
         uint64_t min_candidate = dev::reduce_min_sync(vmask, candidate);
         label_t new_label = min_candidate;
         uint32_t leader = __ffs(vmask) - 1;
@@ -657,6 +662,7 @@ class CDLP : public GPUAppBase<FRAG_T, CDLPContext<FRAG_T>>,
             }
           }
         }
+        __syncwarp();
       }
     });
   }

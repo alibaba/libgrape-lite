@@ -69,15 +69,15 @@ class MessageManager {
       const GRAPH_T& frag, const typename GRAPH_T::vertex_t& v,
       const MESSAGE_T& msg) {
     fid_t fid = frag.GetFragId(v);
-    to_send_[fid].AddBytesWarp(
-        thrust::make_pair(frag.GetOuterVertexGid(v), msg));
+    to_send_[fid].AddBytesWarpOpt(
+        fid, thrust::make_pair(frag.GetOuterVertexGid(v), msg));
   }
 
   template <typename GRAPH_T>
   DEV_INLINE void SyncStateOnOuterVertexWarpOpt(
       const GRAPH_T& frag, const typename GRAPH_T::vertex_t& v) {
     fid_t fid = frag.GetFragId(v);
-    to_send_[fid].AddBytesWarp(frag.GetOuterVertexGid(v));
+    to_send_[fid].AddBytesWarpOpt(fid, frag.GetOuterVertexGid(v));
   }
 
   template <typename GRAPH_T, typename MESSAGE_T>
