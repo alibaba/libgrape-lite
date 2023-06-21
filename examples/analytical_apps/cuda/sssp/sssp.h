@@ -292,8 +292,8 @@ class SSSP : public GPUAppBase<FRAG_T, SSSPContext<FRAG_T>>,
 #endif
     }
 
-    for (fid_t fid = 0; fid < frag.fnum(); fid++) {
-      auto ov = frag.OuterVertices(fid);
+    {
+      auto ov = frag.OuterVertices();
       auto ws_in = WorkSourceRange<vertex_t>(*ov.begin(), ov.size());
 
       ForEach(stream, ws_in, [=] __device__(vertex_t v) mutable {

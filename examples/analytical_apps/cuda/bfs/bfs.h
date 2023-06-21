@@ -47,8 +47,8 @@ class BFSContext : public grape::VoidContext<FRAG_T> {
     next_active_map.Init(iv);
     visited.Init(iv);
 
-    messages.InitBuffer((sizeof(depth_t) + sizeof(vid_t)) * ov.size(),
-                        (sizeof(depth_t) + sizeof(vid_t)) * iv.size());
+    messages.InitBuffer((sizeof(vid_t)) * ov.size(),
+                        (sizeof(vid_t)) * iv.size());
   }
 
   void Output(std::ostream& os) override {
@@ -63,7 +63,7 @@ class BFSContext : public grape::VoidContext<FRAG_T> {
   }
 
   oid_t src_id{};
-  double active_ratio;
+  int depth_to_use_pull;
   LoadBalancing lb{};
   depth_t curr_depth{};
   VertexArray<depth_t, vid_t> depth;
@@ -74,7 +74,8 @@ class BFSContext : public grape::VoidContext<FRAG_T> {
 
 template <typename FRAG_T>
 class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
-            public ParallelEngine {
+            public ParallelEngine,
+            public Communicator {
  public:
   INSTALL_GPU_WORKER(BFS<FRAG_T>, BFSContext<FRAG_T>, FRAG_T)
   using depth_t = typename context_t::depth_t;
@@ -90,6 +91,7 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
     auto src_id = ctx.src_id;
     vertex_t source;
     bool native_source = frag.GetInnerVertex(src_id, source);
+    bool isDirected = frag.load_strategy == grape::LoadStrategy::kBothOutIn;
 
     if (native_source) {
       LaunchKernel(
@@ -108,6 +110,23 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
           },
           frag.DeviceObject(), ctx.depth.DeviceObject(),
           ctx.current_active_map.DeviceObject(), ctx.visited.DeviceObject());
+    }
+    size_t edge_num = frag.GetOutgoingEdgeNum() +
+                      (isDirected ? frag.GetIncomingEdgeNum() : 0);
+    size_t total_edge_num;
+    Sum(edge_num, total_edge_num);
+    size_t total_vertex_num = frag.GetTotalVerticesNum();
+    double avg_degree = (total_edge_num / 2.0) / total_vertex_num;
+    if (avg_degree > 45) {
+      ctx.depth_to_use_pull = -1;
+    } else if (avg_degree > 20 && avg_degree < 40) {
+      if (total_vertex_num > 50000000 && avg_degree < 30) {
+        ctx.depth_to_use_pull = 4;
+      } else {
+        ctx.depth_to_use_pull = 2;
+      }
+    } else {
+      ctx.depth_to_use_pull = -1;
     }
     messages.ForceContinue();
   }
@@ -151,8 +170,15 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
     auto visited_num = visited.Count(stream);
     double active_ratio = (active + 0.0) / ivnum;
     double visited_ratio = (visited_num + 0.0) / ivnum;
-    bool usePush = (2.5 * active_ratio < (1 - visited_ratio)) || (active == 0);
-    if (usePush) {
+    bool usePush = (2.5 * active_ratio < (1 - visited_ratio));
+    if (ctx.depth_to_use_pull >= 0) {
+      if (ctx.depth_to_use_pull > ctx.curr_depth) {
+        usePush = true;
+      } else {
+        usePush = false;
+      }
+    }
+    if (active == 0 || usePush) {
       // push-based search
       WorkSourceRange<vertex_t> ws_iv(*iv.begin(), iv.size());
       ForEach(stream, ws_iv, [=] __device__(vertex_t v) mutable {
@@ -166,14 +192,13 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
           stream, d_frag, ws_in,
           [=] __device__(const vertex_t& u, const nbr_t& nbr) mutable {
             vertex_t v = nbr.get_neighbor();
-
             if (next_depth < d_depth[v]) {
               d_depth[v] = next_depth;
               if (d_frag.IsInnerVertex(v)) {
                 d_next_active_map.Insert(v);
                 d_visited.Insert(v);
               } else {
-                d_mm.SyncStateOnOuterVertex(d_frag, v);
+                d_mm.SyncStateOnOuterVertexWarpOpt(d_frag, v);
               }
             }
           },
@@ -190,7 +215,7 @@ class BFS : public GPUAppBase<FRAG_T, BFSContext<FRAG_T>>,
             assert(d_frag.IsInnerVertex(u));
             if (d_current_active_map.Exist(u)) {
               d_depth[v] = next_depth;
-              d_mm.SyncStateOnOuterVertex(d_frag, v);
+              d_mm.SyncStateOnOuterVertexWarpOpt(d_frag, v);
               break;
             }
           }
