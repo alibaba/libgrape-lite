@@ -142,39 +142,6 @@ bool is_int32(int64_t v) {
          v >= std::numeric_limits<int32_t>::min();
 }
 
-void RunWCC(const CommSpec& comm_spec, const std::string& out_prefix,
-            const ParallelEngineSpec& spec) {
-  timer_next("load graph");
-  LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
-  graph_spec.set_directed(FLAGS_directed);
-  graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
-  if (FLAGS_deserialize) {
-    graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
-  } else if (FLAGS_serialize) {
-    graph_spec.set_serialize(true, FLAGS_serialization_prefix);
-  }
-
-  using VertexMapType =
-      GlobalVertexMap<int64_t, uint32_t, SegmentedPartitioner<int64_t>>;
-  using FRAG_T =
-      ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType, EmptyType,
-                               LoadStrategy::kOnlyOut, VertexMapType>;
-
-  std::shared_ptr<FRAG_T> fragment =
-      LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-
-  std::pair<int64_t, int64_t> min_max_id = fragment->GetVertexMap()->MinMaxId();
-  if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
-    using AppType = WCCOpt<FRAG_T, int32_t>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType>(fragment, app, comm_spec, spec, out_prefix);
-  } else {
-    using AppType = WCCOpt<FRAG_T, int64_t>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType>(fragment, app, comm_spec, spec, out_prefix);
-  }
-}
-
 void RunDirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
                      const ParallelEngineSpec& spec) {
   timer_next("load graph");
@@ -229,32 +196,16 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
       LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
 
   std::pair<int64_t, int64_t> min_max_id = fragment->GetVertexMap()->MinMaxId();
-  double avg_deg = static_cast<double>(FLAGS_edge_num) /
-                   static_cast<double>(FLAGS_vertex_num);
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
-    if (avg_deg > 80) {
-      using AppType = CDLPOptUDDense<FRAG_T, int32_t>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
-                                    FLAGS_cdlp_mr);
-    } else {
-      using AppType = CDLPOptUD<FRAG_T, int32_t>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
-                                    FLAGS_cdlp_mr);
-    }
+    using AppType = CDLPOptUD<FRAG_T, int32_t>;
+    auto app = std::make_shared<AppType>();
+    DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
+                                  FLAGS_cdlp_mr);
   } else {
-    if (avg_deg > 80) {
-      using AppType = CDLPOptUDDense<FRAG_T, int64_t>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
-                                    FLAGS_cdlp_mr);
-    } else {
-      using AppType = CDLPOptUD<FRAG_T, int64_t>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
-                                    FLAGS_cdlp_mr);
-    }
+    using AppType = CDLPOptUD<FRAG_T, int64_t>;
+    auto app = std::make_shared<AppType>();
+    DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
+                                  FLAGS_cdlp_mr);
   }
 }
 
@@ -365,7 +316,8 @@ void RunOpt() {
     FLAGS_directed = false;
     FLAGS_segmented_partition = true;
     FLAGS_rebalance = false;
-    RunWCC(comm_spec, out_prefix, spec);
+    CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, WCCOpt>(
+        comm_spec, out_prefix, spec);
   } else if (name == "lcc") {
     if (FLAGS_directed) {
       FLAGS_segmented_partition = false;

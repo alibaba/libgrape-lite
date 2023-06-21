@@ -101,6 +101,10 @@ inline LABEL_T update_label_fast_jump(const ADJ_LIST_T& edges,
     curr_label = local_labels[curr];
     int next = curr + best_count;
     if (local_labels[next] == curr_label) {
+      int mid = (curr + label_num) / 2;
+      if (local_labels[mid] == curr_label) {
+        return curr_label;
+      }
       do {
         ++next;
       } while (next != label_num && (local_labels[next] == curr_label));

@@ -188,6 +188,8 @@ class IdIndexer {
         min_max_keys[0].second = min_max_keys[i].second;
       }
     }
+
+    return min_max_keys[0];
   }
 
   bool add(const KEY_T& oid, INDEX_T& lid) {

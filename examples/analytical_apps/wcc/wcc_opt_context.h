@@ -20,22 +20,24 @@ limitations under the License.
 
 namespace grape {
 
+template <typename FRAG_T>
+using WCCOptContextType = VertexDataContext<FRAG_T, typename FRAG_T::oid_t>;
+
 /**
  * @brief Context for the parallel version of WCC.
  *
  * @tparam FRAG_T
  */
-template <typename FRAG_T, typename LABEL_T>
-class WCCOptContext : public VertexDataContext<FRAG_T, LABEL_T> {
+template <typename FRAG_T>
+class WCCOptContext : public WCCOptContextType<FRAG_T> {
  public:
   using oid_t = typename FRAG_T::oid_t;
   using vid_t = typename FRAG_T::vid_t;
-  using cid_t = LABEL_T;
+  using cid_t = typename WCCOptContextType<FRAG_T>::data_t;
   using vertex_t = typename FRAG_T::vertex_t;
 
   explicit WCCOptContext(const FRAG_T& fragment)
-      : VertexDataContext<FRAG_T, LABEL_T>(fragment, true),
-        comp_id(this->data()) {}
+      : WCCOptContextType<FRAG_T>(fragment, true), comp_id(this->data()) {}
 
   void Init(ParallelMessageManagerOpt& messages) {
     auto& frag = this->fragment();
@@ -59,7 +61,6 @@ class WCCOptContext : public VertexDataContext<FRAG_T, LABEL_T> {
   DenseVertexSet<typename FRAG_T::inner_vertices_t> curr_modified;
   DenseVertexSet<typename FRAG_T::inner_vertices_t> next_modified;
 };
-
 }  // namespace grape
 
 #endif  // EXAMPLES_ANALYTICAL_APPS_WCC_WCC_OPT_CONTEXT_H_
