@@ -72,28 +72,32 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
                                  load_strategy, VertexMapType>;
     std::shared_ptr<FRAG_T> fragment =
         LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    uint64_t local_ivnum = fragment->GetInnerVerticesNum();
-    uint64_t local_ovnum = fragment->GetOuterVerticesNum();
-    uint64_t total_ivnum, total_ovnum;
-    MPI_Allreduce(&local_ivnum, &total_ivnum, 1, MPI_UINT64_T, MPI_SUM,
-                  comm_spec.comm());
-    MPI_Allreduce(&local_ovnum, &total_ovnum, 1, MPI_UINT64_T, MPI_SUM,
-                  comm_spec.comm());
+    bool push;
+    if (fragment->fnum() >= 8) {
+      uint64_t local_ivnum = fragment->GetInnerVerticesNum();
+      uint64_t local_ovnum = fragment->GetOuterVerticesNum();
+      uint64_t total_ivnum, total_ovnum;
+      MPI_Allreduce(&local_ivnum, &total_ivnum, 1, MPI_UINT64_T, MPI_SUM,
+                    comm_spec.comm());
+      MPI_Allreduce(&local_ovnum, &total_ovnum, 1, MPI_UINT64_T, MPI_SUM,
+                    comm_spec.comm());
 
-    double avg_degree = static_cast<double>(FLAGS_edge_num) /
-                        static_cast<double>(FLAGS_vertex_num);
-    double rate =
-        static_cast<double>(total_ovnum) / static_cast<double>(total_ivnum);
+      double avg_degree = static_cast<double>(FLAGS_edge_num) /
+                          static_cast<double>(FLAGS_vertex_num);
+      double rate =
+          static_cast<double>(total_ovnum) / static_cast<double>(total_ivnum);
 
-    bool push = false;
-    if (rate < 0.5) {
-      // not to many outer vertices
-      push = true;
-    } else if (avg_degree > 60) {
-      // dense
-      push = true;
+      if (rate < 0.5) {
+        // not to many outer vertices
+        push = true;
+      } else if (avg_degree > 60) {
+        // dense
+        push = true;
+      } else {
+        push = false;
+      }
     } else {
-      push = false;
+      push = true;
     }
 
     if (!push) {
@@ -195,17 +199,32 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   std::shared_ptr<FRAG_T> fragment =
       LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
 
+  double avg_degree = static_cast<double>(FLAGS_edge_num) / static_cast<double>(FLAGS_vertex_num);
   std::pair<int64_t, int64_t> min_max_id = fragment->GetVertexMap()->MinMaxId();
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
-    using AppType = CDLPOptUD<FRAG_T, int32_t>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
-                                  FLAGS_cdlp_mr);
+    if (avg_degree > 256) {
+      using AppType = CDLPOptUDDense<FRAG_T, int32_t>;
+      auto app = std::make_shared<AppType>();
+      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
+                                    FLAGS_cdlp_mr);
+    } else {
+      using AppType = CDLPOptUD<FRAG_T, int32_t>;
+      auto app = std::make_shared<AppType>();
+      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
+                                    FLAGS_cdlp_mr);
+    }
   } else {
-    using AppType = CDLPOptUD<FRAG_T, int64_t>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
-                                  FLAGS_cdlp_mr);
+    if (avg_degree > 256) {
+      using AppType = CDLPOptUDDense<FRAG_T, int64_t>;
+      auto app = std::make_shared<AppType>();
+      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
+                                    FLAGS_cdlp_mr);
+    } else {
+      using AppType = CDLPOptUD<FRAG_T, int64_t>;
+      auto app = std::make_shared<AppType>();
+      DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
+                                    FLAGS_cdlp_mr);
+    }
   }
 }
 
