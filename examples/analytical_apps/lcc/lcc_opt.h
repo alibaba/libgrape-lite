@@ -31,7 +31,8 @@ static const uint8_t bmiss_sttni_bc_array[32] = {
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     255, 255, 0,   1,   4,   5,   8,   9,   12,  13,
 };
-static const __m128i* BMISS_BC_ORD = (__m128i*) (bmiss_sttni_bc_array);
+static const __m128i* BMISS_BC_ORD =
+    reinterpret_cast<__m128i*>(bmiss_sttni_bc_array);
 
 static const __m128i all_one_si128 =
     _mm_set_epi32(0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff);
