@@ -144,54 +144,6 @@ class IdIndexer {
 
   size_t entry_num() const { return distances_.size(); }
 
-  std::pair<KEY_T, KEY_T> min_max_keys() const {
-    int thread_num = std::thread::hardware_concurrency();
-    std::vector<std::thread> threads;
-    std::atomic<size_t> cur_index(0);
-    const size_t chunk = 4096;
-    size_t keys_num = keys_.size();
-    std::vector<std::pair<KEY_T, KEY_T>> min_max_keys(thread_num);
-    for (int i = 0; i < thread_num; ++i) {
-      threads.emplace_back(
-          [&](int tid) {
-            KEY_T min_key = std::numeric_limits<KEY_T>::max();
-            KEY_T max_key = std::numeric_limits<KEY_T>::min();
-            while (true) {
-              size_t begin = std::min(cur_index.fetch_add(chunk), keys_num);
-              size_t end = std::min(begin + chunk, keys_num);
-              if (begin == end) {
-                break;
-              }
-              while (begin != end) {
-                auto cur_key = keys_[begin++];
-                if (cur_key > max_key) {
-                  max_key = cur_key;
-                } else if (cur_key < min_key) {
-                  min_key = cur_key;
-                }
-              }
-            }
-
-            min_max_keys[tid] = std::make_pair(min_key, max_key);
-          },
-          i);
-    }
-    for (auto& t : threads) {
-      t.join();
-    }
-
-    for (int i = 1; i < thread_num; ++i) {
-      if (min_max_keys[i].first < min_max_keys[0].first) {
-        min_max_keys[0].first = min_max_keys[i].first;
-      }
-      if (min_max_keys[i].second > min_max_keys[0].second) {
-        min_max_keys[0].second = min_max_keys[i].second;
-      }
-    }
-
-    return min_max_keys[0];
-  }
-
   bool add(const KEY_T& oid, INDEX_T& lid) {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);

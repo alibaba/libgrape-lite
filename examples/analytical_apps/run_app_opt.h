@@ -141,6 +141,47 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
   }
 }
 
+template <typename VERTEX_MAP_T>
+std::pair<int64_t, int64_t> min_max_id(const VERTEX_MAP_T& vm) {
+  fid_t fnum = vm.GetFragmentNum();
+  using vid_t = typename VERTEX_MAP_T::vid_t;
+  int thread_num = std::thread::hardware_concurrency();
+  std::vector<int64_t> min_ids(thread_num, std::numeric_limits<int64_t>::max());
+  std::vector<int64_t> max_ids(thread_num,
+                               std::numeric_limits<int64_t>::min());
+  for (fid_t i = 0; i != fnum; ++i) {
+    vid_t ivnum = vm.GetInnerVertexSize(i);
+    std::atomic<vid_t> cur(0);
+    const vid_t chunk = 4096;
+    std::vector<std::thread> threads;
+    for (int j = 0; j < thread_num; ++j) {
+      threads.emplace_back([&](int tid) {
+        vid_t begin = std::min(cur.fetch_add(chunk), ivnum);
+        vid_t end = std::min(begin + chunk, ivnum);
+        int64_t local_min = std::numeric_limits<int64_t>::max();
+        int64_t local_max = std::numeric_limits<int64_t>::min();
+        if (begin == end) {
+          min_ids[tid] = std::min(min_ids[tid], local_min);
+          max_ids[tid] = std::max(max_ids[tid], local_max);
+          return;
+        }
+        while (begin != end) {
+          int64_t oid;
+          CHECK(vm.GetOid(i, begin++, oid));
+          local_max = std::max(local_max, oid);
+          local_min = std::min(local_min, oid);
+        }
+      }, j);
+    }
+    for (auto& thrd : threads) {
+      thrd.join();
+    }
+  }
+  return std::make_pair(
+      *std::min_element(min_ids.begin(), min_ids.end()),
+      *std::max_element(max_ids.begin(), max_ids.end())
+}
+
 bool is_int32(int64_t v) {
   return v <= std::numeric_limits<int32_t>::max() &&
          v >= std::numeric_limits<int32_t>::min();
@@ -164,7 +205,7 @@ void RunDirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   std::shared_ptr<FRAG_T> fragment =
       LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
 
-  std::pair<int64_t, int64_t> min_max_id = fragment->GetVertexMap()->MinMaxId();
+  std::pair<int64_t, int64_t> min_max_id = min_max_id(*fragment->GetVertexMap());
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
     using AppType = CDLPOpt<FRAG_T, int32_t>;
     auto app = std::make_shared<AppType>();
@@ -201,7 +242,7 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
 
   double avg_degree = static_cast<double>(FLAGS_edge_num) /
                       static_cast<double>(FLAGS_vertex_num);
-  std::pair<int64_t, int64_t> min_max_id = fragment->GetVertexMap()->MinMaxId();
+  std::pair<int64_t, int64_t> min_max_id = min_max_id(*fragment->GetVertexMap());
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
     if (avg_degree > 256) {
       using AppType = CDLPOptUDDense<FRAG_T, int32_t>;
