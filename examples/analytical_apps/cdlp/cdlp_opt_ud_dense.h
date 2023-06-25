@@ -33,17 +33,34 @@ namespace grape {
  *
  * @tparam FRAG_T
  */
-template <typename FRAG_T>
-class CDLPOptUDDense : public ParallelAppBase<FRAG_T, CDLPOptContext<FRAG_T>,
-                                              ParallelMessageManagerOpt>,
-                       public ParallelEngine {
-  INSTALL_PARALLEL_OPT_WORKER(CDLPOptUDDense<FRAG_T>, CDLPOptContext<FRAG_T>,
-                              FRAG_T)
+template <typename FRAG_T, typename LABEL_T>
+class CDLPOptUDDense
+    : public ParallelAppBase<FRAG_T, CDLPOptContext<FRAG_T, LABEL_T>,
+                             ParallelMessageManagerOpt>,
+      public ParallelEngine {
+ public:
+  using fragment_t = FRAG_T;
+  using label_t = LABEL_T;
+  using context_t = CDLPOptContext<fragment_t, label_t>;
+  using message_manager_t = ParallelMessageManagerOpt;
+  using worker_t = ParallelWorkerOpt<CDLPOptUDDense<fragment_t, label_t>>;
+  using vid_t = typename fragment_t ::vid_t;
+  using vertex_t = typename fragment_t::vertex_t;
+
+  virtual ~CDLPOptUDDense() {}
+
+  static std::shared_ptr<worker_t> CreateWorker(
+      std::shared_ptr<CDLPOptUDDense<FRAG_T, LABEL_T>> app,
+      std::shared_ptr<FRAG_T> frag) {
+    return std::shared_ptr<worker_t>(new worker_t(app, frag));
+  }
+
+  static constexpr MessageStrategy message_strategy =
+      MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
+  static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
+  static constexpr bool need_split_edges = true;
 
  private:
-  using label_t = typename context_t::label_t;
-  using vid_t = typename context_t::vid_t;
-
   void PropagateLabel(const fragment_t& frag, context_t& ctx,
                       message_manager_t& messages) {
     auto inner_vertices = frag.InnerVertices();
@@ -103,19 +120,14 @@ class CDLPOptUDDense : public ParallelAppBase<FRAG_T, CDLPOptContext<FRAG_T>,
   }
 
  public:
-  static constexpr MessageStrategy message_strategy =
-      MessageStrategy::kAlongOutgoingEdgeToOuterVertex;
-  static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
-  static constexpr bool need_split_edges = true;
-  using vertex_t = typename fragment_t::vertex_t;
-
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
     auto inner_vertices = frag.InnerVertices();
     auto outer_vertices = frag.OuterVertices();
 
-    messages.InitChannels(thread_num(), 98304, 98304);
-
+    messages.InitChannels(thread_num(),
+                          8192 * (sizeof(vertex_t) + sizeof(label_t)),
+                          8192 * (sizeof(vertex_t) + sizeof(label_t)));
     ++ctx.step;
     if (ctx.step > ctx.max_round) {
       return;
@@ -123,21 +135,12 @@ class CDLPOptUDDense : public ParallelAppBase<FRAG_T, CDLPOptContext<FRAG_T>,
       messages.ForceContinue();
     }
 
-#ifdef GID_AS_LABEL
-    ForEach(inner_vertices, [&frag, &ctx](int tid, vertex_t v) {
-      ctx.new_ilabels[v] = frag.GetInnerVertexGid(v);
-    });
-    ForEach(outer_vertices, [&frag, &ctx](int tid, vertex_t v) {
-      ctx.new_ilabels[v] = frag.GetOuterVertexGid(v);
-    });
-#else
     ForEach(inner_vertices, [&frag, &ctx](int tid, vertex_t v) {
       ctx.new_ilabels[v] = frag.GetInnerVertexId(v);
     });
     ForEach(outer_vertices, [&frag, &ctx](int tid, vertex_t v) {
       ctx.new_ilabels[v] = frag.GetOuterVertexId(v);
     });
-#endif
 
     auto& channels = messages.Channels();
 

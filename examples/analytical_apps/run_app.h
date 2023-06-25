@@ -65,9 +65,6 @@ limitations under the License.
 namespace grape {
 
 void Init() {
-  if (FLAGS_out_prefix.empty()) {
-    LOG(FATAL) << "Please assign an output prefix.";
-  }
   if (FLAGS_deserialize && FLAGS_serialization_prefix.empty()) {
     LOG(FATAL) << "Please assign a serialization prefix.";
   } else if (FLAGS_efile.empty()) {
@@ -77,7 +74,7 @@ void Init() {
                   "Please assign vertex files or use Hash Partitioner";
   }
 
-  if (access(FLAGS_out_prefix.c_str(), 0) != 0) {
+  if (!FLAGS_out_prefix.empty() && access(FLAGS_out_prefix.c_str(), 0) != 0) {
     mkdir(FLAGS_out_prefix.c_str(), 0777);
   }
 
@@ -104,16 +101,21 @@ void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
   timer_next("run algorithm");
   worker->Query(std::forward<Args>(args)...);
   timer_next("print output");
-
-  std::ofstream ostream;
-  std::string output_path =
-      grape::GetResultFilename(out_prefix, fragment->fid());
-  ostream.open(output_path);
-  worker->Output(ostream);
-  ostream.close();
-  worker->Finalize();
+  if (!out_prefix.empty()) {
+    std::ofstream ostream;
+    std::string output_path =
+        grape::GetResultFilename(out_prefix, fragment->fid());
+    ostream.open(output_path);
+    worker->Output(ostream);
+    ostream.close();
+    worker->Finalize();
+    VLOG(1) << "Worker-" << comm_spec.worker_id()
+            << " finished: " << output_path;
+  } else {
+    worker->Finalize();
+    VLOG(1) << "Worker-" << comm_spec.worker_id() << " finished without output";
+  }
   timer_end();
-  VLOG(1) << "Worker-" << comm_spec.worker_id() << " finished: " << output_path;
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,

@@ -22,6 +22,11 @@ limitations under the License.
 
 #include <grape/grape.h>
 
+#ifdef USE_SIMD_SORT
+#include "x86-simd-sort/avx512-32bit-qsort.hpp"
+#include "x86-simd-sort/avx512-64bit-qsort.hpp"
+#endif
+
 namespace grape {
 
 template <typename LABEL_T>
@@ -35,7 +40,11 @@ inline LABEL_T update_label_fast(const ADJ_LIST_T& edges,
   for (auto& e : edges) {
     local_labels.emplace_back(labels[e.get_neighbor()]);
   }
+#ifdef USE_SIMD_SORT
+  avx512_qsort(local_labels.data(), local_labels.size());
+#else
   std::sort(local_labels.begin(), local_labels.end());
+#endif
 
   LABEL_T curr_label = local_labels[0];
   int curr_count = 1;
@@ -71,7 +80,11 @@ inline LABEL_T update_label_fast_jump(const ADJ_LIST_T& edges,
   for (auto& e : edges) {
     local_labels.emplace_back(labels[e.get_neighbor()]);
   }
+#ifdef USE_SIMD_SORT
+  avx512_qsort(local_labels.data(), local_labels.size());
+#else
   std::sort(local_labels.begin(), local_labels.end());
+#endif
 
   LABEL_T curr_label = local_labels[0];
   int curr = 1;
@@ -88,6 +101,10 @@ inline LABEL_T update_label_fast_jump(const ADJ_LIST_T& edges,
     curr_label = local_labels[curr];
     int next = curr + best_count;
     if (local_labels[next] == curr_label) {
+      int mid = (curr + label_num) / 2;
+      if (local_labels[mid] == curr_label) {
+        return curr_label;
+      }
       do {
         ++next;
       } while (next != label_num && (local_labels[next] == curr_label));
