@@ -199,7 +199,8 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   std::shared_ptr<FRAG_T> fragment =
       LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
 
-  double avg_degree = static_cast<double>(FLAGS_edge_num) / static_cast<double>(FLAGS_vertex_num);
+  double avg_degree = static_cast<double>(FLAGS_edge_num) /
+                      static_cast<double>(FLAGS_vertex_num);
   std::pair<int64_t, int64_t> min_max_id = fragment->GetVertexMap()->MinMaxId();
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
     if (avg_degree > 256) {

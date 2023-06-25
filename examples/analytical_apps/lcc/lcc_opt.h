@@ -382,34 +382,6 @@ class LCCOpt<FRAG_T, COUNT_T,
         std::swap(set_a, set_b);
         std::swap(size_a, size_b);
       }
-#if 0
-      int j = 0;
-      for (int i = 0; i < size_a; ++i) {
-        int r = 1;
-        while (j + r < size_b && set_a[i] > set_b[j + r]) {
-          r <<= 1;
-        }
-        int right = (j + r < size_b) ? j + r : (size_b - 1);
-        if (set_b[right] < set_a[i]) {
-          break;
-        }
-        int left = j + (r >> 1);
-        while (left < right) {
-          int mid = (left + right) >> 1;
-          if (set_b[mid] < set_a[i]) {
-            left = mid + 1;
-          } else {
-            right = mid;
-          }
-        }
-        j = left;
-
-        if (set_a[i] == set_b[j]) {
-          atomic_add(result[list_a[i]], static_cast<count_t>(1));
-          ++size_c;
-        }
-      }
-#else
       int i = 0, j = 0;
       int qs_b = size_b - (size_b & 3);
       for (i = 0; i < size_a; ++i) {
@@ -433,7 +405,7 @@ class LCCOpt<FRAG_T, COUNT_T,
         j += (lower << 2);
 
         __m128i v_a = _mm_set_epi32(set_a[i], set_a[i], set_a[i], set_a[i]);
-        __m128i v_b = _mm_lddqu_si128((__m128i*) (set_b + j));
+        __m128i v_b = _mm_lddqu_si128(reinterpret_cast<__m128i*>(set_b + j));
         __m128i cmp_mask = _mm_cmpeq_epi32(v_a, v_b);
         int mask = _mm_movemask_ps((__m128) cmp_mask);
         if (mask != 0) {
@@ -453,17 +425,18 @@ class LCCOpt<FRAG_T, COUNT_T,
           ++j;
         }
       }
-#endif
     } else {
       int i = 0, j = 0;
       int qs_a = size_a - (size_a & 7);
       int qs_b = size_b - (size_b & 7);
 
       while (i < qs_a && j < qs_b) {
-        __m128i v_a0 = _mm_load_si128((__m128i*) (set_a + i));
-        __m128i v_a1 = _mm_load_si128((__m128i*) (set_a + i + 4));
-        __m128i v_b0 = _mm_load_si128((__m128i*) (set_b + j));
-        __m128i v_b1 = _mm_load_si128((__m128i*) (set_b + j + 4));
+        __m128i v_a0 = _mm_load_si128(reinterpret_cast<__m128i*>(set_a + i));
+        __m128i v_a1 =
+            _mm_load_si128(reinterpret_cast<__m128i*>(set_a + i + 4));
+        __m128i v_b0 = _mm_load_si128(reinterpret_cast<__m128i*>(set_b + j));
+        __m128i v_b1 =
+            _mm_load_si128(reinterpret_cast<__m128i*>(set_b + j + 4));
 
         // byte-wise check by STTNI:
         __m128i byte_group_a0 = _mm_shuffle_epi8(v_a0, BMISS_BC_ORD[0]);

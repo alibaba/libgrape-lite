@@ -461,10 +461,12 @@ class LCCDirected<FRAG_T, COUNT_T,
       int qs_b = size_b - (size_b & 7);
 
       while (i < qs_a && j < qs_b) {
-        __m128i v_a0 = _mm_load_si128((__m128i*) (set_a + i));
-        __m128i v_a1 = _mm_load_si128((__m128i*) (set_a + i + 4));
-        __m128i v_b0 = _mm_load_si128((__m128i*) (set_b + j));
-        __m128i v_b1 = _mm_load_si128((__m128i*) (set_b + j + 4));
+        __m128i v_a0 = _mm_load_si128(reinterpret_cast<__m128i*>(set_a + i));
+        __m128i v_a1 =
+            _mm_load_si128(reinterpret_cast<__m128i*>(set_a + i + 4));
+        __m128i v_b0 = _mm_load_si128(reinterpret_cast<__m128i*>(set_b + j));
+        __m128i v_b1 =
+            _mm_load_si128(reinterpret_cast<__m128i*>(set_b + j + 4));
 
         // byte-wise check by STTNI:
         __m128i byte_group_a0 = _mm_shuffle_epi8(v_a0, BMISS_BC_ORD[0]);
