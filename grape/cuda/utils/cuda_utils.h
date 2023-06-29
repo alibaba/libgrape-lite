@@ -19,6 +19,8 @@ limitations under the License.
 #include <nccl.h>
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <thrust/execution_policy.h>
+#include <thrust/transform_reduce.h>
 
 #include "cub/cub.cuh"
 #include "grape/config.h"
@@ -192,13 +194,20 @@ static cudaError_t SortKeys64(void* d_temp_storage, size_t& temp_storage_bytes,
 
   // Null value type
   cub::DoubleBuffer<cub::NullType> d_values;
-
+#if CUB_VERSION > 200000
+  return cub::DispatchSegmentedRadixSort<
+      false, KeyT, cub::NullType, OffsetIteratorT, OffsetIteratorT,
+      OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values,
+                         num_items, num_segments, d_begin_offsets,
+                         d_end_offsets, begin_bit, end_bit, true, stream);
+#else
   return cub::DispatchSegmentedRadixSort<
       false, KeyT, cub::NullType, OffsetIteratorT,
       OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values,
                          num_items, num_segments, d_begin_offsets,
                          d_end_offsets, begin_bit, end_bit, true, stream,
                          debug_synchronous);
+#endif
 }
 
 template <typename InputIteratorT, typename OutputIteratorT>
@@ -211,11 +220,21 @@ static cudaError_t PrefixSumKernel64(void* d_temp_storage,
   typedef int OffsetT;
 
   // use size_t for aggregated value.
+#if CUB_VERSION > 200000
+  struct InitValue {
+    using value_type = size_t;
+  };
+  return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum, InitValue,
+                           OffsetT>::Dispatch(d_temp_storage,
+                                              temp_storage_bytes, d_in, d_out,
+                                              cub::Sum(), 0, num_items, stream);
+#else
   return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum, size_t,
                            OffsetT>::Dispatch(d_temp_storage,
                                               temp_storage_bytes, d_in, d_out,
                                               cub::Sum(), 0, num_items, stream,
                                               debug_synchronous);
+#endif
 }
 
 template <typename T>
