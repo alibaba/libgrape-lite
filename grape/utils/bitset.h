@@ -76,6 +76,15 @@ class Bitset : public Allocator<uint64_t> {
   }
 
   void resize(size_t size) {
+    if (size == 0) {
+      if (data_ != NULL) {
+        this->deallocate(data_, size_in_words_);
+      }
+      data_ = NULL;
+      size_ = 0;
+      size_in_words_ = 0;
+      return;
+    }
     if (data_ == NULL) {
       init(size);
       return;
