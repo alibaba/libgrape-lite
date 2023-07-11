@@ -87,7 +87,7 @@ class Bitset : public Allocator<uint64_t> {
         for (size_t i = 0; i < new_size_in_words; ++i) {
           new_data[i] = data_[i];
         }
-        __sync_fetch_and_and(data_ + new_size_in_words - 1,
+        __sync_fetch_and_and(new_data + new_size_in_words - 1,
                              (1ul << BIT_OFFSET(size)) - 1);
       } else if (size_in_words_ < new_size_in_words) {
         for (size_t i = 0; i < size_in_words_; ++i) {
