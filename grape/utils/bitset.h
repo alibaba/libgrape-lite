@@ -45,6 +45,14 @@ class Bitset : public Allocator<uint64_t> {
     data_ = this->allocate(size_in_words_);
     clear();
   }
+  Bitset(Bitset&& other)
+      : data_(other.data_),
+        size_(other.size_),
+        size_in_words_(other.size_in_words_) {
+    other.data_ = NULL;
+    other.size_ = 0;
+    other.size_in_words_ = 0;
+  }
   ~Bitset() {
     if (data_ != NULL) {
       this->deallocate(data_, size_in_words_);
@@ -79,8 +87,8 @@ class Bitset : public Allocator<uint64_t> {
         for (size_t i = 0; i < new_size_in_words; ++i) {
           new_data[i] = data_[i];
         }
-        __sync_fetch_and_and(new_data + new_size_in_words - 1,
-                             63ul << BIT_OFFSET(size));
+        __sync_fetch_and_and(data_ + new_size_in_words - 1,
+                             (1ul << BIT_OFFSET(size)) - 1);
       } else if (size_in_words_ < new_size_in_words) {
         for (size_t i = 0; i < size_in_words_; ++i) {
           new_data[i] = data_[i];
@@ -94,7 +102,7 @@ class Bitset : public Allocator<uint64_t> {
     } else {
       if (size_ > size) {
         __sync_fetch_and_and(data_ + size_in_words_ - 1,
-                             63ul << BIT_OFFSET(size));
+                             (1ul << BIT_OFFSET(size)) - 1);
       }
     }
     size_ = size;
@@ -295,6 +303,8 @@ class Bitset : public Allocator<uint64_t> {
   inline const uint64_t* get_word_ptr(size_t i) const {
     return &data_[WORD_INDEX(i)];
   }
+
+  inline size_t cardinality() const { return size_; }
 
  private:
   uint64_t* data_;
