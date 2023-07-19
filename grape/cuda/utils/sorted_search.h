@@ -15,7 +15,6 @@ limitations under the License.
 
 #ifndef GRAPE_CUDA_UTILS_SORTED_SEARCH_H_
 #define GRAPE_CUDA_UTILS_SORTED_SEARCH_H_
-#include <thrust/device_vector.h>
 
 #include "grape/config.h"
 #include "grape/cuda/utils/cuda_utils.h"
@@ -29,35 +28,35 @@ namespace cuda {
 template <typename T>
 void sorted_search(const Stream& stream, T* needles, int num_needles,
                    T* haystack, int num_haystack, T* indices) {
-  LaunchKernelFix(stream, num_haystack, [=] __device__() mutable {
-    // assume num_needles > num_haystack
-    if (num_needles == 0 || num_haystack == 0) {
-      return;
-    }
-    int thread_lane = threadIdx.x & 31;  // thread index within the warp
-    int warp_lane = threadIdx.x / 32;    // warp index within the CTA
-    int nwarp = 256 / 32;
-    __shared__ T cache[1024];
-    int shm_size = 1024;
-    int shm_per_warp = shm_size / nwarp;
-    int shm_per_thd = shm_size / 256;
-    T* my_cache = cache + warp_lane * shm_per_warp;
-    size_t num = 0;
-    for (int i = 0; i < shm_per_thd; ++i) {
-      my_cache[i * 32 + thread_lane] =
-          haystack[(thread_lane + i * 32) * num_haystack / shm_per_warp];
-    }
-    __syncwarp();
+  KernelWrapper<<<256, 256, 0, stream.cuda_stream()>>>(
+      [=] __device__() mutable {
+        auto nthreads = gridDim.x * blockDim.x;
+        auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+        // assume num_needles > num_haystack
+        if (num_needles == 0 || num_haystack == 0) {
+          return;
+        }
 
-    for (auto i = thread_lane; i < num_needles; i += 32) {
-      auto key = needles[i];
-      auto idx = binary_search_2phase(haystack, my_cache, key, num_haystack,
-                                      shm_per_warp);
-      indices[i] = idx;
-    }
-  });
+        for (auto i = tid; i < num_needles; i += nthreads) {
+          auto key = needles[i];
+          int s = 0;
+          int len = num_haystack;
+          while (len > 0) {
+            int half = len >> 1;
+            int mid = s + half;
+            if (haystack[mid] < key) {
+              s = mid + 1;
+              len = len - half - 1;
+            } else {
+              len = half;
+            }
+          }
+          indices[i] = s;
+        }
+      });
+}
 
 }  // namespace cuda
-}  // namespace cuda
+}  // namespace grape
 
 #endif  // GRAPE_CUDA_UTILS_SORTED_SEARCH_H_

@@ -141,7 +141,7 @@ class DeviceVertexMap {
               (*o2l)[oid] = lid;
             }
           },
-          oids.data(), ivnum, d_o2l_[fid]);
+          thrust::raw_pointer_cast(oids.data()), ivnum, d_o2l_[fid]);
       d_l2o_[fid].assign(oids.begin(), oids.end());
       d_l2o_ptr_[fid] = ArrayView<OID_T>(d_l2o_[fid]);
     }

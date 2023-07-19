@@ -19,11 +19,18 @@ limitations under the License.
 #include <nccl.h>
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/host_vector.h>
+#include <thrust/swap.h>
 #include <thrust/transform_reduce.h>
+#include <cub/cub.cuh>
 
-#include "cub/cub.cuh"
-#include "grape/config.h"
+#if THRUST_VERSION > 101700
+#include <thrust/system/cuda/memory_resource.h>
+#else
+#include <thrust/system/cuda/experimental/pinned_allocator.h>
+#endif
 
 #if defined(__unix__) || defined(__unix) || defined(unix) || \
     (defined(__APPLE__) && defined(__MACH__))
@@ -47,6 +54,8 @@ limitations under the License.
 #endif
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#include "grape/config.h"
 
 #define CHECK_CUDA(err)                                       \
   do {                                                        \
@@ -161,7 +170,7 @@ size_t get_rss(bool include_shared_memory) {
   if (include_shared_memory) {
     return (size_t) rss * (size_t) sysconf(_SC_PAGESIZE);
   } else {
-    return (size_t)(rss - shared_rss) * (size_t) sysconf(_SC_PAGESIZE);
+    return (size_t) (rss - shared_rss) * (size_t) sysconf(_SC_PAGESIZE);
   }
 #else
   /* Unknown OS ----------------------------------------------- */
@@ -209,6 +218,18 @@ static cudaError_t SortKeys64(void* d_temp_storage, size_t& temp_storage_bytes,
                          debug_synchronous);
 #endif
 }
+
+#if THRUST_VERSION > 101700
+using memory_resource =
+    thrust::system::cuda::universal_host_pinned_memory_resource;
+template <typename T>
+using pinned_vector = thrust::host_vector<
+    T, thrust::mr::stateless_resource_allocator<T, memory_resource>>;
+#else
+template <typename T>
+using pinned_vector =
+    thrust::host_vector<T, thrust::cuda::experimental::pinned_allocator<T>>;
+#endif
 
 template <typename InputIteratorT, typename OutputIteratorT>
 static cudaError_t PrefixSumKernel64(void* d_temp_storage,

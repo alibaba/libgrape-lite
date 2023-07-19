@@ -15,9 +15,6 @@ limitations under the License.
 
 #ifndef GRAPE_CUDA_UTILS_SHARED_ARRAY_H_
 #define GRAPE_CUDA_UTILS_SHARED_ARRAY_H_
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/system/cuda/experimental/pinned_allocator.h>
 
 #include "grape/cuda/utils/cuda_utils.h"
 #include "grape/cuda/utils/stream.h"
@@ -30,8 +27,7 @@ class SharedArray {
 
  public:
   using device_t = thrust::device_vector<T>;
-  using host_t =
-      thrust::host_vector<T, thrust::cuda::experimental::pinned_allocator<T>>;
+  using host_t = pinned_vector<T>;
 
   SharedArray() = default;
 
