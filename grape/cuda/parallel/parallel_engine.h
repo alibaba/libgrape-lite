@@ -1362,10 +1362,10 @@ class ParallelEngine {
         },
         ArrayView<size_t>(seid_per_block));
 
-    sorted_search<mgpu::bounds_lower>(
+    sorted_search(
         stream, thrust::raw_pointer_cast(seid_per_block.data()), block_num,
         thrust::raw_pointer_cast(prefix_sum_.data()), size,
-        thrust::raw_pointer_cast(sidx.data()), mgpu::less_t<size_t>());
+        thrust::raw_pointer_cast(sidx.data()));
 
     KernelWrapper<<<block_num, block_size, calc_shmem_size(block_size),
                     stream.cuda_stream()>>>(
