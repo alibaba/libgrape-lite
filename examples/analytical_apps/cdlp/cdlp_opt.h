@@ -183,7 +183,7 @@ class CDLPOpt : public ParallelAppBase<FRAG_T, CDLPOptContext<FRAG_T, LABEL_T>,
               ctx.labels[u] = msg;
               auto ie = frag.GetIncomingAdjList(u);
               for (auto& e : ie) {
-                ctx.potential_change.Insert(e.neighbor);
+                ctx.potential_change.Insert(e.get_neighbor());
               }
             });
         messages.ForceContinue();
