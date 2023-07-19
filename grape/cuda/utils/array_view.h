@@ -15,12 +15,8 @@ limitations under the License.
 
 #ifndef GRAPE_CUDA_UTILS_ARRAY_VIEW_H_
 #define GRAPE_CUDA_UTILS_ARRAY_VIEW_H_
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/swap.h>
-#include <thrust/system/cuda/experimental/pinned_allocator.h>
 
-#include "grape/config.h"
+#include "grape/cuda/utils/cuda_utils.h"
 
 namespace grape {
 namespace cuda {
@@ -33,8 +29,7 @@ class ArrayView {
       : data_(const_cast<T*>(thrust::raw_pointer_cast(vec.data()))),
         size_(vec.size()) {}
 
-  explicit ArrayView(const thrust::host_vector<
-                     T, thrust::cuda::experimental::pinned_allocator<T>>& vec)
+  explicit ArrayView(const pinned_vector<T>& vec)
       : data_(const_cast<T*>(thrust::raw_pointer_cast(vec.data()))),
         size_(vec.size()) {}
 
@@ -69,6 +64,7 @@ class ArrayView {
   T* data_{};
   size_t size_{};
 };
+
 }  // namespace cuda
 }  // namespace grape
 #endif  // GRAPE_CUDA_UTILS_ARRAY_VIEW_H_

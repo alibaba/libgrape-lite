@@ -176,7 +176,7 @@ namespace cub {
 // Making Vertex to be comparable for cub's segmented radix sort
 template <typename T>
 struct Traits<grape::Vertex<T>>
-    : NumericTraits<typename RemoveQualifiers<T>::Type> {};
+    : NumericTraits<typename std::remove_cv<T>::Type> {};
 
 }  // namespace cub
 

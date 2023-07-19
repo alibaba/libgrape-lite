@@ -22,7 +22,6 @@ limitations under the License.
 
 #ifdef __CUDACC__
 #include <thrust/host_vector.h>
-#include <thrust/system/cuda/experimental/pinned_allocator.h>
 #endif
 
 #include "grape/utils/default_allocator.h"
@@ -56,10 +55,6 @@ using Allocator = DefaultAllocator<T>;
 #define MAX_GRID_SIZE 768
 #define TID_1D (threadIdx.x + blockIdx.x * blockDim.x)
 #define TOTAL_THREADS_1D (gridDim.x * blockDim.x)
-
-template <typename T>
-using pinned_vector =
-    thrust::host_vector<T, thrust::cuda::experimental::pinned_allocator<T>>;
 #else
 #define DEV_HOST
 #define DEV_HOST_INLINE inline

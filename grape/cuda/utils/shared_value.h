@@ -16,10 +16,6 @@ limitations under the License.
 #ifndef GRAPE_CUDA_UTILS_SHARED_VALUE_H_
 #define GRAPE_CUDA_UTILS_SHARED_VALUE_H_
 
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/system/cuda/experimental/pinned_allocator.h>
-
 #include "grape/cuda/utils/cuda_utils.h"
 #include "grape/cuda/utils/stream.h"
 
@@ -81,8 +77,7 @@ class SharedValue {
 
  private:
   thrust::device_vector<T> d_buffer_;
-  thrust::host_vector<T, thrust::cuda::experimental::pinned_allocator<T>>
-      h_buffer_;
+  pinned_vector<T> h_buffer_;
 };
 }  // namespace cuda
 }  // namespace grape

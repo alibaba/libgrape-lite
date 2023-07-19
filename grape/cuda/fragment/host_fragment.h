@@ -161,7 +161,7 @@ class HostFragment
                                    stream.cuda_stream()));
 
         auto prefix_sum = compute_prefix_sum(ieoffset);
-        ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
+        ArrayView<VID_T> d_prefix_sum(prefix_sum);
 
         CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
             stream, d_prefix_sum, thrust::raw_pointer_cast(d_ie_.data()),
@@ -176,7 +176,7 @@ class HostFragment
                                    stream.cuda_stream()));
 
         auto prefix_sum = compute_prefix_sum(oeoffset);
-        ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
+        ArrayView<VID_T> d_prefix_sum(prefix_sum);
 
         CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
             stream, d_prefix_sum, thrust::raw_pointer_cast(d_oe_.data()),
@@ -354,7 +354,7 @@ class HostFragment
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
 
       auto prefix_sum = compute_prefix_sum(ieoffset);
-      ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
+      ArrayView<VID_T> d_prefix_sum(prefix_sum);
 
       CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
           stream, d_prefix_sum, thrust::raw_pointer_cast(d_ie_.data()),
@@ -370,7 +370,7 @@ class HostFragment
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
 
       auto prefix_sum = compute_prefix_sum(oeoffset);
-      ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
+      ArrayView<VID_T> d_prefix_sum(prefix_sum);
 
       CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
           stream, d_prefix_sum, thrust::raw_pointer_cast(d_oe_.data()),
@@ -414,6 +414,7 @@ class HostFragment
           [] __device__(VID_T * gids, VID_T * lids, VID_T size,
                         CUDASTL::HashMap<VID_T, VID_T> * ovg2l) {
             auto tid = TID_1D;
+            gids = thrust::raw_pointer_cast(gids);
             auto nthreads = TOTAL_THREADS_1D;
 
             for (VID_T idx = 0 + tid; idx < size; idx += nthreads) {
@@ -423,7 +424,8 @@ class HostFragment
               (*ovg2l)[gid] = lid;
             }
           },
-          gids.data(), lids.data(), size, d_ovg2l_.get());
+          thrust::raw_pointer_cast(gids.data()),
+          thrust::raw_pointer_cast(lids.data()), size, d_ovg2l_.get());
     }
 
     d_mirrors_of_frag_holder_.resize(fnum_);
@@ -633,7 +635,7 @@ class HostFragment
       thrust::device_vector<fid_t>& d_fid_list,
       thrust::device_vector<fid_t*>& d_fid_list_offset) {
     pinned_vector<size_t> prefix_sum(ivnum_ + 1, 0);
-    ArrayView<size_t> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
+    ArrayView<size_t> d_prefix_sum(prefix_sum);
 
     for (VID_T i = 0; i < ivnum_; ++i) {
       prefix_sum[i + 1] =

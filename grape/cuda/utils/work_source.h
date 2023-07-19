@@ -24,7 +24,7 @@ struct WorkSourceRange {
  public:
   DEV_HOST WorkSourceRange(T start, size_t size) : start_(start), size_(size) {}
 
-  DEV_HOST_INLINE T GetWork(size_t i) const { return (T)(start_ + i); }
+  DEV_HOST_INLINE T GetWork(size_t i) const { return (T) (start_ + i); }
 
   DEV_HOST_INLINE size_t size() const { return size_; }
 

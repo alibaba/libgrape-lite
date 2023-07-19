@@ -105,11 +105,6 @@ else()
   if (NCCL_VERSION VERSION_LESS "2.7")
     message(WARNING "Disable GPU support because NCCL >= 2.7 not found")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-  elseif ((NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/thirdparty/cub/.git") OR
-          (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/thirdparty/thrust/.git") OR
-          (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/thirdparty/moderngpu/.git"))
-    message(WARNING "Disable GPU support because dependencies not found, please run 'git submodules update --init --recursive'")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
   else ()
     option(WITH_CUDA "Whether to enable cuda support" ON)
     message(STATUS "Build with CUDA support")
@@ -252,7 +247,6 @@ else ()
 
   if (WITH_CUDA)
     cuda_add_executable(gpu_analytical_apps examples/analytical_apps/flags.cc examples/analytical_apps/run_cuda_app.cu)
-    target_include_directories(gpu_analytical_apps SYSTEM BEFORE PRIVATE thirdparty/cub thirdparty/thrust thirdparty/moderngpu/src)
     target_include_directories(gpu_analytical_apps PRIVATE examples/analytical_apps)
     set_target_properties(gpu_analytical_apps PROPERTIES OUTPUT_NAME run_cuda_app)
     target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})
@@ -295,16 +289,6 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
 )
 
 if (WITH_CUDA)
-  install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/cub/cub
-                    ${PROJECT_SOURCE_DIR}/thirdparty/thrust/thrust
-                    ${PROJECT_SOURCE_DIR}/thirdparty/moderngpu/src/moderngpu
-          DESTINATION include
-          FILES_MATCHING
-          PATTERN "*.h"
-          PATTERN "*.cuh"
-          PATTERN "*.hpp"
-          PATTERN "*.hxx"
-  )
   install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/cuda_hashmap
           DESTINATION include/cuda_hashmap
           FILES_MATCHING

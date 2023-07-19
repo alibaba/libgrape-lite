@@ -18,13 +18,12 @@ limitations under the License.
 
 #include <cuda_profiler_api.h>
 
+#include <iostream>
 #include <unordered_set>
 #pragma push
 #pragma diag_suppress = initialization_not_reachable
 #include <thrust/binary_search.h>
-
 #include <cub/cub.cuh>
-#include <moderngpu/kernel_sortedsearch.hxx>
 #pragma pop
 
 #include "grape/config.h"
@@ -33,6 +32,7 @@ limitations under the License.
 #include "grape/cuda/utils/launcher.h"
 #include "grape/cuda/utils/shared_value.h"
 #include "grape/cuda/utils/sorted_search.h"
+#include "grape/cuda/utils/stream.h"
 #include "grape/cuda/utils/work_source.h"
 
 // TODO(liang): we may split this to multiple headers
@@ -930,7 +930,7 @@ DEV_INLINE void LBSTRICT(const FRAG_T& dev_frag, const ArrayView<size_t>& sidx,
   while (block_output_processed < block_output_size &&
          iter_input_start < block_input_end) {
     size_t iter_input_size =
-        min((size_t)(blockDim.x - 1), block_input_end - iter_input_start);
+        min((size_t) (blockDim.x - 1), block_input_end - iter_input_start);
     size_t iter_input_end = iter_input_start + iter_input_size;
     size_t iter_output_end =
         iter_input_end < size ? row_offset[iter_input_end] : total_edges;
@@ -1362,10 +1362,9 @@ class ParallelEngine {
         },
         ArrayView<size_t>(seid_per_block));
 
-    sorted_search<mgpu::bounds_lower>(
-        stream, thrust::raw_pointer_cast(seid_per_block.data()), block_num,
-        thrust::raw_pointer_cast(prefix_sum_.data()), size,
-        thrust::raw_pointer_cast(sidx.data()), mgpu::less_t<size_t>());
+    sorted_search(stream, thrust::raw_pointer_cast(seid_per_block.data()),
+                  block_num, thrust::raw_pointer_cast(prefix_sum_.data()), size,
+                  thrust::raw_pointer_cast(sidx.data()));
 
     KernelWrapper<<<block_num, block_size, calc_shmem_size(block_size),
                     stream.cuda_stream()>>>(
