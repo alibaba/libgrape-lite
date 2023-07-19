@@ -60,12 +60,8 @@ make gnn_sampler
 
 ### Building libgrape-lite with GPU support
 
-libgrape-lite supports deploying graph algorithms to GPUs. To enable the support for GPUs, you first
-need initialize the dependencies with the following command before building.
-
-```bash
-git submodule update --init --recursive
-```
+libgrape-lite supports deploying graph algorithms to GPUs.
+When CUDA is detected on the machine and NCCL >= 2.7, GPU support will be enabled automatically.
 
 ## Running libgrape-lite applications
 
