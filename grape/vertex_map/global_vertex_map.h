@@ -18,99 +18,25 @@ limitations under the License.
 
 #include <algorithm>
 #include <atomic>
-#include <fstream>
 #include <memory>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
 
+#include "flat_hash_map/flat_hash_map.hpp"
+
 #include "grape/config.h"
-#include "grape/fragment/partitioner.h"
-#include "grape/graph/id_indexer.h"
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"
 #include "grape/vertex_map/vertex_map_base.h"
 #include "grape/worker/comm_spec.h"
 
+template <typename Key, typename Value>
+using HashMap = ska::flat_hash_map<Key, Value>;
+
+#define SORT_DISTINCT
 namespace grape {
-
-template <typename OID_T, typename VID_T, typename PARTITIONER_T>
-class GlobalVertexMap;
-
-template <typename OID_T, typename VID_T, typename PARTITIONER_T>
-class GlobalVertexMapBuilder {
-  using internal_oid_t = typename InternalOID<OID_T>::type;
-
- private:
-  GlobalVertexMapBuilder(fid_t fid, IdIndexer<internal_oid_t, VID_T>& indexer,
-                         const PARTITIONER_T& partitioner,
-                         const IdParser<VID_T>& id_parser)
-      : fid_(fid),
-        indexer_(indexer),
-        partitioner_(partitioner),
-        id_parser_(id_parser) {}
-
- public:
-  ~GlobalVertexMapBuilder() {}
-
-  void add_local_vertex(const internal_oid_t& id, VID_T& gid) {
-    assert(partitioner_.GetPartitionId(id) == fid_);
-    indexer_.add(id, gid);
-    id_parser_.generate_global_id(fid_, gid);
-  }
-
-  void add_vertex(const internal_oid_t& id) {
-    if (partitioner_.GetPartitionId(id) == fid_) {
-      indexer_._add(id);
-    }
-  }
-
-  void finish(GlobalVertexMap<OID_T, VID_T, PARTITIONER_T>& vertex_map) {
-    const CommSpec& comm_spec = vertex_map.GetCommSpec();
-    int worker_id = comm_spec.worker_id();
-    int worker_num = comm_spec.worker_num();
-    fid_t fnum = comm_spec.fnum();
-    {
-      std::thread recv_thread([&]() {
-        int src_worker_id = (worker_id + 1) % worker_num;
-        while (src_worker_id != worker_id) {
-          for (fid_t fid = 0; fid < fnum; ++fid) {
-            if (comm_spec.FragToWorker(fid) != src_worker_id) {
-              continue;
-            }
-            sync_comm::Recv(vertex_map.indexers_[fid], src_worker_id, 0,
-                            comm_spec.comm());
-          }
-          src_worker_id = (src_worker_id + 1) % worker_num;
-        }
-      });
-      std::thread send_thread([&]() {
-        int dst_worker_id = (worker_id + worker_num - 1) % worker_num;
-        while (dst_worker_id != worker_id) {
-          for (fid_t fid = 0; fid < fnum; ++fid) {
-            if (comm_spec.FragToWorker(fid) != worker_id) {
-              continue;
-            }
-            sync_comm::Send(indexer_, dst_worker_id, 0, comm_spec.comm());
-          }
-          dst_worker_id = (dst_worker_id + worker_num - 1) % worker_num;
-        }
-      });
-      send_thread.join();
-      recv_thread.join();
-    }
-  }
-
- private:
-  template <typename _OID_T, typename _VID_T, typename _PARTITIONER_T>
-  friend class GlobalVertexMap;
-
-  fid_t fid_;
-  IdIndexer<internal_oid_t, VID_T>& indexer_;
-  const PARTITIONER_T& partitioner_;
-  const IdParser<VID_T>& id_parser_;
-};
 
 /**
  * @brief a kind of VertexMapBase which holds global mapping information in
@@ -119,140 +45,214 @@ class GlobalVertexMapBuilder {
  * @tparam OID_T
  * @tparam VID_T
  */
-template <typename OID_T, typename VID_T,
-          typename PARTITIONER_T = HashPartitioner<OID_T>>
-class GlobalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
+template <typename OID_T, typename VID_T>
+class GlobalVertexMap : public VertexMapBase<OID_T, VID_T> {
   // TODO(lxj): to support shared-memory for workers on same host (auto apps)
 
-  using base_t = VertexMapBase<OID_T, VID_T, PARTITIONER_T>;
-  using internal_oid_t = typename InternalOID<OID_T>::type;
+  using Base = VertexMapBase<OID_T, VID_T>;
 
  public:
-  explicit GlobalVertexMap(const CommSpec& comm_spec) : base_t(comm_spec) {}
+  explicit GlobalVertexMap(const CommSpec& comm_spec) : Base(comm_spec) {}
   ~GlobalVertexMap() = default;
-  void Init() { indexers_.resize(comm_spec_.fnum()); }
+  void Init() {
+    Base::Init();
+    o2l_.resize(Base::GetCommSpec().fnum());
+    l2o_.resize(Base::GetCommSpec().fnum());
+  }
 
-  size_t GetTotalVertexSize() const {
+  size_t GetTotalVertexSize() {
     size_t size = 0;
-    for (const auto& v : indexers_) {
+    for (const auto& v : o2l_) {
       size += v.size();
     }
     return size;
   }
 
-  size_t GetInnerVertexSize(fid_t fid) const { return indexers_[fid].size(); }
-  void AddVertex(const OID_T& oid) {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    indexers_[fid]._add(oid);
-  }
-
-  using base_t::Lid2Gid;
-  bool AddVertex(const OID_T& oid, VID_T& gid) {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    internal_oid_t internal_oid(oid);
-    if (indexers_[fid].add(std::move(internal_oid), gid)) {
-      gid = Lid2Gid(fid, gid);
-      return true;
+  size_t GetInnerVertexSize(fid_t fid) { return l2o_[fid].size(); }
+  void Clear() {}
+  void AddVertex(fid_t fid, const OID_T& oid) {
+#ifdef SORT_DISTINCT
+    l2o_[fid].emplace_back(oid);
+#else
+    auto& rm = o2l_[fid];
+    if (rm.find(oid) == rm.end()) {
+      rm.emplace(oid, static_cast<VID_T>(l2o_[fid].size()));
+      l2o_[fid].emplace_back(oid);
     }
-    gid = Lid2Gid(fid, gid);
-    return false;
+#endif
   }
 
-  bool AddVertex(OID_T&& oid, VID_T& gid) {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    internal_oid_t internal_oid(std::move(oid));
-    if (indexers_[fid].add(std::move(internal_oid), gid)) {
-      gid = Lid2Gid(fid, gid);
+  bool AddVertex(fid_t fid, const OID_T& oid, VID_T& gid) {
+    auto& rm = o2l_[fid];
+    auto iter = rm.find(oid);
+    if (iter == rm.end()) {
+      gid = static_cast<VID_T>(l2o_[fid].size());
+      rm.emplace(oid, gid);
+      l2o_[fid].emplace_back(oid);
+      gid = Base::Lid2Gid(fid, gid);
       return true;
+    } else {
+      gid = Base::Lid2Gid(fid, iter->second);
+      return false;
     }
-    gid = Lid2Gid(fid, gid);
-    return false;
   }
 
-  using base_t::GetFidFromGid;
-  using base_t::GetLidFromGid;
-  bool GetOid(const VID_T& gid, OID_T& oid) const {
-    fid_t fid = GetFidFromGid(gid);
-    VID_T lid = GetLidFromGid(gid);
+  bool GetOid(const VID_T& gid, OID_T& oid) {
+    fid_t fid = Base::GetFidFromGid(gid);
+    VID_T lid = Base::GetLidFromGid(gid);
     return GetOid(fid, lid, oid);
   }
 
-  bool GetOid(fid_t fid, const VID_T& lid, OID_T& oid) const {
-    internal_oid_t internal_oid;
-    if (indexers_[fid].get_key(lid, internal_oid)) {
-      oid = InternalOID<OID_T>::FromInternal(internal_oid);
+  bool GetOid(fid_t fid, const VID_T& lid, OID_T& oid) {
+    if (lid >= l2o_[fid].size()) {
+      return false;
+    }
+    oid = l2o_[fid][lid];
+    return true;
+  }
+
+  bool GetGid(fid_t fid, const OID_T& oid, VID_T& gid) {
+    auto& rm = o2l_[fid];
+    auto iter = rm.find(oid);
+    if (iter == rm.end()) {
+      return false;
+    } else {
+      gid = Base::Lid2Gid(fid, iter->second);
       return true;
+    }
+  }
+
+  bool GetGid(const OID_T& oid, VID_T& gid) {
+    for (fid_t i = 0; i < Base::GetFragmentNum(); ++i) {
+      if (GetGid(i, oid, gid)) {
+        return true;
+      }
     }
     return false;
   }
 
-  bool _GetGid(fid_t fid, const internal_oid_t& oid, VID_T& gid) const {
-    if (indexers_[fid].get_index(oid, gid)) {
-      gid = Lid2Gid(fid, gid);
-      return true;
+  void Construct() {
+    const CommSpec& comm_spec = Base::GetCommSpec();
+    int worker_id = comm_spec.worker_id();
+    int worker_num = comm_spec.worker_num();
+    bool to_sort = false;
+    for (fid_t fid = 0; fid != comm_spec.fnum(); ++fid) {
+      if (!l2o_[fid].empty()) {
+        to_sort = o2l_[fid].empty();
+        break;
+      }
     }
-    return false;
-  }
-
-  bool GetGid(fid_t fid, const OID_T& oid, VID_T& gid) const {
-    internal_oid_t internal_oid(oid);
-    return _GetGid(fid, internal_oid, gid);
-  }
-
-  bool _GetGid(const internal_oid_t& oid, VID_T& gid) const {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    return _GetGid(fid, oid, gid);
-  }
-
-  bool GetGid(const OID_T& oid, VID_T& gid) const {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    return GetGid(fid, oid, gid);
-  }
-
-  GlobalVertexMapBuilder<OID_T, VID_T, PARTITIONER_T> GetLocalBuilder() {
-    fid_t fid = comm_spec_.fid();
-    return GlobalVertexMapBuilder<OID_T, VID_T, PARTITIONER_T>(
-        fid, indexers_[fid], partitioner_, id_parser_);
-  }
-
- private:
-  template <typename IOADAPTOR_T>
-  void serialize(const std::string& path) {
-    auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(path));
-    io_adaptor->Open("wb");
-    base_t::serialize(io_adaptor);
-    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
-      indexers_[i].Serialize(io_adaptor);
+    if (to_sort) {
+      fid_t fid = comm_spec.fid();
+      auto& vec = l2o_[fid];
+      auto& rm = o2l_[fid];
+      std::sort(vec.begin(), vec.end());
+      size_t vnum = vec.size();
+      size_t count = 0;
+      for (size_t i = 1; i < vnum; ++i) {
+        if (vec[i] == vec[i - 1]) {
+          ++count;
+        } else {
+          vec[i - count] = vec[i];
+        }
+      }
+      vec.resize(vnum - count);
+      vec.shrink_to_fit();
+      VID_T distincted_vnum = static_cast<VID_T>(vec.size());
+      rm.reserve(distincted_vnum);
+      for (VID_T lid = 0; lid < distincted_vnum; ++lid) {
+        rm.emplace(vec[lid], lid);
+      }
     }
-    io_adaptor->Close();
+    {
+      std::thread recv_thread([&]() {
+        int src_worker_id = (worker_id + 1) % worker_num;
+        while (src_worker_id != worker_id) {
+          for (fid_t fid = 0; fid < Base::GetFragmentNum(); ++fid) {
+            if (comm_spec.FragToWorker(fid) != src_worker_id) {
+              continue;
+            }
+            RecvVector(l2o_[fid], src_worker_id, comm_spec.comm());
+          }
+          src_worker_id = (src_worker_id + 1) % worker_num;
+        }
+      });
+      std::thread send_thread([&]() {
+        int dst_worker_id = (worker_id + worker_num - 1) % worker_num;
+        while (dst_worker_id != worker_id) {
+          for (fid_t fid = 0; fid < Base::GetFragmentNum(); ++fid) {
+            if (comm_spec.FragToWorker(fid) != worker_id) {
+              continue;
+            }
+            SendVector(l2o_[fid], dst_worker_id, comm_spec.comm());
+          }
+          dst_worker_id = (dst_worker_id + worker_num - 1) % worker_num;
+        }
+      });
+      send_thread.join();
+      recv_thread.join();
+    }
+    {
+      int thread_num =
+          (std::thread::hardware_concurrency() + comm_spec.local_num() - 1) /
+          comm_spec.local_num();
+      std::atomic<fid_t> current_fid(0);
+      fid_t fnum = comm_spec.fnum();
+      std::vector<std::thread> work_threads(thread_num);
+      for (int tid = 0; tid < thread_num; ++tid) {
+        work_threads[tid] = std::thread([&] {
+          fid_t got;
+          while (true) {
+            got = current_fid.fetch_add(1, std::memory_order_relaxed);
+            if (got >= fnum) {
+              break;
+            }
+            if (comm_spec.FragToWorker(got) == worker_id) {
+              continue;
+            }
+            auto& rm = o2l_[got];
+            auto& ol = l2o_[got];
+            VID_T vnum = static_cast<VID_T>(ol.size());
+            rm.reserve(vnum);
+            for (VID_T lid = 0; lid < vnum; ++lid) {
+              rm.emplace(ol[lid], lid);
+            }
+          }
+        });
+      }
+      for (auto& thrd : work_threads) {
+        thrd.join();
+      }
+    }
   }
 
- public:
   template <typename IOADAPTOR_T>
   void Serialize(const std::string& prefix) {
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), "%s/%s", prefix.c_str(),
              kSerializationVertexMapFilename);
-    std::string path = std::string(fbuf);
-    if (comm_spec_.worker_id() == 0) {
-      serialize<IOADAPTOR_T>(path);
+
+    auto io_adaptor =
+        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
+    io_adaptor->Open("wb");
+
+    InArchive ia;
+    Base::BaseSerialize(ia);
+    CHECK(io_adaptor->WriteArchive(ia));
+    ia.Clear();
+    for (fid_t i = 0; i < Base::GetFragmentNum(); ++i) {
+      ia << l2o_[i].size();
     }
-    MPI_Barrier(comm_spec_.comm());
-    auto exists_file = [](const std::string& name) {
-      std::ifstream f(name.c_str());
-      return f.good();
-    };
-    if (!exists_file(path) && comm_spec_.local_id() == 0) {
-      serialize<IOADAPTOR_T>(path);
+    CHECK(io_adaptor->WriteArchive(ia));
+    ia.Clear();
+    for (fid_t i = 0; i < Base::GetFragmentNum(); ++i) {
+      CHECK(io_adaptor->Write(l2o_[i].data(), l2o_[i].size() * sizeof(OID_T)));
     }
-    MPI_Barrier(comm_spec_.comm());
-    if (!exists_file(path)) {
-      serialize<IOADAPTOR_T>(path);
-    }
+    io_adaptor->Close();
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const std::string& prefix, fid_t fid) {
+  void Deserialize(const std::string& prefix) {
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), "%s/%s", prefix.c_str(),
              kSerializationVertexMapFilename);
@@ -261,58 +261,95 @@ class GlobalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
     io_adaptor->Open();
 
-    base_t::deserialize(io_adaptor);
+    OutArchive oa;
+    CHECK(io_adaptor->ReadArchive(oa));
+    Base::BaseDeserialize(oa);
+    oa.Clear();
 
-    indexers_.resize(comm_spec_.fnum());
-    for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
-      indexers_[i].Deserialize(io_adaptor);
+    l2o_.clear();
+    l2o_.resize(Base::GetFragmentNum());
+    o2l_.clear();
+    o2l_.resize(Base::GetFragmentNum());
+
+    CHECK(io_adaptor->ReadArchive(oa));
+    for (fid_t i = 0; i < Base::GetFragmentNum(); ++i) {
+      size_t size;
+      oa >> size;
+      l2o_[i].resize(size);
+    }
+    oa.Clear();
+
+    for (fid_t i = 0; i < Base::GetFragmentNum(); ++i) {
+      CHECK(io_adaptor->Read(l2o_[i].data(), l2o_[i].size() * sizeof(OID_T)));
     }
     io_adaptor->Close();
+
+    {
+      int thread_num = (std::thread::hardware_concurrency() +
+                        Base::GetCommSpec().local_num() - 1) /
+                       Base::GetCommSpec().local_num();
+      std::vector<std::thread> construct_threads(thread_num);
+      std::atomic<fid_t> current_fid(0);
+      fid_t fnum = Base::GetFragmentNum();
+      for (int i = 0; i < thread_num; ++i) {
+        construct_threads[i] = std::thread([&]() {
+          fid_t got;
+          while (true) {
+            got = current_fid.fetch_add(1, std::memory_order_relaxed);
+            if (got >= fnum) {
+              break;
+            }
+            auto& rm = o2l_[got];
+            auto& vec = l2o_[got];
+            size_t vnum = vec.size();
+            rm.reserve(vnum);
+            for (size_t lid = 0; lid < vnum; ++lid) {
+              rm.emplace(vec[lid], static_cast<VID_T>(lid));
+            }
+          }
+        });
+      }
+
+      for (auto& thrd : construct_threads) {
+        thrd.join();
+      }
+    }
   }
 
   void UpdateToBalance(std::vector<VID_T>& vnum_list,
                        std::vector<std::vector<VID_T>>& gid_maps) {
-    fid_t fnum = comm_spec_.fnum();
-    std::vector<std::vector<internal_oid_t>> oid_lists(fnum);
-    for (fid_t i = 0; i < fnum; ++i) {
-      oid_lists[i].resize(vnum_list[i]);
+    std::vector<HashMap<OID_T, VID_T>> new_o2l(o2l_.size());
+    std::vector<std::vector<OID_T>> new_l2o(l2o_.size());
+    fid_t fnum = Base::GetFragmentNum();
+    for (fid_t fid = 0; fid < fnum; ++fid) {
+      new_l2o[fid].clear();
+      new_l2o[fid].resize(vnum_list[fid]);
     }
     for (fid_t fid = 0; fid < fnum; ++fid) {
-      auto& old_indexer = indexers_[fid];
-      VID_T vnum = old_indexer.size();
-      for (VID_T i = 0; i < vnum; ++i) {
-        VID_T new_gid = gid_maps[fid][i];
-        internal_oid_t oid;
-        fid_t new_fid = GetFidFromGid(new_gid);
-        CHECK(old_indexer.get_key(i, oid));
-        if (new_fid != fid) {
-          OID_T id = InternalOID<OID_T>::FromInternal(oid);
-          partitioner_.SetPartitionId(id, new_fid);
-        }
-        VID_T new_lid = GetLidFromGid(new_gid);
-        oid_lists[new_fid][new_lid] = oid;
+      auto& hmap = o2l_[fid];
+      for (auto& pair : hmap) {
+        VID_T new_gid = gid_maps[fid][pair.second];
+        fid_t new_fid = Base::GetFidFromGid(new_gid);
+        VID_T new_lid = Base::GetLidFromGid(new_gid);
+        new_l2o[new_fid][new_lid] = pair.first;
+        new_o2l[new_fid].emplace(pair.first, new_lid);
       }
+      HashMap<OID_T, VID_T> tmp;
+      hmap.swap(tmp);
     }
-    std::vector<IdIndexer<internal_oid_t, VID_T>> new_indexers(fnum);
-    for (fid_t i = 0; i < fnum; ++i) {
-      auto& indexer = new_indexers[i];
-      for (auto& oid : oid_lists[i]) {
-        indexer._add(oid);
-      }
-    }
-    std::swap(indexers_, new_indexers);
+    o2l_.swap(new_o2l);
+    l2o_.swap(new_l2o);
   }
 
  private:
-  template <typename _OID_T, typename _VID_T, typename _PARTITIONER_T>
-  friend class GlobalVertexMapBuilder;
-
-  std::vector<IdIndexer<internal_oid_t, VID_T>> indexers_;
-  using base_t::comm_spec_;
-  using base_t::id_parser_;
-  using base_t::partitioner_;
+  std::vector<HashMap<OID_T, VID_T>> o2l_;
+  std::vector<std::vector<OID_T>> l2o_;
 };
 
 }  // namespace grape
+
+#ifdef SORT_DISTINCT
+#undef SORT_DISTINCT
+#endif  // SORT_DISTINCT
 
 #endif  // GRAPE_VERTEX_MAP_GLOBAL_VERTEX_MAP_H_

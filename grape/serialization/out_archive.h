@@ -17,6 +17,7 @@ limitations under the License.
 #define GRAPE_SERIALIZATION_OUT_ARCHIVE_H_
 
 #include <cstddef>
+
 #include <map>
 #include <set>
 #include <string>
@@ -27,8 +28,8 @@ limitations under the License.
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
+
 #include "grape/serialization/in_archive.h"
-#include "grape/types.h"
 #include "grape/utils/gcontainer.h"
 
 namespace grape {
@@ -158,14 +159,6 @@ inline OutArchive& operator>>(OutArchive& out_archive, std::string& str) {
   return out_archive;
 }
 
-inline OutArchive& operator>>(OutArchive& archive, nonstd::string_view& str) {
-  size_t length;
-  archive >> length;
-  str = nonstd::string_view(reinterpret_cast<char*>(archive.GetBytes(length)),
-                            length);
-  return archive;
-}
-
 template <typename T1, typename T2>
 inline OutArchive& operator>>(OutArchive& out_archive, std::pair<T1, T2>& p) {
   out_archive >> p.first;
@@ -183,10 +176,9 @@ inline OutArchive& operator>>(OutArchive& out_archive,
   return out_archive;
 }
 
-template <typename T, typename ALLOC_T,
+template <typename T,
           typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
-inline OutArchive& operator>>(OutArchive& out_archive,
-                              std::vector<T, ALLOC_T>& vec) {
+inline OutArchive& operator>>(OutArchive& out_archive, std::vector<T>& vec) {
   size_t size;
   out_archive >> size;
   vec.resize(size);

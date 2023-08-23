@@ -18,9 +18,9 @@
 #
 
 
-set -eo pipefail
-
+set -e
 rootdir="$( cd "$(dirname "$0")/../.." >/dev/null 2>&1 ; pwd -P )"
+
 config="${rootdir}/config/"
 
 function print-usage() {

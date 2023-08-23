@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-set -eo pipefail
 
 # Ensure the configuration file exists
 if [ ! -f "$config/platform.properties" ]; then
@@ -22,8 +21,19 @@ if [ ! -f "$config/platform.properties" ]; then
 	exit 1
 fi
 
+
 # Set library jar
 export LIBRARY_JAR=`ls lib/graphalytics-*default*.jar`
+GRANULA_ENABLED=$(grep -E "^benchmark.run.granula.enabled[	 ]*[:=]" $config/granula.properties | sed 's/benchmark.run.granula.enabled[	 ]*[:=][	 ]*\([^	 ]*\).*/\1/g' | head -n 1)
+if [ "$GRANULA_ENABLED" = "true" ] ; then
+ if ! find lib -name "graphalytics-platforms-*-granula.jar" | grep -q '.'; then
+    echo "Failed to find the library jar with Granula plugin" >&2
+    exit 1
+ else
+    export LIBRARY_JAR=`ls lib/graphalytics-platforms-*-granula.jar`
+ fi
+fi
+
 
 # Construct the classpath
 LIBGRAPE_HOME=$(grep -E "^platform.libgrape.home[	 ]*[:=]" $config/platform.properties | sed 's/platform.libgrape.home[	 ]*[:=][	 ]*\([^	 ]*\).*/\1/g' | head -n 1)

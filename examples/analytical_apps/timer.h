@@ -1,8 +1,8 @@
 /**
  * NOLINT(legal/copyright)
  *
- * The file examples/analytical_apps/timer.h is referred and derived from
- * project atlarge-research/graphalytics-platforms-powergraph,
+ * The file examples/analytical_apps/timer.h is referred and derived from project
+ * atlarge-research/graphalytics-platforms-powergraph,
  *
  *    https://github.com/atlarge-research/graphalytics-platforms-powergraph/
  * blob/master/src/main/c/utils.hpp
@@ -64,14 +64,14 @@ static void timer_end() {
   if (timer_enabled) {
     timer_next("end");
 
-    std::cerr << "Timing results:" << std::endl;
+    LOG(INFO) << "Timing results:" << std::endl;
 
     for (size_t i = 0; i < timers.size() - 1; i++) {
       std::string& name = timers[i].first;
       double time = timers[i + 1].second - timers[i].second;
 
-      std::cerr << " - " << name << ": " << time << " sec" << std::endl;
-      std::cerr << std::endl;
+      LOG(INFO) << " - " << name << ": " << time << " sec" << std::endl;
+      LOG(INFO) << std::endl;
     }
 
     timers.clear();

@@ -19,9 +19,6 @@ LDBC_HOME="${LIBGRAPE_HOME}/ldbc_driver"
 WORKSPACE="${LDBC_HOME}/workspace"
 LOG_FILE="${WORKSPACE}/output.log"
 
-# Enable GPU or not
-GPU_ENABLED="false"
-
 # MPI nodes, in the format of "10.149.0.55\,10.149.0.56".
 # extra slashes here is for escape
 HOST_NODES="127.0.0.1\\\,127.0.0.1"
@@ -41,14 +38,14 @@ fi
 
 # check the existance of the tar of driver, build with maven if not exists.
 pushd ${LDBC_HOME}
-if [[ ! -f "graphalytics-1.10.0-libgrape-0.3-SNAPSHOT-bin.tar.gz" ]]; then
-    mvn clean package -DskipTests -Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true -Dmaven.wagon.http.ssl.ignore.validity.dates=true
+if [[ ! -f "graphalytics-1.0.0-libgrape-0.3-SNAPSHOT-bin.tar.gz" ]]; then
+    mvn clean package -DskipTests
 fi
 
 # extract the driver to the workspace if not exists.
-if [[ ! -d "${WORKSPACE}/graphalytics-1.10.0-libgrape-0.3-SNAPSHOT" ]]; then
+if [[ ! -d "${WORKSPACE}/graphalytics-1.0.0-libgrape-0.3-SNAPSHOT" ]]; then
     mkdir -p ${WORKSPACE}
-    tar xzf graphalytics-1.10.0-libgrape-0.3-SNAPSHOT-bin.tar.gz -C ${WORKSPACE} # TODO: version 0.3
+    tar xzf graphalytics-1.0.0-libgrape-0.3-SNAPSHOT-bin.tar.gz -C ${WORKSPACE} # TODO: version 0.3
 fi
 
 pushd ${WORKSPACE}
@@ -65,14 +62,13 @@ if [[ ! -d "graphs" ]]; then
     fi
 fi
 
-pushd graphalytics-1.10.0-libgrape-0.3-SNAPSHOT
+pushd graphalytics-1.0.0-libgrape-0.3-SNAPSHOT
 
 # config the properties for ldbc-driver.
 if [[ ! -d "config" ]]; then
     cp -r ./config-template ./config
 
     # use '#' rather than '/' to avoid potential '/' in ${LIBGRAPE_HOME}
-    sed -i'.bak' '/^platform.run.gpu.enabled/ s#$# '"${GPU_ENABLED}"'#' config/platform.properties
     sed -i'.bak' '/^platform.libgrape.home/ s#$# '"${LIBGRAPE_HOME}"'#' config/platform.properties
     sed -i'.bak' '/^platform.libgrape.nodes/ s/$/ '"${HOST_NODES}"'/' config/platform.properties
     sed -i'.bak' -e '/^benchmark.executor.port/ s/$/ '"${EXECUTOR_PORT}"'/' -e '/^benchmark.runner.port/ s/$/ '"${RUNNER_PORT}"'/' config/benchmark.properties

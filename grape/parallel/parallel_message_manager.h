@@ -27,7 +27,6 @@ limitations under the License.
 #include <vector>
 
 #include "grape/communication/sync_comm.h"
-#include "grape/parallel/message_in_buffer.h"
 #include "grape/parallel/message_manager_base.h"
 #include "grape/parallel/thread_local_message_buffer.h"
 #include "grape/serialization/in_archive.h"
@@ -71,9 +70,6 @@ class ParallelMessageManager : public MessageManagerBase {
     comm_spec_.Init(comm_);
     fid_ = comm_spec_.fid();
     fnum_ = comm_spec_.fnum();
-
-    force_terminate_ = false;
-    terminate_info_.Init(fnum_);
 
     recv_queues_[0].SetProducerNum(fnum_);
     recv_queues_[1].SetProducerNum(fnum_);
@@ -121,20 +117,13 @@ class ParallelMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   bool ToTerminate() override {
-    int flag[2];
-    flag[0] = 1;
+    int flag = 1;
     if (sent_size_ == 0 && !force_continue_) {
-      flag[0] = 0;
+      flag = 0;
     }
-    flag[1] = force_terminate_ ? 1 : 0;
-    int ret[2];
-    MPI_Allreduce(&flag[0], &ret[0], 2, MPI_INT, MPI_SUM, comm_);
-    if (ret[1] > 0) {
-      terminate_info_.success = false;
-      sync_comm::AllGather(terminate_info_.info, comm_);
-      return true;
-    }
-    return (ret[0] == 0);
+    int ret;
+    MPI_Allreduce(&flag, &ret, 1, MPI_INT, MPI_SUM, comm_);
+    return (ret == 0);
   }
 
   /**
@@ -153,21 +142,6 @@ class ParallelMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   void ForceContinue() override { force_continue_ = true; }
-
-  /**
-   * @brief Inherit
-   */
-  void ForceTerminate(const std::string& terminate_info) override {
-    force_terminate_ = true;
-    terminate_info_.info[comm_spec_.fid()] = terminate_info;
-  }
-
-  /**
-   * @brief Inherit
-   */
-  const TerminateInfo& GetTerminateInfo() const override {
-    return terminate_info_;
-  }
 
   /**
    * @brief Inherit
@@ -206,20 +180,6 @@ class ParallelMessageManager : public MessageManagerBase {
     item.first = fid;
     item.second = std::move(arc);
     sending_queue_.Put(std::move(item));
-  }
-
-  /**
-   * @brief Send message to a fragment.
-   *
-   * @tparam MESSAGE_T Message type.
-   * @param dst_fid Destination fragment id.
-   * @param msg
-   * @param channelId
-   */
-  template <typename MESSAGE_T>
-  inline void SendToFragment(fid_t dst_fid, const MESSAGE_T& msg,
-                             int channel_id = 0) {
-    channels_[channel_id].SendToFragment<MESSAGE_T>(dst_fid, msg);
   }
 
   /**
@@ -301,22 +261,6 @@ class ParallelMessageManager : public MessageManagerBase {
   }
 
   /**
-   * @brief Get a bunch of messages, stored in a MessageInBuffer.
-   *
-   * @param buf Message buffer which holds a grape::OutArchive.
-   */
-  inline bool GetMessageInBuffer(MessageInBuffer& buf) {
-    grape::OutArchive arc;
-    auto& que = recv_queues_[round_ % 2];
-    if (que.Get(arc)) {
-      buf.Init(std::move(arc));
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  /**
    * @brief Parallel process all incoming messages with given function of last
    * round.
    *
@@ -336,14 +280,14 @@ class ParallelMessageManager : public MessageManagerBase {
       threads[i] = std::thread(
           [&](int tid) {
             typename GRAPH_T::vid_t id;
-            typename GRAPH_T::vertex_t vertex(0);
+            typename GRAPH_T::vertex_t vertex;
             MESSAGE_T msg;
             auto& que = recv_queues_[round_ % 2];
             OutArchive arc;
             while (que.Get(arc)) {
               while (!arc.Empty()) {
                 arc >> id >> msg;
-                frag.Gid2Vertex(id, vertex);
+                CHECK(frag.Gid2Vertex(id, vertex));
                 func(tid, vertex, msg);
               }
             }
@@ -411,9 +355,9 @@ class ParallelMessageManager : public MessageManagerBase {
               to_self_.emplace_back(std::move(item.second));
             } else {
               MPI_Request req;
-              sync_comm::isend_small_buffer<char>(
-                  item.second.GetBuffer(), item.second.GetSize(),
-                  comm_spec_.FragToWorker(item.first), msg_round, comm_, req);
+              MPI_Isend(item.second.GetBuffer(), item.second.GetSize(),
+                        MPI_CHAR, comm_spec_.FragToWorker(item.first),
+                        msg_round, comm_, &req);
               reqs.push_back(req);
               to_others_.emplace_back(std::move(item.second));
             }
@@ -423,8 +367,8 @@ class ParallelMessageManager : public MessageManagerBase {
               continue;
             }
             MPI_Request req;
-            sync_comm::isend_small_buffer<char>(
-                NULL, 0, comm_spec_.FragToWorker(i), msg_round, comm_, req);
+            MPI_Isend(NULL, 0, MPI_CHAR, comm_spec_.FragToWorker(i), msg_round,
+                      comm_, &req);
             reqs.push_back(req);
           }
           MPI_Waitall(reqs.size(), &reqs[0], MPI_STATUSES_IGNORE);
@@ -438,21 +382,21 @@ class ParallelMessageManager : public MessageManagerBase {
     while (true) {
       MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_, &status);
       if (status.MPI_SOURCE == comm_spec_.worker_id()) {
-        sync_comm::recv_small_buffer<char>(NULL, 0, status.MPI_SOURCE, 0,
-                                           comm_);
+        MPI_Recv(NULL, 0, MPI_CHAR, status.MPI_SOURCE, 0, comm_,
+                 MPI_STATUS_IGNORE);
         return;
       }
       int tag = status.MPI_TAG;
       int count;
       MPI_Get_count(&status, MPI_CHAR, &count);
       if (count == 0) {
-        sync_comm::recv_small_buffer<char>(NULL, 0, status.MPI_SOURCE, tag,
-                                           comm_);
+        MPI_Recv(NULL, 0, MPI_CHAR, status.MPI_SOURCE, tag, comm_,
+                 MPI_STATUS_IGNORE);
         recv_queues_[tag % 2].DecProducerNum();
       } else {
         OutArchive arc(count);
-        sync_comm::recv_small_buffer<char>(arc.GetBuffer(), count,
-                                           status.MPI_SOURCE, tag, comm_);
+        MPI_Recv(arc.GetBuffer(), count, MPI_CHAR, status.MPI_SOURCE, tag,
+                 comm_, MPI_STATUS_IGNORE);
         recv_queues_[tag % 2].Put(std::move(arc));
       }
     }
@@ -466,8 +410,8 @@ class ParallelMessageManager : public MessageManagerBase {
       MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_, &flag, &status);
       if (flag) {
         if (status.MPI_SOURCE == comm_spec_.worker_id()) {
-          sync_comm::recv_small_buffer<char>(NULL, 0, status.MPI_SOURCE, 0,
-                                             comm_);
+          MPI_Recv(NULL, 0, MPI_CHAR, status.MPI_SOURCE, 0, comm_,
+                   MPI_STATUS_IGNORE);
           return -1;
         }
         gotMessage = 1;
@@ -475,13 +419,13 @@ class ParallelMessageManager : public MessageManagerBase {
         int count;
         MPI_Get_count(&status, MPI_CHAR, &count);
         if (count == 0) {
-          sync_comm::recv_small_buffer<char>(NULL, 0, status.MPI_SOURCE, tag,
-                                             comm_);
+          MPI_Recv(NULL, 0, MPI_CHAR, status.MPI_SOURCE, tag, comm_,
+                   MPI_STATUS_IGNORE);
           recv_queues_[tag % 2].DecProducerNum();
         } else {
           OutArchive arc(count);
-          sync_comm::recv_small_buffer<char>(arc.GetBuffer(), count,
-                                             status.MPI_SOURCE, tag, comm_);
+          MPI_Recv(arc.GetBuffer(), count, MPI_CHAR, status.MPI_SOURCE, tag,
+                   comm_, MPI_STATUS_IGNORE);
           recv_queues_[tag % 2].Put(std::move(arc));
         }
       } else {
@@ -519,8 +463,7 @@ class ParallelMessageManager : public MessageManagerBase {
   }
 
   void stopRecvThread() {
-    sync_comm::send_small_buffer<char>(NULL, 0, comm_spec_.worker_id(), 0,
-                                       comm_);
+    MPI_Send(NULL, 0, MPI_CHAR, comm_spec_.worker_id(), 0, comm_);
     recv_thread_.join();
   }
 
@@ -566,9 +509,6 @@ class ParallelMessageManager : public MessageManagerBase {
 
   bool force_continue_;
   size_t sent_size_;
-
-  bool force_terminate_;
-  TerminateInfo terminate_info_;
 };
 
 }  // namespace grape

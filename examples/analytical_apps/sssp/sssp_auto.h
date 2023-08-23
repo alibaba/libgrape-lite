@@ -16,10 +16,10 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_AUTO_H_
 #define EXAMPLES_ANALYTICAL_APPS_SSSP_SSSP_AUTO_H_
 
+#include <grape/grape.h>
+
 #include <queue>
 #include <utility>
-
-#include <grape/grape.h>
 
 #include "sssp/sssp_auto_context.h"
 
@@ -51,8 +51,8 @@ class SSSPAuto : public AutoAppBase<FRAG_T, SSSPAutoContext<FRAG_T>> {
                 std::priority_queue<std::pair<double, vertex_t>>& heap) {
     {
       auto inner_vertices = frag.InnerVertices();
-      VertexArray<typename FRAG_T::inner_vertices_t, bool> modified(
-          inner_vertices, false);
+      typename FRAG_T::template vertex_array_t<bool> modified(inner_vertices,
+                                                              false);
 
       double distu, distv, ndistv;
       vertex_t v, u;
@@ -74,9 +74,9 @@ class SSSPAuto : public AutoAppBase<FRAG_T, SSSPAutoContext<FRAG_T>> {
 
         auto es = frag.GetOutgoingAdjList(u);
         for (auto& e : es) {
-          v = e.get_neighbor();
+          v = e.neighbor;
           distv = ctx.partial_result[v];
-          ndistv = distu + e.get_data();
+          ndistv = distu + e.data;
           if (distv > ndistv) {
             ctx.partial_result.SetValue(v, ndistv);
             if (frag.IsInnerVertex(v)) {

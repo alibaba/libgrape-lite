@@ -47,18 +47,8 @@ namespace grape {
 template <typename _Tp>
 class HpAllocator {
  public:
-  typedef _Tp value_type;
-  typedef _Tp* pointer;
-  typedef const _Tp* const_pointer;
-  typedef _Tp& reference;
-  typedef const _Tp& const_reference;
-  typedef std::size_t size_type;
-  typedef std::ptrdiff_t difference_type;
-
-  template <typename _Tp2>
-  struct rebind {
-    typedef HpAllocator<_Tp2> other;
-  };
+  using pointer = _Tp*;
+  using size_type = size_t;
 
   HpAllocator() noexcept {}
   HpAllocator(const HpAllocator&) noexcept {}
@@ -67,14 +57,6 @@ class HpAllocator {
 
   HpAllocator& operator=(const HpAllocator&) noexcept { return *this; }
   HpAllocator& operator=(HpAllocator&&) noexcept { return *this; }
-
-  pointer address(reference value) const { return &value; }
-
-  const_pointer address(const_reference value) const { return &value; }
-
-  size_type max_size() const {
-    return std::numeric_limits<std::size_t>::max() / sizeof(_Tp);
-  }
 
   pointer allocate(size_type __n) {
     void* addr =
@@ -90,15 +72,8 @@ class HpAllocator {
     return static_cast<pointer>(addr);
   }
 
-  void construct(pointer p, const _Tp& value) {
-    new (reinterpret_cast<void*>(p)) _Tp(value);
-  }
-
-  void destroy(pointer p) { p->~_Tp(); }
-
   void deallocate(pointer __p, size_type __n) {
     if (munmap(__p, ROUND_UP(__n * sizeof(_Tp)))) {
-      perror("huge page allocator deallocate");
       free(__p);
     }
   }

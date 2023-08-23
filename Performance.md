@@ -1,6 +1,6 @@
 # Performance
 
-We evaluated performance of **libgrape-lite** with [LDBC Graph Analytics Benchmark](http://graphalytics.org/). In addition to the ease of programming, we find that **libgrape-lite** achieves high performance comparably to the state-of-the-art systems. The experiments were conducted on 4 instances of [r6.8xlarge](https://www.alibabacloud.com/help/doc-detail/25378.htm#d12e563) on [AlibabaCloud ECS](https://www.alibabacloud.com/product/ecs), each with 32 threads, over LDBC XL-size datasets. Instances are imaged with [Aliyun Linux (a CentOS-variant)](https://www.alibabacloud.com/help/doc-detail/111881.htm). The datasets can be downloaded from [here](https://ldbcouncil.org/benchmarks/graphalytics/).
+We evaluated performance of **libgrape-lite** with [LDBC Graph Analytics Benchmark](http://graphalytics.org/). In addition to the ease of programming, we find that **libgrape-lite** achieves high performance comparably to the state-of-the-art systems. The experiments were conducted on 4 instances of [r6.8xlarge](https://www.alibabacloud.com/help/doc-detail/25378.htm#d12e563) on [AlibabaCloud ECS](https://www.alibabacloud.com/product/ecs), each with 32 threads, over LDBC XL-size datasets. Instances are imaged with [Aliyun Linux (a CentOS-variant)](https://www.alibabacloud.com/help/doc-detail/111881.htm).
 
 We compared **libgrape-lite** with [PowerGraph](https://github.com/jegonzal/PowerGraph)(commit a038f97
 ) [GeminiGraph](https://github.com/thu-pacman/GeminiGraph)(commit 170e7d3
@@ -18,36 +18,36 @@ We made minor changes on their code and datasets:
 The results are reported below. The numbers in the table represent the evaluation time in seconds. 
 The best results are marked in **bold**.
 
-| Algorithm | Dataset        | PowerGraph | GeminiGraph | Plato | libgrape-lite |
-|-----------|----------------|------------|-------------|-------|---------------|
-| SSSP      | datagen-9_0-fb | 5.08       | 0.62        | N/A   | **0.42**      |
-|           | datagen-9_1-fb | 5.30       | 0.78        | N/A   | **0.56**      |
-|           | datagen-9_2-zf | 41.19      | 3.75        | N/A   | **1.48**      |
-| WCC       | datagen-9_0-fb | 14.14      | 0.88        | 2.60  | **0.41**      |
-|           | datagen-9_1-fb | 18.61      | 1.17        | 3.07  | **0.50**      |
-|           | datagen-9_2-zf | 176.87     | 6.26        | 25.49 | **1.32**      |
-|           | graph500-26    | 13.71      | 1.60        | 4.79  | **0.71**      |
-|           | com-friendster | 44.20      | 3.97        | 7.80  | **1.97**      |
-| BFS       | datagen-9_0-fb | 3.90       | 0.24        | 0.59  | **0.07**      |
-|           | datagen-9_1-fb | 4.30       | 0.28        | 0.71  | **0.13**      |
-|           | datagen-9_2-zf | 39.11      | 1.97        | 10.37 | **1.16**      |
-|           | graph500-26    | 4.86       | 0.53        | 1.56  | **0.20**      |
-|           | com-friendster | 12.80      | 1.09        | 2.67  | **0.74**      |
-| PageRank  | datagen-9_0-fb | 22.57      | X           | X     | **1.40**      |
-|           | datagen-9_1-fb | 28.38      | X           | X     | **1.73**      |
-|           | datagen-9_2-zf | 126.98     | X           | X     | **3.83**      |
-|           | graph500-26    | 28.66      | X           | X     | **2.42**      |
-|           | com-friendster | 57.10      | X           | X     | **6.04**      |
-| CDLP      | datagen-9_0-fb | 1695.73    | N/A         | 16.30 | **8.18**      |
-|           | datagen-9_1-fb | 2742.47    | N/A         | 21.35 | **10.40**     |
-|           | datagen-9_2-zf | > 3600     | N/A         | 34.85 | **19.48**     |
-|           | graph500-26    | 425.55     | N/A         | 12.86 | **7.59**      |
-|           | com-friendster | > 3600     | N/A         | 36.87 | **19.10**     |
-| LCC       | datagen-9_0-fb | 521.26     | N/A         | N/A   | **14.51**     |
-|           | datagen-9_1-fb | 600.32     | N/A         | N/A   | **18.35**     |
-|           | datagen-9_2-zf | 296.18     | N/A         | N/A   | **8.98**      |
-|           | graph500-26    | 1859.86    | N/A         | N/A   | **201.20**    |
-|           | com-friendster | 842.68     | N/A         | N/A   | **61.44**     |
+| Algorithm |     Dataset    |      PowerGraph     |     GeminiGraph     |      Plato      |     libgrape-lite     |
+|-----------|----------------|---------------------|---------------------|-----------------|-----------------------|
+|    SSSP   | datagen-9_0-fb |        6.48         |        0.74         |  N/A  |        **0.52**           |
+|           | datagen-9_1-fb |        7.14         |        0.99         |  N/A  |        **0.62**           |
+|           | datagen-9_2-zf |        59.48        |        3.50         |  N/A  |        **1.85**           |
+|    WCC    | datagen-9_0-fb |        16.99        |        1.05         |       2.85      |        **0.52**           |
+|           | datagen-9_1-fb |        30.33        |        1.24         |       3.80      |        **0.60**           |
+|           | datagen-9_2-zf |        231.79       |        6.58         |       30.79     |        **1.77**           |
+|           | graph500-26    |        17.36       |        1.98         |       4.96      |        **0.90**           |
+|           | com-friendster |        68.79       |        4.77         |       9.39      |        **2.40**           |
+|    BFS    | datagen-9_0-fb |        4.31         |        0.38         |      0.73       |        **0.23**           |
+|           | datagen-9_1-fb |        5.23         |        0.39         |      0.84       |        **0.26**           |
+|           | datagen-9_2-zf |        41.36        |        2.59         |      14.59      |        **1.64**           |
+|           | graph500-26    |        5.42         |        0.73         |      2.19       |        **0.43**           |
+|           | com-friendster |        13.14        |        1.28         |      3.55       |        **1.12**           |
+|  PageRank | datagen-9_0-fb |        26.90        |  X    |      X   |    **1.61**    |
+|           | datagen-9_1-fb |        34.01        |  X    |      X   |    **1.99**    |
+|           | datagen-9_2-zf |        152.11       |  X    |      X   |    **4.00**    |
+|           | graph500-26    |        34.89        |  X    |      X   |    **2.95**    |
+|           | com-friendster |        66.61        |  X    |      X   |    **5.91**    |
+|    CDLP   | datagen-9_0-fb |        1535.09      |  N/A    |     16.67   |    **8.49**    |
+|           | datagen-9_1-fb |        2725.54      |  N/A    |     21.60   |    **10.78**   |
+|           | datagen-9_2-zf |        > 3600       |  N/A    |     46.05   |    **17.17**   |
+|           | graph500-26    |        401.21       |  N/A    |     13.44   |    **8.50**    |
+|           | com-friendster |        > 3600       |  N/A    |     37.81   |    **20.17**   |
+|    LCC    | datagen-9_0-fb |        453.07       |      N/A            |      N/A      |         **16.53**       |
+|           | datagen-9_1-fb |        613.64       |      N/A            |      N/A      |         **20.83**       |
+|           | datagen-9_2-zf |        299.42       |      N/A            |      N/A      |         **19.81**       |
+|           | graph500-26    |        1838.60      |      N/A            |      N/A      |         **232.50**      |
+|           | com-friendster |        847.97       |      N/A            |      N/A      |         **68.52**       |
 
 
 We used “default” code provided by the competitor systems when it is available. 
@@ -58,43 +58,14 @@ The inconsistences of PageRank come from different settings on convergence condi
 To give a comprehensive comparison, we made our best efforts to revise our application([pagerank_local.h](examples/analytical_apps/pagerank/pagerank_local.h)), making them output the same results as competitor systems.
 The performance results are shown as below. 
 
-| Algorithm | Dataset        | GeminiGraph | Plato | libgrape-lite |
-|-----------|----------------|-------------|-------|---------------|
-| PageRank  | datagen-9_0-fb | 2.21        | 4.65  | **1.39**      |
-|           | datagen-9_1-fb | 2.72        | 5.38  | **1.73**      |
-|           | datagen-9_2-zf | 7.84        | 36.11 | **3.63**      |
-|           | graph500-26    | 4.75        | 12.25 | **2.34**      |
-|           | com-friendster | 8.19        | 15.82 | **5.84**      |
+| Algorithm |     Dataset    |     GeminiGraph     |        Plato        | libgrape-lite   |
+|-----------|----------------|---------------------|---------------------|---------------------|
+|  PageRank | datagen-9_0-fb |        2.60         |        4.81         |      **1.69**       |
+|           | datagen-9_1-fb |        3.24         |        5.17         |      **1.88**       |
+|           | datagen-9_2-zf |        7.18         |        41.43        |      **2.99**       |
+|           | graph500-26    |        6.61         |        14.67        |      **2.88**       |
+|           | com-friendster |        9.90         |        18.65        |      **5.95**       |
 
-## Performance on GPUs
-We compare the libgrape-lite GPU version with [gunrock](https://github.com/gunrock/gunrock)(commit 0c9a96, tag:v0.5.1) and [groute](https://github.com/groute/groute)(commit 5ce160).
-Each system is built with GCC(v7.3.0), OpenMPI(v4.1.1), and CUDA(v10.0). 
-The experiments were conducted on GPU instances of [gn6v-c8g1.16xlarge](https://www.alibabacloud.com/help/zh/doc-detail/25378.htm#gn6v) on [AlibabaCloud ECS](https://www.alibabacloud.com/product/ecs), 
-equipped with 8x 16GB NVIDIA-V100 GPU, and 256 GB host memory.
-Instances are imaged with [Aliyun Linux (a CentOS-variant)](https://www.alibabacloud.com/help/doc-detail/111881.htm).
-Since the device memory of GPUs is limited, we conducted the comparison on several smaller graphs from the paper of Gunrock and Groute.
-
-The results are reported below. The numbers in the table represent the evaluation time in milliseconds. 
-The best results are marked in **bold**.
-
-| Algorithm   | Dataset          | Gunrock   | Groute   | libgrape-lite-GPU |
-|-------------|------------------|-----------|----------|-------------------|
-| SSSP        | soc-LiveJournal1 |   89.9345 | 215.560  |        **32.3029**|
-|             | soc-twitter-2010 |  129.454  | 389.155  |        **88.0549**|
-|             | soc-sinaweibo    |  210.168  | 1649.647 |         **172.03**|
-|             | soc-orkut        |  105.121  | 193.658  |        **54.3201**|
-| WCC         | soc-LiveJournal1 |   50.7677 | 12.137   |        **10.2139**|
-|             | soc-twitter-2010 |  319.261  | 69.235   |         **66.334**|
-|             | soc-sinaweibo    |  567.09   | 283.073  |        **68.6619**|
-|             | soc-orkut        |   45.777  | **7.150**|            8.87299|
-| BFS         | soc-LiveJournal1 |   28.162  | 51.000   |        **5.60403**|
-|             | soc-twitter-2010 |   45.9676 | 141.347  |        **27.7772**|
-|             | soc-sinaweibo    |   55.0118 | 168.306  |        **34.8618**|
-|             | soc-orkut        |   41.9134 | 37.467   |        **6.60801**|
-| PageRank    | soc-LiveJournal1 |   39.8666 | 3501.870 |        **24.6451**|
-|             | soc-twitter-2010 |  198.829  | 5036.229 |        **127.024**|
-|             | soc-sinaweibo    |  483.178  | 5593.807 |        **228.367**|
-|             | soc-orkut        |   57.6946 | N/A      |        **49.2339**|
 
 ## Reproducing the results
 

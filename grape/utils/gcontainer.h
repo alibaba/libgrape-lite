@@ -67,7 +67,7 @@ __construct_range_forward(_Alloc&, _SourceTp* __begin1, _SourceTp* __end1,
 /**
  * @brief Array a std::vector-like container type without reserving memory.
  *
- * Unlike std::array, Array is resizable, and unlike std::vector, Array takes
+ * Unlike std::array, Array is unsizable, and unlike std::vector, Array takes
  * exactly memory for elements without reserving spaces for further insertions.
  *
  * @tparam _Tp Type of elements in the array.
@@ -174,6 +174,7 @@ class Array {
     while (__new_last != __soon_to_be_end) {
       __alloc_traits::destroy(__alloc(), --__soon_to_be_end);
     }
+    this->__base.__end_ = __new_last;
   }
 
   inline void __destruct_at_end(pointer __new_last, pointer __end) {
@@ -293,7 +294,7 @@ class Array {
       pointer __old_begin = this->__base.__begin_;
       pointer __old_end = this->__base.__end_;
       __vallocate(__new_size);
-      __construct_at_end(__old_begin, __old_begin + __new_size, __new_size);
+      __construct_at_end(__old_begin, __old_end, __new_size);
 
       __destruct_at_end(__old_begin, __old_end);
       __vdeallocate(__old_begin, __old_size);
@@ -315,7 +316,7 @@ class Array {
       pointer __old_begin = this->__base.__begin_;
       pointer __old_end = this->__base.__end_;
       __vallocate(__new_size);
-      __construct_at_end(__old_begin, __old_begin + __new_size, __new_size);
+      __construct_at_end(__old_begin, __old_end, __new_size);
 
       __destruct_at_end(__old_begin, __old_end);
       __vdeallocate(__old_begin, __old_size);
@@ -491,12 +492,11 @@ class Array<EmptyType, _Alloc> {
   const_pointer data() const noexcept { return nullptr; }
 
   struct iterator {
-    iterator() noexcept = default;
-    explicit iterator(EmptyType* val, size_t index) noexcept
-        : val_(val), index_(index) {}
+    iterator() noexcept : index_(0) {}
+    explicit iterator(size_t index) noexcept : index_(index) {}
 
-    reference operator*() noexcept { return *val_; }
-    pointer operator->() noexcept { return val_; }
+    reference operator*() noexcept { return val_; }
+    pointer operator->() noexcept { return index_; }
 
     iterator& operator++() noexcept {
       ++index_;
@@ -519,17 +519,16 @@ class Array<EmptyType, _Alloc> {
     }
 
    private:
-    EmptyType* val_;
+    EmptyType val_;
     size_t index_;
   };
 
   struct const_iterator {
-    const_iterator() noexcept = default;
-    explicit const_iterator(EmptyType* val, size_t index) noexcept
-        : val_(val), index_(index) {}
+    const_iterator() noexcept : index_(0) {}
+    explicit const_iterator(size_t index) noexcept : index_(index) {}
 
-    const_reference operator*() const noexcept { return *val_; }
-    const_pointer operator->() const noexcept { return val_; }
+    const_reference operator*() const noexcept { return val_; }
+    const_pointer operator->() const noexcept { return index_; }
 
     const_iterator& operator++() noexcept {
       ++index_;
@@ -554,17 +553,15 @@ class Array<EmptyType, _Alloc> {
     }
 
    private:
-    EmptyType* val_;
+    EmptyType val_;
     size_t index_;
   };
 
-  iterator begin() noexcept { return iterator(&__val, 0); }
-  const_iterator begin() const noexcept { return const_iterator(&__val, 0); }
+  iterator begin() noexcept { return iterator(0); }
+  const_iterator begin() const noexcept { return const_iterator(0); }
 
-  iterator end() noexcept { return iterator(&__val, this->__size); }
-  const_iterator end() const noexcept {
-    return const_iterator(&__val, this->__size);
-  }
+  iterator end() noexcept { return iterator(this->__size); }
+  const_iterator end() const noexcept { return const_iterator(this->__size); }
 
   void swap(Array& __x) noexcept {
     std::swap(this->__alloc(), __x.__alloc());

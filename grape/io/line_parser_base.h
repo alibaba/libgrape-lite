@@ -96,6 +96,13 @@ inline const char* match<uint64_t>(char const* str, uint64_t& r, char const*) {
 }
 
 template <>
+inline const char* match<uint16_t>(char const* str, uint16_t& r, char const*) {
+  char* match_end;
+  r = static_cast<uint16_t>(std::strtoul(str, &match_end, 10));
+  return match_end;
+}
+
+template <>
 inline const char* match<float>(char const* str, float& r, char const*) {
   char* match_end;
   r = std::strtof(str, &match_end);
@@ -121,14 +128,13 @@ template <>
 inline const char* match<std::string>(char const* str, std::string& r,
                                       char const* end) {
   int nlen1 = 0, nlen2 = 0;
-  // skip preceding spaces or new line mark
   while (str + nlen1 != end && str[nlen1] &&
-         (str[nlen1] == '\n' || str[nlen1] == ' ' || str[nlen1] == '\t')) {
+         (str[nlen1] == ' ' || str[nlen1] == '\t')) {
     nlen1 += 1;
   }
   nlen2 = nlen1;
   while (str + nlen2 != end && str[nlen2] &&
-         (str[nlen2] != '\n' && str[nlen2] != ' ' && str[nlen2] != '\t')) {
+         (str[nlen2] != ' ' && str[nlen2] != '\t')) {
     nlen2 += 1;
   }
   r = std::string(str + nlen1, nlen2 - nlen1);

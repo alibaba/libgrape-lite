@@ -21,9 +21,6 @@ limitations under the License.
 #include <algorithm>
 #include <utility>
 
-#include "grape/config.h"
-#include "thread_pool.h"
-
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
 
 #define WORD_INDEX(i) ((i) >> 6)
@@ -37,35 +34,27 @@ namespace grape {
 /**
  * @brief Bitset is a highly-optimized bitset implementation.
  */
-class Bitset : public Allocator<uint64_t> {
+class Bitset {
  public:
   Bitset() : data_(NULL), size_(0), size_in_words_(0) {}
   explicit Bitset(size_t size) : size_(size) {
     size_in_words_ = WORD_SIZE(size_);
-    data_ = this->allocate(size_in_words_);
+    data_ = static_cast<uint64_t*>(malloc(size_in_words_ * sizeof(uint64_t)));
     clear();
-  }
-  Bitset(Bitset&& other)
-      : data_(other.data_),
-        size_(other.size_),
-        size_in_words_(other.size_in_words_) {
-    other.data_ = NULL;
-    other.size_ = 0;
-    other.size_in_words_ = 0;
   }
   ~Bitset() {
     if (data_ != NULL) {
-      this->deallocate(data_, size_in_words_);
+      free(data_);
     }
   }
 
   void init(size_t size) {
     if (data_ != NULL) {
-      this->deallocate(data_, size_in_words_);
+      free(data_);
     }
     size_ = size;
     size_in_words_ = WORD_SIZE(size_);
-    data_ = this->allocate(size_in_words_);
+    data_ = static_cast<uint64_t*>(malloc(size_in_words_ * sizeof(uint64_t)));
     clear();
   }
 
@@ -75,79 +64,11 @@ class Bitset : public Allocator<uint64_t> {
     }
   }
 
-  void resize(size_t size) {
-    if (size == 0) {
-      if (data_ != NULL) {
-        this->deallocate(data_, size_in_words_);
-      }
-      data_ = NULL;
-      size_ = 0;
-      size_in_words_ = 0;
-      return;
+  void parallel_clear(int thread_num) {
+#pragma omp parallel for num_threads(thread_num)
+    for (size_t i = 0; i < size_in_words_; ++i) {
+      data_[i] = 0;
     }
-    if (data_ == NULL) {
-      init(size);
-      return;
-    }
-    size_t new_size_in_words = WORD_SIZE(size);
-    if (size_in_words_ != new_size_in_words) {
-      uint64_t* new_data = this->allocate(new_size_in_words);
-      if (size_in_words_ > new_size_in_words) {
-        for (size_t i = 0; i < new_size_in_words; ++i) {
-          new_data[i] = data_[i];
-        }
-        __sync_fetch_and_and(new_data + new_size_in_words - 1,
-                             (1ul << BIT_OFFSET(size)) - 1);
-      } else if (size_in_words_ < new_size_in_words) {
-        for (size_t i = 0; i < size_in_words_; ++i) {
-          new_data[i] = data_[i];
-        }
-        for (size_t i = size_in_words_; i < new_size_in_words; ++i) {
-          new_data[i] = 0;
-        }
-      }
-      this->deallocate(data_, size_in_words_);
-      data_ = new_data;
-    } else {
-      if (size_ > size) {
-        __sync_fetch_and_and(data_ + size_in_words_ - 1,
-                             (1ul << BIT_OFFSET(size)) - 1);
-      }
-    }
-    size_ = size;
-    size_in_words_ = new_size_in_words;
-  }
-
-  void copy(const Bitset& other) {
-    assert(this != &other);
-    if (data_ != NULL) {
-      this->deallocate(data_, size_in_words_);
-    }
-    size_ = other.size_;
-    size_in_words_ = other.size_in_words_;
-    if (other.data_ != NULL) {
-      data_ = this->allocate(size_in_words_);
-      memcpy(data_, other.data_, size_in_words_ * sizeof(uint64_t));
-    } else {
-      data_ = NULL;
-    }
-  }
-
-  void parallel_clear(ThreadPool& thread_pool) {
-    uint32_t thread_num = thread_pool.GetThreadNum();
-    size_t chunk_size =
-        std::max(1024ul, (size_in_words_ + thread_num - 1) / thread_num);
-    size_t thread_begin = 0, thread_end = std::min(chunk_size, size_in_words_);
-    std::vector<std::future<void>> results(thread_num);
-    for (uint32_t tid = 0; tid < thread_num; ++tid) {
-      results[tid] = thread_pool.enqueue([thread_begin, thread_end, this]() {
-        for (size_t i = thread_begin; i < thread_end; ++i)
-          data_[i] = 0;
-      });
-      thread_begin = thread_end;
-      thread_end = std::min(thread_end + chunk_size, size_in_words_);
-    }
-    thread_pool.WaitEnd(results);
   }
 
   bool empty() const {
@@ -225,25 +146,12 @@ class Bitset : public Allocator<uint64_t> {
     return ret;
   }
 
-  size_t parallel_count(ThreadPool& thread_pool) const {
+  size_t parallel_count(int thread_num) const {
     size_t ret = 0;
-    uint32_t thread_num = thread_pool.GetThreadNum();
-    size_t chunk_size =
-        std::max(1024ul, (size_in_words_ + thread_num - 1) / thread_num);
-    size_t thread_start = 0, thread_end = std::min(chunk_size, size_in_words_);
-    std::vector<std::future<void>> results(thread_num);
-    for (uint32_t tid = 0; tid < thread_num; ++tid) {
-      results[tid] =
-          thread_pool.enqueue([thread_start, thread_end, this, &ret]() {
-            size_t ret_t = 0;
-            for (size_t i = thread_start; i < thread_end; ++i)
-              ret_t += __builtin_popcountll(data_[i]);
-            __sync_fetch_and_add(&ret, ret_t);
-          });
-      thread_start = thread_end;
-      thread_end = std::min(thread_end + chunk_size, size_in_words_);
+#pragma omp parallel for num_threads(thread_num) reduction(+ : ret)
+    for (size_t i = 0; i < size_in_words_; ++i) {
+      ret += __builtin_popcountll(data_[i]);
     }
-    thread_pool.WaitEnd(results);
     return ret;
   }
 
@@ -269,31 +177,17 @@ class Bitset : public Allocator<uint64_t> {
     return ret;
   }
 
-  size_t parallel_partial_count(ThreadPool& thread_pool, size_t begin,
+  size_t parallel_partial_count(int thread_num, size_t begin,
                                 size_t end) const {
     size_t ret = 0;
     size_t cont_beg = ROUND_UP(begin);
     size_t cont_end = ROUND_DOWN(end);
     size_t word_beg = WORD_INDEX(cont_beg);
     size_t word_end = WORD_INDEX(cont_end);
-    uint32_t thread_num = thread_pool.GetThreadNum();
-    size_t chunk_size =
-        std::max(1024ul, (word_end - word_beg + thread_num - 1) / thread_num);
-    size_t thread_begin = word_beg,
-           thread_end = std::min(word_beg + chunk_size, word_end);
-    std::vector<std::future<void>> results(thread_num);
-    for (uint32_t tid = 0; tid < thread_num; ++tid) {
-      results[tid] =
-          thread_pool.enqueue([thread_begin, thread_end, this, &ret]() {
-            size_t ret_t = 0;
-            for (size_t i = thread_begin; i < thread_end; ++i)
-              ret_t += __builtin_popcountll(data_[i]);
-            __sync_fetch_and_add(&ret, ret_t);
-          });
-      thread_begin = thread_end;
-      thread_end = std::min(thread_end + chunk_size, word_end);
+#pragma omp parallel for num_threads(thread_num) reduction(+ : ret)
+    for (size_t i = word_beg; i < word_end; ++i) {
+      ret += __builtin_popcountll(data_[i]);
     }
-    thread_pool.WaitEnd(results);
     if (cont_beg != begin) {
       uint64_t first_word = data_[WORD_INDEX(begin)];
       first_word = (first_word >> (64 - (cont_beg - begin)));
@@ -312,8 +206,6 @@ class Bitset : public Allocator<uint64_t> {
   inline const uint64_t* get_word_ptr(size_t i) const {
     return &data_[WORD_INDEX(i)];
   }
-
-  inline size_t cardinality() const { return size_; }
 
  private:
   uint64_t* data_;

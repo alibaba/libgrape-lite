@@ -19,6 +19,7 @@ limitations under the License.
 #include <string.h>
 
 #include <cstddef>
+
 #include <map>
 #include <set>
 #include <string>
@@ -29,7 +30,7 @@ limitations under the License.
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
-#include "grape/types.h"
+
 #include "grape/utils/gcontainer.h"
 
 namespace grape {
@@ -61,8 +62,6 @@ class InArchive {
 
   inline size_t GetSize() const { return buffer_.size(); }
 
-  inline void AddByte(char v) { buffer_.push_back(v); }
-
   inline void AddBytes(const void* head, size_t size) {
     size_t _size = buffer_.size();
     buffer_.resize(_size + size);
@@ -84,7 +83,7 @@ class InArchive {
 };
 
 template <typename T,
-          typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
+    typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
 inline InArchive& operator<<(InArchive& in_archive, T u) {
   in_archive.AddBytes(&u, sizeof(T));
   return in_archive;
@@ -99,13 +98,6 @@ inline InArchive& operator<<(InArchive& in_archive, const std::string& str) {
   in_archive << size;
   in_archive.AddBytes(str.data(), size);
   return in_archive;
-}
-
-inline InArchive& operator<<(InArchive& archive,
-                             const nonstd::string_view& str) {
-  archive << str.length();
-  archive.AddBytes(str.data(), str.length());
-  return archive;
 }
 
 template <typename T1, typename T2>
@@ -126,10 +118,9 @@ inline InArchive& operator<<(InArchive& in_archive,
   return in_archive;
 }
 
-template <typename T, typename ALLOC_T,
-          typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
-inline InArchive& operator<<(InArchive& in_archive,
-                             const std::vector<T, ALLOC_T>& vec) {
+template <typename T,
+    typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
+inline InArchive& operator<<(InArchive& in_archive, const std::vector<T>& vec) {
   size_t size = vec.size();
   in_archive << size;
   in_archive.AddBytes(vec.data(), size * sizeof(T));
@@ -137,7 +128,7 @@ inline InArchive& operator<<(InArchive& in_archive,
 }
 
 template <typename T, typename ALLOC_T,
-          typename std::enable_if<!std::is_pod<T>::value, T>::type* = nullptr>
+    typename std::enable_if<!std::is_pod<T>::value, T>::type* = nullptr>
 inline InArchive& operator<<(InArchive& in_archive,
                              const std::vector<T, ALLOC_T>& vec) {
   size_t size = vec.size();
@@ -157,7 +148,7 @@ inline InArchive& operator<<(InArchive& in_archive,
 }
 
 template <typename T, typename ALLOC_T,
-          typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
+    typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
 inline InArchive& operator<<(InArchive& in_archive,
                              const Array<T, ALLOC_T>& vec) {
   size_t size = vec.size();
@@ -167,7 +158,7 @@ inline InArchive& operator<<(InArchive& in_archive,
 }
 
 template <typename T, typename ALLOC_T,
-          typename std::enable_if<!std::is_pod<T>::value, T>::type* = nullptr>
+    typename std::enable_if<!std::is_pod<T>::value, T>::type* = nullptr>
 inline InArchive& operator<<(InArchive& in_archive,
                              const Array<T, ALLOC_T>& vec) {
   size_t size = vec.size();

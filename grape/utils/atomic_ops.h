@@ -94,6 +94,61 @@ inline bool atomic_min(T& a, T b) {
   } while (curr_a > b && !(done = atomic_compare_and_swap(a, curr_a, b)));
   return done;
 }
+/**
+ * @brief Atomic compare and store the minimum value. Equavalent to:
+ *
+ * \code
+ * if (a < b) {
+ *   a = b;
+ *   return true;
+ * } else {
+ *   return false;
+ * }
+ * \endcode
+ *
+ * @tparam T Type of the operands.
+ * @param a Object to process.
+ * @param b Value to compare.
+ *
+ * @return Whether the value has been changed.
+ */
+template <typename T>
+inline bool atomic_max(T& a, T b) {
+  volatile T curr_a;
+  bool done = false;
+  do {
+    curr_a = a;
+  } while (curr_a < b && !(done = atomic_compare_and_swap(a, curr_a, b)));
+  return done;
+}
+template <class ET>
+inline bool CAS(ET* ptr, ET oldv, ET newv) {
+  if (sizeof(ET) == 1) {
+    return __sync_bool_compare_and_swap(reinterpret_cast<char*>(ptr),
+                                        *(reinterpret_cast<char*>(&oldv)),
+                                        *(reinterpret_cast<char*>(&newv)));
+  } else if (sizeof(ET) == 4) {
+    return __sync_bool_compare_and_swap(reinterpret_cast<int32_t*>(ptr),
+                                        *(reinterpret_cast<int32_t*>(&oldv)),
+                                        *(reinterpret_cast<int32_t*>(&newv)));
+  } else if (sizeof(ET) == 8) {
+    return __sync_bool_compare_and_swap(reinterpret_cast<int64_t*>(ptr),
+                                        *(reinterpret_cast<int64_t*>(&oldv)),
+                                        *(reinterpret_cast<int64_t*>(&newv)));
+  } else if (sizeof(ET) == 16) {
+    if (sizeof(long double) != 16) {
+      std::cout << "Unsupported platform" << std::endl;
+      std::abort();
+    }
+    return __atomic_compare_exchange(reinterpret_cast<long double*>(ptr),
+                                     reinterpret_cast<long double*>(&oldv),
+                                     reinterpret_cast<long double*>(&newv),
+                                     true, __ATOMIC_RELEASE, __ATOMIC_ACQUIRE);
+  } else {
+    std::cout << "CAS bad length : " << sizeof(ET) << std::endl;
+    std::abort();
+  }
+}
 
 /**
  * @brief Atomic add a value. Equavalent to:
@@ -108,7 +163,7 @@ inline bool atomic_min(T& a, T b) {
  */
 template <typename T>
 inline void atomic_add(T& a, T b) {
-  __atomic_fetch_add(&a, b, __ATOMIC_RELAXED);
+  __sync_fetch_and_add(&a, b);
 }
 
 template <>
@@ -129,38 +184,36 @@ inline void atomic_add(double& a, double b) {
   } while (!atomic_compare_and_swap(a, old_a, new_a));
 }
 
-/**
- * @brief Atomic sub a value. Equavalent to:
- *
- * \code
- * a -= b;
- * \endcode
- *
- * @tparam T Type of the operands.
- * @param a Object to process.
- * @param b Value to sub.
- */
-template <typename T>
-inline void atomic_sub(T& a, T b) {
-  __atomic_fetch_sub(&a, b, __ATOMIC_RELAXED);
+inline float atomic_exch(float& a, float b) {
+  auto* ptr = reinterpret_cast<uint32_t*>(&a);
+  auto* new_val_ptr = reinterpret_cast<uint32_t*>(&b);
+  uint32_t ret;
+  __atomic_exchange(ptr, new_val_ptr, &ret, __ATOMIC_SEQ_CST);
+  return *reinterpret_cast<float*>(&ret);
 }
 
-template <>
-inline void atomic_sub(float& a, float b) {
-  volatile float new_a, old_a;
-  do {
-    old_a = a;
-    new_a = old_a - b;
-  } while (!atomic_compare_and_swap(a, old_a, new_a));
+inline double atomic_exch(double& a, double b) {
+  auto* ptr = reinterpret_cast<double*>(&a);
+  auto* new_val_ptr = reinterpret_cast<double*>(&b);
+  double ret;
+  __atomic_exchange(ptr, new_val_ptr, &ret, __ATOMIC_SEQ_CST);
+  return ret;
 }
 
-template <>
-inline void atomic_sub(double& a, double b) {
-  volatile double new_a, old_a;
-  do {
-    old_a = a;
-    new_a = old_a - b;
-  } while (!atomic_compare_and_swap(a, old_a, new_a));
+inline int32_t atomic_exch(int32_t& a, int32_t b) {
+  auto* ptr = reinterpret_cast<int32_t*>(&a);
+  auto* new_val_ptr = reinterpret_cast<int32_t*>(&b);
+  int32_t ret;
+  __atomic_exchange(ptr, new_val_ptr, &ret, __ATOMIC_SEQ_CST);
+  return ret;
+}
+
+inline uint32_t atomic_exch(uint32_t& a, uint32_t b) {
+  auto* ptr = reinterpret_cast<uint32_t*>(&a);
+  auto* new_val_ptr = reinterpret_cast<uint32_t*>(&b);
+  uint32_t ret;
+  __atomic_exchange(ptr, new_val_ptr, &ret, __ATOMIC_SEQ_CST);
+  return ret;
 }
 
 }  // namespace grape

@@ -35,7 +35,7 @@ namespace grape {
 class Communicator {
  public:
   Communicator() : comm_(NULL_COMM) {}
-  virtual ~Communicator() {
+  ~Communicator() {
     if (ValidComm(comm_)) {
       MPI_Comm_free(&comm_);
     }
@@ -45,13 +45,17 @@ class Communicator {
   template <typename T>
   void SendTo(fid_t fid, const T& msg) {
     int dst_worker = fid;
-    sync_comm::Send(msg, dst_worker, 0, comm_);
+    InArchive arc;
+    arc << msg;
+    SendArchive(arc, dst_worker, comm_);
   }
 
   template <typename T>
   void RecvFrom(fid_t fid, T& msg) {
     int src_worker = fid;
-    sync_comm::Recv(msg, src_worker, 0, comm_);
+    OutArchive arc;
+    RecvArchive(arc, src_worker, comm_);
+    arc >> msg;
   }
 
   template <typename T, typename FUNC_T>
@@ -73,26 +77,6 @@ class Communicator {
       SendTo<T>(0, msg_in);
       RecvFrom<T>(0, msg_out);
     }
-  }
-
-  template <typename T>
-  void AllGather(const T& msg_in, std::vector<T>& msg_out) {
-    int worker_id, worker_num;
-    MPI_Comm_rank(comm_, &worker_id);
-    MPI_Comm_size(comm_, &worker_num);
-    msg_out.resize(worker_num);
-    msg_out[worker_id] = msg_in;
-    sync_comm::AllGather(msg_out, comm_);
-  }
-
-  template <typename T>
-  void AllGather(T&& msg_in, std::vector<T>& msg_out) {
-    int worker_id, worker_num;
-    MPI_Comm_rank(comm_, &worker_id);
-    MPI_Comm_size(comm_, &worker_num);
-    msg_out.resize(worker_num);
-    msg_out[worker_id] = std::move(msg_in);
-    sync_comm::AllGather(msg_out, comm_);
   }
 
   template <typename T>

@@ -16,37 +16,21 @@ limitations under the License.
 #ifndef GRAPE_GRAPE_H_
 #define GRAPE_GRAPE_H_
 
+#include "grape/app/app_base.h"
 #include "grape/app/auto_app_base.h"
 #include "grape/app/batch_shuffle_app_base.h"
 #include "grape/app/context_base.h"
 #include "grape/app/parallel_app_base.h"
-#include "grape/app/vertex_data_context.h"
-#include "grape/app/void_context.h"
 #include "grape/parallel/auto_parallel_message_manager.h"
 #include "grape/parallel/batch_shuffle_message_manager.h"
 #include "grape/parallel/default_message_manager.h"
 #include "grape/parallel/parallel_message_manager.h"
 #include "grape/utils/atomic_ops.h"
 #include "grape/utils/vertex_array.h"
-#include "grape/utils/vertex_set.h"
-#include "grape/worker/worker.h"
-
-#ifdef __CUDACC__
-#include "grape/cuda/app/batch_shuffle_app_base.h"
-#include "grape/cuda/app/gpu_app_base.h"
-#include "grape/cuda/communication/communicator.h"
-#include "grape/cuda/parallel/batch_shuffle_message_manager.h"
-#include "grape/cuda/parallel/gpu_message_manager.h"
-#include "grape/cuda/parallel/parallel_engine.h"
-#include "grape/cuda/utils/cuda_utils.h"
-#include "grape/cuda/utils/dev_utils.h"
-#include "grape/cuda/utils/launcher.h"
-#include "grape/cuda/utils/queue.h"
-#include "grape/cuda/utils/vertex_array.h"
-#include "grape/cuda/utils/vertex_set.h"
-#include "grape/cuda/utils/work_source.h"
-#endif
-
+#include "grape/worker/default_worker.h"
+#include "grape/worker/auto_worker.h"
+#include "grape/worker/batch_shuffle_worker.h"
+#include "grape/worker/parallel_worker.h"
 namespace grape {}
 
 #endif  // GRAPE_GRAPE_H_

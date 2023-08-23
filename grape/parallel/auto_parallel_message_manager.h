@@ -133,10 +133,10 @@ class AutoParallelMessageManager : public DefaultMessageManager {
         } else if (event->buffer->GetTypeId() == typeid(uint64_t)) {
           syncOnVertexRecv<uint64_t>(i_ec_frag, event->buffer);
         } else if (event->buffer->GetTypeId() ==
-                   typeid(std::vector<uint32_t>)) {
+            typeid(std::vector<uint32_t>)) {
           syncOnVertexRecv<std::vector<uint32_t>>(i_ec_frag, event->buffer);
         } else if (event->buffer->GetTypeId() ==
-                   typeid(std::vector<uint64_t>)) {
+            typeid(std::vector<uint64_t>)) {
           syncOnVertexRecv<std::vector<uint64_t>>(i_ec_frag, event->buffer);
         } else {
           LOG(FATAL) << "Unexpected data type "
@@ -177,19 +177,16 @@ class AutoParallelMessageManager : public DefaultMessageManager {
         } else if (event->buffer->GetTypeId() == typeid(int64_t)) {
           syncOnOuterVertexSend<int64_t>(i_ec_frag, event->buffer,
                                          event->event_id);
-        } else if (event->buffer->GetTypeId() == typeid(uint64_t)) {
-          syncOnOuterVertexSend<uint64_t>(i_ec_frag, event->buffer,
-                                          event->event_id);
         } else {
           LOG(FATAL) << "Unexpected data type for auto parallelization: "
                      << event->buffer->GetTypeId().name();
         }
       } else if (event->message_strategy ==
-                     MessageStrategy::kAlongEdgeToOuterVertex ||
-                 event->message_strategy ==
-                     MessageStrategy::kAlongIncomingEdgeToOuterVertex ||
-                 event->message_strategy ==
-                     MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
+          MessageStrategy::kAlongEdgeToOuterVertex ||
+          event->message_strategy ==
+              MessageStrategy::kAlongIncomingEdgeToOuterVertex ||
+          event->message_strategy ==
+              MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
         if (event->buffer->GetTypeId() == typeid(double)) {
           syncOnInnerVertexSend<double>(i_ec_frag, event->buffer,
                                         event->event_id,
@@ -211,12 +208,12 @@ class AutoParallelMessageManager : public DefaultMessageManager {
                                           event->event_id,
                                           event->message_strategy);
         } else if (event->buffer->GetTypeId() ==
-                   typeid(std::vector<uint32_t>)) {
+            typeid(std::vector<uint32_t>)) {
           syncOnInnerVertexSend<std::vector<uint32_t>>(i_ec_frag, event->buffer,
                                                        event->event_id,
                                                        event->message_strategy);
         } else if (event->buffer->GetTypeId() ==
-                   typeid(std::vector<uint64_t>)) {
+            typeid(std::vector<uint64_t>)) {
           syncOnInnerVertexSend<std::vector<uint64_t>>(i_ec_frag, event->buffer,
                                                        event->event_id,
                                                        event->message_strategy);
@@ -235,38 +232,37 @@ class AutoParallelMessageManager : public DefaultMessageManager {
   inline void syncOnInnerVertexSend(const FRAG_T& frag, ISyncBuffer* buffer,
                                     int event_id,
                                     MessageStrategy message_strategy) {
-    auto* bptr =
-        dynamic_cast<SyncBuffer<typename FRAG_T::vertices_t, T>*>(buffer);
+    auto* bptr = dynamic_cast<SyncBuffer<T, vid_t>*>(buffer);
     auto inner_vertices = frag.InnerVertices();
     std::vector<size_t> message_num(Base::fnum(), 0);
 
     if (message_strategy == MessageStrategy::kAlongEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
-          auto dsts = frag.IOEDests(v);
-          const fid_t* ptr = dsts.begin;
+          DestList dsts = frag.IOEDests(v);
+          fid_t* ptr = dsts.begin;
           while (ptr != dsts.end) {
             ++message_num[*(ptr++)];
           }
         }
       }
     } else if (message_strategy ==
-               MessageStrategy::kAlongIncomingEdgeToOuterVertex) {
+        MessageStrategy::kAlongIncomingEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
-          auto dsts = frag.IEDests(v);
-          const fid_t* ptr = dsts.begin;
+          DestList dsts = frag.IEDests(v);
+          fid_t* ptr = dsts.begin;
           while (ptr != dsts.end) {
             ++message_num[*(ptr++)];
           }
         }
       }
     } else if (message_strategy ==
-               MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
+        MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
-          auto dsts = frag.OEDests(v);
-          const fid_t* ptr = dsts.begin;
+          DestList dsts = frag.OEDests(v);
+          fid_t* ptr = dsts.begin;
           while (ptr != dsts.end) {
             ++message_num[*(ptr++)];
           }
@@ -289,7 +285,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
         }
       }
     } else if (message_strategy ==
-               MessageStrategy::kAlongIncomingEdgeToOuterVertex) {
+        MessageStrategy::kAlongIncomingEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
           Base::SendMsgThroughIEdges(frag, v, bptr->GetValue(v));
@@ -297,7 +293,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
         }
       }
     } else if (message_strategy ==
-               MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
+        MessageStrategy::kAlongOutgoingEdgeToOuterVertex) {
       for (auto v : inner_vertices) {
         if (bptr->IsUpdated(v)) {
           Base::SendMsgThroughOEdges(frag, v, bptr->GetValue(v));
@@ -310,8 +306,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
   template <typename T>
   inline void syncOnOuterVertexSend(const FRAG_T& frag, ISyncBuffer* buffer,
                                     int event_id) {
-    auto* bptr =
-        dynamic_cast<SyncBuffer<typename FRAG_T::vertices_t, T>*>(buffer);
+    auto* bptr = dynamic_cast<SyncBuffer<T, vid_t>*>(buffer);
     auto inner_vertices = frag.InnerVertices();
     auto outer_vertices = frag.OuterVertices();
     std::vector<size_t> message_num(Base::fnum(), 0);
@@ -344,8 +339,7 @@ class AutoParallelMessageManager : public DefaultMessageManager {
 
   template <typename T>
   inline void syncOnVertexRecv(const FRAG_T& frag, ISyncBuffer* buffer) {
-    auto* bptr =
-        dynamic_cast<SyncBuffer<typename FRAG_T::vertices_t, T>*>(buffer);
+    auto* bptr = dynamic_cast<SyncBuffer<T, vid_t>*>(buffer);
 
     size_t message_num = 0;
     T rhs;

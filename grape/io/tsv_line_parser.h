@@ -37,6 +37,17 @@ class TSVLineParser : public LineParserBase<OID_T, VDATA_T, EDATA_T> {
  public:
   TSVLineParser() {}
 
+  // read change file
+  virtual void LineParserForEFile(const std::string& line, std::string& type, OID_T& u, OID_T& v
+                                  ) {
+    this->LineParserForEverything(line, type, u, v); 
+  }
+
+  virtual void LineParserForEFile(const std::string& line, std::string& type,
+                                  OID_T& u, OID_T& v, EDATA_T& edata_t) {
+    this->LineParserForEverything(line, type, u, v, edata_t);
+  }
+
   virtual void LineParserForEFile(const std::string& line, OID_T& u, OID_T& v,
                                   EDATA_T& e_data) {
     this->LineParserForEverything(line, u, v, e_data);
@@ -51,6 +62,7 @@ class TSVLineParser : public LineParserBase<OID_T, VDATA_T, EDATA_T> {
   template <typename... Ts>
   inline const char* LineParserForEverything(const std::string& line,
                                              Ts&... vals) {
+    std::cmatch matches;
     return this->LineParserForEverything(
         line.c_str(),
         std::forward<typename std::add_lvalue_reference<Ts>::type>(vals)...);

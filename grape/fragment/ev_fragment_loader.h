@@ -31,16 +31,18 @@ limitations under the License.
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
-
 /**
  * @brief EVFragmentLoader is a loader to load fragments from separated
  * efile and vfile.
  *
  * @tparam FRAG_T Fragment type.
+ * @tparam PARTITIONER_T Partitioner type.
  * @tparam IOADAPTOR_T IOAdaptor type.
  * @tparam LINE_PARSER_T LineParser type.
  */
-template <typename FRAG_T, typename IOADAPTOR_T = LocalIOAdaptor,
+template <typename FRAG_T,
+          typename PARTITIONER_T = SegmentedPartitioner<typename FRAG_T::oid_t>,
+          typename IOADAPTOR_T = LocalIOAdaptor,
           typename LINE_PARSER_T =
               TSVLineParser<typename FRAG_T::oid_t, typename FRAG_T::vdata_t,
                             typename FRAG_T::edata_t>>
@@ -52,7 +54,7 @@ class EVFragmentLoader {
   using edata_t = typename fragment_t::edata_t;
 
   using vertex_map_t = typename fragment_t::vertex_map_t;
-  using partitioner_t = typename vertex_map_t::partitioner_t;
+  using partitioner_t = PARTITIONER_T;
   using io_adaptor_t = IOADAPTOR_T;
   using line_parser_t = LINE_PARSER_T;
 
@@ -63,7 +65,7 @@ class EVFragmentLoader {
                 "LineParser type is invalid");
 
  public:
-  explicit EVFragmentLoader(const CommSpec& comm_spec)
+  explicit EVFragmentLoader(const CommSpec comm_spec)
       : comm_spec_(comm_spec), basic_fragment_loader_(comm_spec) {}
 
   ~EVFragmentLoader() = default;
@@ -72,7 +74,6 @@ class EVFragmentLoader {
                                            const std::string& vfile,
                                            const LoadGraphSpec& spec) {
     std::shared_ptr<fragment_t> fragment(nullptr);
-    CHECK(!spec.rebalance);
     if (spec.deserialize && (!spec.serialize)) {
       bool deserialized = basic_fragment_loader_.DeserializeFragment(
           fragment, spec.deserialization_prefix);
@@ -95,7 +96,7 @@ class EVFragmentLoader {
 
     std::vector<oid_t> id_list;
     std::vector<vdata_t> vdata_list;
-    if (!vfile.empty()) {
+    {
       auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(vfile));
       io_adaptor->Open();
       std::string line;
@@ -125,6 +126,8 @@ class EVFragmentLoader {
     partitioner_t partitioner(comm_spec_.fnum(), id_list);
 
     basic_fragment_loader_.SetPartitioner(std::move(partitioner));
+    basic_fragment_loader_.SetRebalance(spec.rebalance,
+                                        spec.rebalance_vertex_factor);
 
     basic_fragment_loader_.Start();
 
@@ -163,6 +166,10 @@ class EVFragmentLoader {
         }
 
         basic_fragment_loader_.AddEdge(src, dst, e_data);
+
+        if (!spec.directed) {
+          basic_fragment_loader_.AddEdge(dst, src, e_data);
+        }
       }
       io_adaptor->Close();
     }
@@ -170,7 +177,7 @@ class EVFragmentLoader {
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "] finished add vertices and edges";
 
-    basic_fragment_loader_.ConstructFragment(fragment, spec.directed);
+    basic_fragment_loader_.ConstructFragment(fragment);
 
     if (spec.serialize) {
       bool serialized = basic_fragment_loader_.SerializeFragment(
@@ -187,7 +194,8 @@ class EVFragmentLoader {
  private:
   CommSpec comm_spec_;
 
-  BasicFragmentLoader<fragment_t, io_adaptor_t> basic_fragment_loader_;
+  BasicFragmentLoader<fragment_t, partitioner_t, io_adaptor_t>
+      basic_fragment_loader_;
   line_parser_t line_parser_;
 };
 

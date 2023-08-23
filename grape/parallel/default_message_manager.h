@@ -26,6 +26,8 @@ limitations under the License.
 #include "grape/serialization/out_archive.h"
 #include "grape/worker/comm_spec.h"
 
+#define DEFUALT_WORKER_TAG 0x123
+
 namespace grape {
 
 /**
@@ -51,9 +53,6 @@ class DefaultMessageManager : public MessageManagerBase {
     comm_spec_.Init(comm_);
     fid_ = comm_spec_.fid();
     fnum_ = comm_spec_.fnum();
-
-    force_terminate_ = false;
-    terminate_info_.Init(fnum_);
 
     lengths_out_.resize(fnum_);
     lengths_in_.resize(fnum_ * fnum_);
@@ -87,23 +86,31 @@ class DefaultMessageManager : public MessageManagerBase {
    * @brief Inherit
    */
   void FinishARound() override {
-    to_terminate_ = syncLengths();
+    syncLengths();
+    to_terminate_ = checkTermination();
     if (to_terminate_) {
       return;
     }
 
+    // 假设fid_ = 1, src_fid = 0,2,3
+    // 0*4 + 1, 2*4 + 1, 3*4 + 1 -> 1, 9, 13
+    // 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+    // 0 1 2 3 0 1 2 3 0 1 2  3  0  1  2  3
+    // 获取除了自身之外的worker发送给本worker的len
     for (fid_t i = 1; i < fnum_; ++i) {
       fid_t src_fid = (fid_ + i) % fnum_;
-      size_t length = lengths_in_[src_fid * fnum_ + fid_];
+      size_t length = lengths_in_[src_fid * fnum_ + fid_];  // 获取接收数据长度
       if (length == 0) {
         continue;
       }
       auto& arc = to_recv_[src_fid];
       arc.Clear();
       arc.Allocate(length);
-      sync_comm::irecv_buffer<char>(arc.GetBuffer(), length,
-                                    comm_spec_.FragToWorker(src_fid), 0, comm_,
-                                    reqs_);
+      MPI_Request req;
+      MPI_Irecv(arc.GetBuffer(), length, MPI_CHAR,
+                comm_spec_.FragToWorker(src_fid), DEFUALT_WORKER_TAG, comm_,
+                &req);
+      reqs_.push_back(req);
     }
 
     for (fid_t i = 1; i < fnum_; ++i) {
@@ -112,9 +119,11 @@ class DefaultMessageManager : public MessageManagerBase {
       if (arc.Empty()) {
         continue;
       }
-      sync_comm::isend_buffer<char>(arc.GetBuffer(), arc.GetSize(),
-                                    comm_spec_.FragToWorker(dst_fid), 0, comm_,
-                                    reqs_);
+      MPI_Request req;
+      MPI_Isend(arc.GetBuffer(), arc.GetSize(), MPI_CHAR,
+                comm_spec_.FragToWorker(dst_fid), DEFUALT_WORKER_TAG, comm_,
+                &req);
+      reqs_.push_back(req);
     }
     to_recv_[fid_].Clear();
     if (!to_send_[fid_].Empty()) {
@@ -136,6 +145,13 @@ class DefaultMessageManager : public MessageManagerBase {
       reqs_.clear();
     }
 
+    to_send_.clear();
+    to_recv_.clear();
+    lengths_in_.clear();
+    lengths_out_.clear();
+    cur_ = 0;
+    sent_size_ = 0;
+
     MPI_Comm_free(&comm_);
     comm_ = NULL_COMM;
   }
@@ -151,21 +167,6 @@ class DefaultMessageManager : public MessageManagerBase {
   void ForceContinue() override { force_continue_ = true; }
 
   /**
-   * @brief Inherit
-   */
-  void ForceTerminate(const std::string& terminate_info) override {
-    force_terminate_ = true;
-    terminate_info_.info[comm_spec_.fid()] = terminate_info;
-  }
-
-  /**
-   * @brief Inherit
-   */
-  const TerminateInfo& GetTerminateInfo() const override {
-    return terminate_info_;
-  }
-
-  /**
    * @brief Send message to a fragment.
    *
    * @tparam MESSAGE_T Message type.
@@ -178,12 +179,12 @@ class DefaultMessageManager : public MessageManagerBase {
   }
 
   /**
-   * @brief Communication by synchronizing the status on outer vertices, for
-   * edge-cut fragments.
+   * @brief Communication by synchronizing the manager_status_ on outer
+   * vertices, for edge-cut fragments.
    *
    * Assume a fragment F_1, a crossing edge a->b' in F_1 and a is an inner
-   * vertex in F_1. This function invoked on F_1 send status on b' to b on F_2,
-   * where b is an inner vertex.
+   * vertex in F_1. This function invoked on F_1 send manager_status_ on b' to b
+   * on F_2, where b is an inner vertex.
    *
    * @tparam GRAPH_T
    * @tparam MESSAGE_T
@@ -213,8 +214,8 @@ class DefaultMessageManager : public MessageManagerBase {
   inline void SendMsgThroughIEdges(const GRAPH_T& frag,
                                    const typename GRAPH_T::vertex_t& v,
                                    const MESSAGE_T& msg) {
-    auto dsts = frag.IEDests(v);
-    const fid_t* ptr = dsts.begin;
+    DestList dsts = frag.IEDests(v);
+    fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
     while (ptr != dsts.end) {
       fid_t fid = *(ptr++);
@@ -236,8 +237,8 @@ class DefaultMessageManager : public MessageManagerBase {
   inline void SendMsgThroughOEdges(const GRAPH_T& frag,
                                    const typename GRAPH_T::vertex_t& v,
                                    const MESSAGE_T& msg) {
-    auto dsts = frag.OEDests(v);
-    const fid_t* ptr = dsts.begin;
+    DestList dsts = frag.OEDests(v);
+    fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
     while (ptr != dsts.end) {
       fid_t fid = *(ptr++);
@@ -259,8 +260,8 @@ class DefaultMessageManager : public MessageManagerBase {
   inline void SendMsgThroughEdges(const GRAPH_T& frag,
                                   const typename GRAPH_T::vertex_t& v,
                                   const MESSAGE_T& msg) {
-    auto dsts = frag.IOEDests(v);
-    const fid_t* ptr = dsts.begin;
+    DestList dsts = frag.IOEDests(v);
+    fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
     while (ptr != dsts.end) {
       fid_t fid = *(ptr++);
@@ -318,10 +319,8 @@ class DefaultMessageManager : public MessageManagerBase {
   fid_t fid() const { return fid_; }
   fid_t fnum() const { return fnum_; }
 
-  std::vector<InArchive> to_send_;
-
  private:
-  bool syncLengths() {
+  void syncLengths() {
     for (fid_t i = 0; i < fnum_; ++i) {
       sent_size_ += to_send_[i].GetSize();
       lengths_out_[i] = to_send_[i].GetSize();
@@ -329,26 +328,20 @@ class DefaultMessageManager : public MessageManagerBase {
     if (force_continue_) {
       ++lengths_out_[fid_];
     }
-    int terminate_flag = force_terminate_ ? 1 : 0;
-    int terminate_flag_sum;
-    MPI_Allreduce(&terminate_flag, &terminate_flag_sum, 1, MPI_INT, MPI_SUM,
-                  comm_);
-    if (terminate_flag_sum > 0) {
-      terminate_info_.success = false;
-      sync_comm::AllGather(terminate_info_.info, comm_);
-      return true;
-    } else {
-      MPI_Allgather(&lengths_out_[0], fnum_ * sizeof(size_t), MPI_CHAR,
-                    &lengths_in_[0], fnum_ * sizeof(size_t), MPI_CHAR, comm_);
-      for (auto s : lengths_in_) {
-        if (s != 0) {
-          return false;
-        }
-      }
-      return true;
-    }
+    MPI_Allgather(&lengths_out_[0], fnum_ * sizeof(size_t), MPI_CHAR,
+                  &lengths_in_[0], fnum_ * sizeof(size_t), MPI_CHAR, comm_);
   }
 
+  bool checkTermination() {
+    for (auto s : lengths_in_) {
+      if (s != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  std::vector<InArchive> to_send_;
   std::vector<OutArchive> to_recv_;
   fid_t cur_;
 
@@ -365,9 +358,6 @@ class DefaultMessageManager : public MessageManagerBase {
   size_t sent_size_;
   bool to_terminate_;
   bool force_continue_;
-  bool force_terminate_;
-
-  TerminateInfo terminate_info_;
 };
 
 }  // namespace grape

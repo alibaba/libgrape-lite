@@ -73,7 +73,7 @@ class ThreadLocalMessageBuffer {
                                      const MESSAGE_T& msg) {
     fid_t fid = frag.GetFragId(v);
     to_send_[fid] << frag.GetOuterVertexGid(v) << msg;
-    if (to_send_[fid].GetSize() >= block_size_) {
+    if (to_send_[fid].GetSize() > block_size_) {
       flushLocalBuffer(fid);
     }
   }
@@ -83,7 +83,7 @@ class ThreadLocalMessageBuffer {
                                      const typename GRAPH_T::vertex_t& v) {
     fid_t fid = frag.GetFragId(v);
     to_send_[fid] << frag.GetOuterVertexGid(v);
-    if (to_send_[fid].GetSize() >= block_size_) {
+    if (to_send_[fid].GetSize() > block_size_) {
       flushLocalBuffer(fid);
     }
   }
@@ -102,13 +102,13 @@ class ThreadLocalMessageBuffer {
   inline void SendMsgThroughIEdges(const GRAPH_T& frag,
                                    const typename GRAPH_T::vertex_t& v,
                                    const MESSAGE_T& msg) {
-    auto dsts = frag.IEDests(v);
-    const fid_t* ptr = dsts.begin;
+    DestList dsts = frag.IEDests(v);
+    fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
     while (ptr != dsts.end) {
       fid_t fid = *(ptr++);
       to_send_[fid] << gid << msg;
-      if (to_send_[fid].GetSize() >= block_size_) {
+      if (to_send_[fid].GetSize() > block_size_) {
         flushLocalBuffer(fid);
       }
     }
@@ -128,13 +128,13 @@ class ThreadLocalMessageBuffer {
   inline void SendMsgThroughOEdges(const GRAPH_T& frag,
                                    const typename GRAPH_T::vertex_t& v,
                                    const MESSAGE_T& msg) {
-    auto dsts = frag.OEDests(v);
-    const fid_t* ptr = dsts.begin;
+    DestList dsts = frag.OEDests(v);
+    fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
     while (ptr != dsts.end) {
       fid_t fid = *(ptr++);
       to_send_[fid] << gid << msg;
-      if (to_send_[fid].GetSize() >= block_size_) {
+      if (to_send_[fid].GetSize() > block_size_) {
         flushLocalBuffer(fid);
       }
     }
@@ -154,13 +154,13 @@ class ThreadLocalMessageBuffer {
   inline void SendMsgThroughEdges(const GRAPH_T& frag,
                                   const typename GRAPH_T::vertex_t& v,
                                   const MESSAGE_T& msg) {
-    auto dsts = frag.IOEDests(v);
-    const fid_t* ptr = dsts.begin;
+    DestList dsts = frag.IOEDests(v);
+    fid_t* ptr = dsts.begin;
     typename GRAPH_T::vid_t gid = frag.GetInnerVertexGid(v);
     while (ptr != dsts.end) {
       fid_t fid = *(ptr++);
       to_send_[fid] << gid << msg;
-      if (to_send_[fid].GetSize() >= block_size_) {
+      if (to_send_[fid].GetSize() > block_size_) {
         flushLocalBuffer(fid);
       }
     }
@@ -176,9 +176,6 @@ class ThreadLocalMessageBuffer {
   template <typename MESSAGE_T>
   inline void SendToFragment(fid_t dst_fid, const MESSAGE_T& msg) {
     to_send_[dst_fid] << msg;
-    if (to_send_[dst_fid].GetSize() >= block_size_) {
-      flushLocalBuffer(dst_fid);
-    }
   }
 
   /**
@@ -187,6 +184,7 @@ class ThreadLocalMessageBuffer {
   inline void FlushMessages() {
     for (fid_t fid = 0; fid < fnum_; ++fid) {
       if (to_send_[fid].GetSize() > 0) {
+        sent_size_ += to_send_[fid].GetSize();
         flushLocalBuffer(fid);
       }
     }
@@ -198,7 +196,6 @@ class ThreadLocalMessageBuffer {
 
  private:
   inline void flushLocalBuffer(fid_t fid) {
-    sent_size_ += to_send_[fid].GetSize();
     mm_->SendRawMsgByFid(fid, std::move(to_send_[fid]));
     to_send_[fid].Reserve(block_cap_);
   }
