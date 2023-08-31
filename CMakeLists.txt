@@ -193,10 +193,20 @@ if (NOT RDKAFKA_FOUND)
   message(STATUS "rdkafka not found, build without rdkafka")
 endif ()
 
+# install, and export
 macro(install_libgrapelite_target target)
-  # install
   install(TARGETS ${target}
           EXPORT libgrapelite-targets
+          ARCHIVE DESTINATION lib
+          LIBRARY DESTINATION lib
+          RUNTIME DESTINATION bin
+  )
+endmacro()
+
+# install, without export, as when we `find_package(libgrape-lite)`, we only want
+# the library and headers exist.
+macro(install_without_export_libgrapelite_target target)
+  install(TARGETS ${target}
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib
           RUNTIME DESTINATION bin
@@ -228,7 +238,7 @@ else ()
   set_target_properties(analytical_apps PROPERTIES OUTPUT_NAME run_app)
   target_link_libraries(analytical_apps grape-lite ${MPI_CXX_LIBRARIES}
                         ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
-  install_libgrapelite_target(analytical_apps)
+  install_without_export_libgrapelite_target(analytical_apps)
 
   file(GLOB TEST_FILES RELATIVE "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/*.cc")
   foreach(f ${TEST_FILES})
@@ -250,7 +260,7 @@ else ()
     target_include_directories(gpu_analytical_apps PRIVATE examples/analytical_apps)
     set_target_properties(gpu_analytical_apps PROPERTIES OUTPUT_NAME run_cuda_app)
     target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})
-    install_libgrapelite_target(gpu_analytical_apps)
+    install_without_export_libgrapelite_target(gpu_analytical_apps)
   endif ()
 endif ()
 
@@ -267,7 +277,7 @@ else ()
                              ${RDKAFKA_INCLUDE_DIR})
   target_link_libraries(gnn_sampler grape-lite ${MPI_CXX_LIBRARIES}
                         ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES})
-  install_libgrapelite_target(gnn_sampler)
+  install_without_export_libgrapelite_target(gnn_sampler)
 endif ()
 
 set(EXAMPLES_DIR ${PROJECT_SOURCE_DIR}/examples)
