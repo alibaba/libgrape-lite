@@ -48,8 +48,12 @@ class Bitset : public Allocator<uint64_t> {
   }
   Bitset(const Bitset& other)
       : size_(other.size_), size_in_words_(other.size_in_words_) {
-    data_ = this->allocate(size_in_words_);
-    memcpy(data_, other.data_, BYTE_SIZE(size_));
+    if (size_ == 0) {
+      data_ = NULL;
+    } else {
+      data_ = this->allocate(size_in_words_);
+      memcpy(data_, other.data_, BYTE_SIZE(size_));
+    }
   }
   Bitset(Bitset&& other)
       : data_(other.data_),
@@ -70,17 +74,29 @@ class Bitset : public Allocator<uint64_t> {
       return *this;
     }
 
+    if (data_ != NULL) {
+      this->deallocate(data_, size_in_words_);
+    }
+
     size_ = other.size_;
     size_in_words_ = other.size_in_words_;
 
-    data_ = this->allocate(size_in_words_);
-    memcpy(data_, other.data_, BYTE_SIZE(size_));
+    if (size_ == 0) {
+      data_ = NULL;
+    } else {
+      data_ = this->allocate(size_in_words_);
+      memcpy(data_, other.data_, BYTE_SIZE(size_));
+    }
     return *this;
   }
 
   Bitset& operator=(Bitset&& other) {
     if (this == &other) {
       return *this;
+    }
+
+    if (data_ != NULL) {
+      this->deallocate(data_, size_in_words_);
     }
 
     data_ = other.data_;
