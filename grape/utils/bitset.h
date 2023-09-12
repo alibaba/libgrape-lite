@@ -74,6 +74,10 @@ class Bitset : public Allocator<uint64_t> {
       return *this;
     }
 
+    if (data_ != NULL) {
+      this->deallocate(data_, size_in_words_);
+    }
+
     size_ = other.size_;
     size_in_words_ = other.size_in_words_;
 
@@ -89,6 +93,10 @@ class Bitset : public Allocator<uint64_t> {
   Bitset& operator=(Bitset&& other) {
     if (this == &other) {
       return *this;
+    }
+
+    if (data_ != NULL) {
+      this->deallocate(data_, size_in_words_);
     }
 
     data_ = other.data_;
