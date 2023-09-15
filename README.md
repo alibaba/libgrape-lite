@@ -6,15 +6,15 @@ GUM is a CUDA library for parallel graph processing on GPU. It focuses on the dy
 
 Please cite the paper in your publications if our work helps your research.
 ```bibtex
-@INPROCEEDINGS{10184838,
-  author={Li, Xue and Meng, Ke and Qin, Lu and Lai, Longbin and Yu, Wenyuan and Qian, Zhengping and Lin, Xuemin and Zhou, Jingren},
+@INPROCEEDINGS{10184847,
+  author={Meng, Ke and Geng, Liang and Li, Xue and Tao, Qian and Yu, Wenyuan and Zhou, Jingren},
   booktitle={2023 IEEE 39th International Conference on Data Engineering (ICDE)}, 
-  title={Flash: A Framework for Programming Distributed Graph Processing Algorithms}, 
+  title={Efficient Multi-GPU Graph Processing with Remote Work Stealing}, 
   year={2023},
   volume={},
   number={},
-  pages={232-244},
-  doi={10.1109/ICDE55515.2023.00025}}
+  pages={191-204},
+  doi={10.1109/ICDE55515.2023.00022}}
 ```
 
 ## Dependencies
