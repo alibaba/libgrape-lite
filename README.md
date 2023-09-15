@@ -1,5 +1,21 @@
-## GUM-artifact
+# GUM
 GUM is a CUDA library for parallel graph processing on GPU. It focuses on the dynamic load balance (DLB) problem and the long tail *(LT) problem.
+
+## Publication
+- Ke Meng, Liang Geng, Xue Li, Qian Tao, Wenyuan Yu, Jingren Zhou. [Efficient Multi-GPU Graph Processing with Remote Work Stealing](https://ieeexplore.ieee.org/document/10184847). The 39th IEEE International Conference on Data Engineering (ICDE), 2023.
+
+Please cite the paper in your publications if our work helps your research.
+```bibtex
+@INPROCEEDINGS{10184838,
+  author={Li, Xue and Meng, Ke and Qin, Lu and Lai, Longbin and Yu, Wenyuan and Qian, Zhengping and Lin, Xuemin and Zhou, Jingren},
+  booktitle={2023 IEEE 39th International Conference on Data Engineering (ICDE)}, 
+  title={Flash: A Framework for Programming Distributed Graph Processing Algorithms}, 
+  year={2023},
+  volume={},
+  number={},
+  pages={232-244},
+  doi={10.1109/ICDE55515.2023.00025}}
+```
 
 ## Dependencies
 - [CMake](https://cmake.org/download/) (>2.8)
@@ -11,7 +27,7 @@ GUM is a CUDA library for parallel graph processing on GPU. It focuses on the dy
 - [cub](https://github.com/NVIDIA/cub) (>=1.15)
 - [moderngpu](https://github.com/moderngpu/moderngpu) (>=2.12)
 - [thrust](https://github.com/NVIDIA/thrust) (>=1.16)
-- [SNAP datasets] (https://snap.stanford.edu/data/index.html)
+- [SNAP datasets](https://snap.stanford.edu/data/index.html)
 
 ## Installation
 
