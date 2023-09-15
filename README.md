@@ -11,8 +11,6 @@ Please cite the paper in your publications if our work helps your research.
   booktitle={2023 IEEE 39th International Conference on Data Engineering (ICDE)}, 
   title={Efficient Multi-GPU Graph Processing with Remote Work Stealing}, 
   year={2023},
-  volume={},
-  number={},
   pages={191-204},
   doi={10.1109/ICDE55515.2023.00022}}
 ```
