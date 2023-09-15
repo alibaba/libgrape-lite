@@ -7,6 +7,21 @@
 
 **FLASH** is a distributed framework for programming a broad spectrum of graph algorithms, including clustering, centrality, traversal, matching, mining, etc. Based on its high-level interface and an efficient system implementation, FLASH achieves good expressiveness, productivity and efficiency at the same time. FLASH follows the vertex-centric philosophy, but it moves a step further for stronger expressiveness by providing flexible control flow, the operations on arbitrary vertex sets and beyond-neighborhood communication. FLASH makes diverse complex graph algorithms easy to write at the distributed runtime. The algorithms expressed in FLASH take only a few lines of code, and provide a satisfactory performance.
 
+## Publication 
+- Xue Li, Ke Meng, Lu Qin, Longbin Lai, Wenyuan Yu, Zhengping Qian, Xuemin Lin, Jingren Zhou. [FLASH: A Framework for Programming Distributed Graph Processing Algorithms](https://ieeexplore.ieee.org/document/10184838). The 39th IEEE International Conference on Data Engineering (ICDE), 2023.
+
+Please cite the paper in your publications if our work helps your research.
+```bibtex
+@INPROCEEDINGS{10184838,
+  author={Li, Xue and Meng, Ke and Qin, Lu and Lai, Longbin and Yu, Wenyuan and Qian, Zhengping and Lin, Xuemin and Zhou, Jingren},
+  booktitle={2023 IEEE 39th International Conference on Data Engineering (ICDE)}, 
+  title={Flash: A Framework for Programming Distributed Graph Processing Algorithms}, 
+  year={2023},
+  pages={232-244},
+  doi={10.1109/ICDE55515.2023.00025}}
+```
+
+
 ## Dependencies
 **FLASH** is developed and tested on Red Hat 4.8.5. It should also work on other unix-like distributions. Building FLASH requires the following softwares installed as dependencies.
 - A C++ compiler supporting OpenMP and C++11 features
