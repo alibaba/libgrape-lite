@@ -133,6 +133,24 @@ The latest version of online documentation can be found at [https://alibaba.gith
 
 - Wenfei Fan, Jingbo Xu, Yinghui Wu, Wenyuan Yu, Jiaxin Jiang, Zeyu Zheng, Bohan Zhang, Yang Cao, and Chao Tian. Parallelizing Sequential Graph Computations, ACM SIG Conference on Management of Data (SIGMOD), 2017 (**the Best Paper Award**).
 
+Please cite the following paper in your publications if **GRAPE** or this repo helps your research.
+
+```bibtex
+@inproceedings{10.1145/3035918.3035942,
+    author = {Fan, Wenfei and Xu, Jingbo and Wu, Yinghui and Yu, Wenyuan and Jiang, Jiaxin and Zheng, Zeyu and Zhang, Bohan and Cao, Yang and Tian, Chao},
+    title = {Parallelizing Sequential Graph Computations},
+    year = {2017},
+    isbn = {9781450341974},
+    publisher = {Association for Computing Machinery},
+    url = {https://doi.org/10.1145/3035918.3035942},
+    doi = {10.1145/3035918.3035942},
+    booktitle = {Proceedings of the 2017 ACM International Conference on Management of Data},
+    pages = {495–510},
+    numpages = {16},
+    location = {Chicago, Illinois, USA},
+    series = {SIGMOD '17}
+}
+```
 
 ## Getting involved
 
