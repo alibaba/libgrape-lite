@@ -54,9 +54,7 @@ class Worker {
                 "The loaded graph is not valid for application");
 
   Worker(std::shared_ptr<APP_T> app, std::shared_ptr<fragment_t> graph)
-      : app_(app),
-        context_(std::make_shared<context_t>(*graph)),
-        fragment_(graph) {
+      : app_(app), context_(nullptr), fragment_(graph) {
     prepare_conf_.message_strategy = APP_T::message_strategy;
     prepare_conf_.need_split_edges = APP_T::need_split_edges;
     prepare_conf_.need_split_edges_by_fragment =
@@ -69,12 +67,13 @@ class Worker {
 
   void Init(const CommSpec& comm_spec,
             const ParallelEngineSpec& pe_spec = DefaultParallelEngineSpec()) {
-    auto& graph = const_cast<fragment_t&>(context_->fragment());
+    auto& graph = *fragment_;
     // prepare for the query
     graph.PrepareToRunApp(comm_spec, prepare_conf_);
 
     comm_spec_ = comm_spec;
     MPI_Barrier(comm_spec_.comm());
+    context_ = std::make_shared<context_t>(graph);
 
     messages_.Init(comm_spec_.comm());
 
@@ -87,8 +86,6 @@ class Worker {
   template <class... Args>
   void Query(Args&&... args) {
     double t = GetCurrentTime();
-
-    MPI_Barrier(comm_spec_.comm());
 
     context_->Init(messages_, std::forward<Args>(args)...);
     processMutation();

@@ -51,6 +51,23 @@ InArchive& operator<<(InArchive& arc, const BinaryVecOut<T>& vec) {
 }
 
 template <typename T>
+struct SerializedSize<BinaryVecOut<T>> {
+  static size_t size(const BinaryVecOut<T>& v) {
+    int deg = v.id_vec.size();
+    return sizeof(int) + deg * sizeof(T) + deg * sizeof(uint8_t);
+  }
+};
+
+template <typename T>
+FixedInArchive& operator<<(FixedInArchive& arc, const BinaryVecOut<T>& vec) {
+  int deg = vec.id_vec.size();
+  arc << deg;
+  arc.add_bytes(vec.id_vec.data(), sizeof(T) * deg);
+  arc.add_bytes(vec.weight_vec.data(), sizeof(uint8_t) * deg);
+  return arc;
+}
+
+template <typename T>
 class BinaryVecIn {
  public:
   BinaryVecIn() {}

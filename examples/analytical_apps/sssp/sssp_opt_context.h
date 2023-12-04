@@ -37,15 +37,14 @@ class SSSPOptContext : public VertexDataContext<FRAG_T, double> {
 
   explicit SSSPOptContext(const FRAG_T& fragment)
       : VertexDataContext<FRAG_T, double>(fragment, true),
-        partial_result(this->data()) {}
+        partial_result(this->data()) {
+    curr_modified.Init(fragment.Vertices());
+    next_modified.Init(fragment.Vertices());
+  }
 
   void Init(ParallelMessageManagerOpt& messages, oid_t source_id) {
-    auto& frag = this->fragment();
-
     this->source_id = source_id;
     partial_result.SetValue(std::numeric_limits<double>::max());
-    curr_modified.Init(frag.Vertices());
-    next_modified.Init(frag.Vertices());
   }
 
   void Output(std::ostream& os) override {

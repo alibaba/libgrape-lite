@@ -98,6 +98,7 @@ void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
   timer_next("load application");
   auto worker = APP_T::CreateWorker(app, fragment);
   worker->Init(comm_spec, spec);
+  MPI_Barrier(comm_spec.comm());
   timer_next("run algorithm");
   worker->Query(std::forward<Args>(args)...);
   timer_next("print output");

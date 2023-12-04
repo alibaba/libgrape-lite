@@ -132,6 +132,8 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
 
     messages.InitChannels(thread_num(), 98304, 98304);
 
+    ctx.next_modified.ParallelClear(GetThreadPool());
+
     ForEach(inner_vertices, [&frag, &ctx](int tid, vertex_t v) {
       auto es = frag.GetOutgoingInnerVertexAdjList(v);
       vertex_t parent = v;
