@@ -302,6 +302,14 @@ class LCCOpt : public ParallelAppBase<FRAG_T, LCCOptContext<FRAG_T, COUNT_T>,
       });
     }
   }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    size_t avg_degree =
+        frag.GetOutgoingEdgeNum() / frag.GetInnerVerticesNum() + 1;
+    send_size = (avg_degree + 1) * sizeof(vid_t) * frag.OEDestsSize();
+    recv_size = (avg_degree + 1) * frag.GetOuterVerticesNum() * sizeof(vid_t);
+  }
 };
 
 #ifdef USE_BMISS_STTNI_INTERSECT
@@ -608,6 +616,14 @@ class LCCOpt<FRAG_T, COUNT_T,
         }
       });
     }
+  }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    size_t avg_degree =
+        frag.GetOutgoingEdgeNum() / frag.GetInnerVerticesNum() + 1;
+    send_size = (avg_degree + 1) * sizeof(vid_t) * frag.OEDestsSize();
+    recv_size = (avg_degree + 1) * frag.GetOuterVerticesNum() * sizeof(vid_t);
   }
 };
 

@@ -360,6 +360,20 @@ class LCCDirected
           });
     }
   }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    size_t avg_degree =
+        (frag.GetOutgoingEdgeNum() + frag.GetIncomingEdgeNum()) /
+            frag.GetInnerVerticesNum() +
+        1;
+    send_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.IOEDestsSize();
+    recv_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.GetOuterVerticesNum();
+  }
 };
 
 #ifdef USE_BMISS_STTNI_INTERSECT
@@ -701,6 +715,20 @@ class LCCDirected<FRAG_T, COUNT_T,
             atomic_add(ctx.tricnt[u], deg);
           });
     }
+  }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    size_t avg_degree =
+        (frag.GetOutgoingEdgeNum() + frag.GetIncomingEdgeNum()) /
+            frag.GetInnerVerticesNum() +
+        1;
+    send_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.IOEDestsSize();
+    recv_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.GetOuterVerticesNum();
   }
 };
 

@@ -24,6 +24,7 @@ limitations under the License.
 #include <utility>
 
 #include "grape/app/mutation_context.h"
+#include "grape/app/parallel_app_base.h"
 #include "grape/communication/communicator.h"
 #include "grape/config.h"
 #include "grape/parallel/auto_parallel_message_manager.h"
@@ -32,6 +33,7 @@ limitations under the License.
 #include "grape/parallel/parallel_message_manager.h"
 #include "grape/parallel/parallel_message_manager_opt.h"
 #include "grape/util.h"
+#include "grape/utils/message_buffer_pool.h"
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
@@ -75,6 +77,7 @@ class Worker {
     MPI_Barrier(comm_spec_.comm());
     context_ = std::make_shared<context_t>(graph);
 
+    initPool(pe_spec);
     messages_.Init(comm_spec_.comm());
 
     InitParallelEngine(app_, pe_spec);
@@ -139,6 +142,28 @@ class Worker {
   void Output(std::ostream& os) { context_->Output(os); }
 
  private:
+  template <typename T = message_manager_t>
+  typename std::enable_if<
+      std::is_same<T, ParallelMessageManagerOpt>::value &&
+      std::is_base_of<ParallelAppBase<fragment_t, context_t, T>,
+                      APP_T>::value>::type
+  initPool(const ParallelEngineSpec& pe_spec) {
+    auto& frag = *fragment_;
+    size_t send_size = 0, recv_size = 0;
+    app_->EstimateMessageSize(frag, send_size, recv_size);
+    size_t pool_size =
+        estimate_pool_size(send_size, recv_size, kDefaultPoolBatchSize,
+                           comm_spec_.fnum(), pe_spec.thread_num);
+    messages_.GetPool().init(pool_size, kDefaultPoolBatchSize);
+  }
+
+  template <typename T = message_manager_t>
+  typename std::enable_if<
+      !std::is_same<T, ParallelMessageManagerOpt>::value ||
+      !std::is_base_of<ParallelAppBase<fragment_t, context_t, T>,
+                       APP_T>::value>::type
+  initPool(const ParallelEngineSpec& pe_spec) {}
+
   template <typename T = message_manager_t>
   typename std::enable_if<
       std::is_same<T, AutoParallelMessageManager<fragment_t>>::value>::type

@@ -88,9 +88,7 @@ struct MessageBuffer : public Allocator<char> {
   size_t size;
 };
 
-double get_gb(size_t size) {
-  return static_cast<double>(size) / 1024.0 / 1024.0 / 1024.0;
-}
+static constexpr size_t kDefaultPoolBatchSize = 16 * 1024 * 1024;
 
 inline size_t estimate_pool_size(size_t send_message_size,
                                  size_t recv_message_size, size_t batch_size,
@@ -104,17 +102,11 @@ inline size_t estimate_pool_size(size_t send_message_size,
 
   size_t recv_pool_size =
       (recv_message_size + batch_size - 1) / batch_size * batch_size;
-  recv_pool_size *= 2;
   return send_pool_size + recv_pool_size;
 }
 
 class MessageBufferPool {
  public:
-  static MessageBufferPool& Default() {
-    static MessageBufferPool pool;
-    return pool;
-  }
-
   MessageBufferPool()
       : init_size_(0),
         chunk_size_(2ull * 1024 * 1024),
@@ -122,15 +114,10 @@ class MessageBufferPool {
         peak_used_size_(0),
         extra_used_size_(0),
         peak_extra_used_size_(0) {}
-  ~MessageBufferPool() {
-    LOG(INFO) << "init: " << get_gb(init_size_)
-              << ", peak: " << get_gb(peak_used_size_) << ", rate = "
-              << static_cast<double>(peak_used_size_) /
-                     static_cast<double>(init_size_);
-  }
+  ~MessageBufferPool() {}
 
   void init(size_t size, size_t chunk) {
-    size = std::min(size, static_cast<size_t>(get_available_memory() * 0.8));
+    size = std::min(size, static_cast<size_t>(get_available_memory() * 0.6));
     size_t num = size / chunk;
     lock_.lock();
     que_.clear();

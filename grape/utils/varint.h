@@ -38,7 +38,7 @@ inline int varint_length(uint64_t value) {
 
 class VarintEncoder {
  public:
-  VarintEncoder() = default;
+  VarintEncoder() { buf_.reserve(2 * 1024 * 1024); }
   ~VarintEncoder() = default;
 
   void encode_u32(uint32_t v) {
@@ -82,7 +82,7 @@ class VarintEncoder {
   bool empty() const { return buf_.empty(); }
 
  private:
-  std::vector<uint8_t> buf_;
+  std::vector<uint8_t, Allocator<uint8_t>> buf_;
 };
 
 class VarintDecoder {

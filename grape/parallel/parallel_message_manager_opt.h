@@ -56,8 +56,7 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
   static constexpr size_t default_msg_send_block_capacity = 2 * 1024 * 1024;
 
  public:
-  ParallelMessageManagerOpt()
-      : comm_(NULL_COMM), pool_(MessageBufferPool::Default()) {}
+  ParallelMessageManagerOpt() : comm_(NULL_COMM) {}
   ~ParallelMessageManagerOpt() override {
     if (ValidComm(comm_)) {
       MPI_Comm_free(&comm_);
@@ -96,6 +95,8 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     recv_bufs_loc_[0] = 0;
     recv_bufs_loc_[1] = 0;
   }
+
+  MessageBufferPool& GetPool() { return pool_; }
 
   /**
    * @brief Inherit
@@ -388,6 +389,10 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     for (auto& thrd : threads) {
       thrd.join();
     }
+    for (auto& buf : recv_bufs_stash_[round_ % 2]) {
+      pool_.give(std::move(buf));
+    }
+    recv_bufs_stash_[round_ % 2].clear();
   }
 
   template <typename GRAPH_T, typename MESSAGE_T, typename FUNC_T>
@@ -423,6 +428,10 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     for (auto& thrd : threads) {
       thrd.join();
     }
+    for (auto& buf : recv_bufs_stash_[round_ % 2]) {
+      pool_.give(std::move(buf));
+    }
+    recv_bufs_stash_[round_ % 2].clear();
     return ret.load();
   }
 
@@ -462,6 +471,10 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     for (auto& thrd : threads) {
       thrd.join();
     }
+    for (auto& buf : recv_bufs_stash_[round_ % 2]) {
+      pool_.give(std::move(buf));
+    }
+    recv_bufs_stash_[round_ % 2].clear();
   }
 
  private:
@@ -667,7 +680,7 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
   bool force_terminate_;
   TerminateInfo terminate_info_;
 
-  MessageBufferPool& pool_;
+  MessageBufferPool pool_;
 };
 
 }  // namespace grape

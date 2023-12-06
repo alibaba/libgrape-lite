@@ -50,11 +50,6 @@ using LCCBeta32 = LCCBeta<FRAG_T, uint32_t>;
 template <typename FRAG_T>
 using LCCDirected32 = LCCDirected<FRAG_T, uint32_t>;
 
-const size_t kDefaultPoolBatchSize = 16ull * 1024 * 1024;
-void init_buffer_pool(size_t pool_size, size_t batch_size) {
-  MessageBufferPool::Default().init(pool_size, batch_size);
-}
-
 template <LoadStrategy load_strategy>
 void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
                               const std::string& out_prefix,
@@ -113,12 +108,6 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
     } else {
       using AppType = PageRankPushOpt<FRAG_T>;
       auto app = std::make_shared<AppType>();
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(double)),
-          fragment->GetInnerVerticesNum() *
-              (sizeof(uint32_t) + sizeof(double)) * (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
       DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
                                             out_prefix, delta, mr);
     }
@@ -146,12 +135,6 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
     } else {
       using AppType = PageRankPushOpt<FRAG_T>;
       auto app = std::make_shared<AppType>();
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(double)),
-          fragment->GetInnerVerticesNum() *
-              (sizeof(uint32_t) + sizeof(double)) * (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
       DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
                                             out_prefix, delta, mr);
     }
@@ -227,23 +210,11 @@ void RunDirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
     using AppType = CDLPOpt<FRAG_T, int32_t>;
     auto app = std::make_shared<AppType>();
-    size_t pool_size = estimate_pool_size(
-        fragment->GetInnerVerticesNum() * (sizeof(uint32_t) + sizeof(int)) *
-            (fragment->fnum() - 1),
-        fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(int)),
-        kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-    init_buffer_pool(pool_size, kDefaultPoolBatchSize);
     DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
                                   FLAGS_cdlp_mr);
   } else {
     using AppType = CDLPOpt<FRAG_T, int64_t>;
     auto app = std::make_shared<AppType>();
-    size_t pool_size = estimate_pool_size(
-        fragment->GetInnerVerticesNum() * (sizeof(uint32_t) + sizeof(int64_t)) *
-            (fragment->fnum() - 1),
-        fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(int64_t)),
-        kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-    init_buffer_pool(pool_size, kDefaultPoolBatchSize);
     DoQuery<FRAG_T, AppType, int>(fragment, app, comm_spec, spec, out_prefix,
                                   FLAGS_cdlp_mr);
   }
@@ -275,12 +246,6 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   std::pair<int64_t, int64_t> min_max_id =
       get_min_max_id(*fragment->GetVertexMap());
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
-    size_t pool_size = estimate_pool_size(
-        fragment->GetInnerVerticesNum() * (sizeof(uint32_t) + sizeof(int32_t)) *
-            (fragment->fnum() - 1),
-        fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(int32_t)),
-        kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-    init_buffer_pool(pool_size, kDefaultPoolBatchSize);
     if (avg_degree > 256) {
       using AppType = CDLPOptUDDense<FRAG_T, int32_t>;
       auto app = std::make_shared<AppType>();
@@ -293,12 +258,6 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
                                     FLAGS_cdlp_mr);
     }
   } else {
-    size_t pool_size = estimate_pool_size(
-        fragment->GetInnerVerticesNum() * (sizeof(uint32_t) + sizeof(int64_t)) *
-            (fragment->fnum() - 1),
-        fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(int64_t)),
-        kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-    init_buffer_pool(pool_size, kDefaultPoolBatchSize);
     if (avg_degree > 256) {
       using AppType = CDLPOptUDDense<FRAG_T, int64_t>;
       auto app = std::make_shared<AppType>();
@@ -335,65 +294,6 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
     std::shared_ptr<FRAG_T> fragment =
         LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
     using AppType = APP_T<FRAG_T>;
-    if (std::is_same<AppType, SSSPOpt<FRAG_T>>::value) {
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(double)),
-          fragment->GetInnerVerticesNum() *
-              (sizeof(uint32_t) + sizeof(double)) * (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, BFSOpt<FRAG_T>>::value) {
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() * (sizeof(uint32_t)),
-          fragment->GetInnerVerticesNum() * (sizeof(uint32_t)) *
-              (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, WCCOpt<FRAG_T>>::value) {
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() *
-              (sizeof(uint32_t) + sizeof(int64_t)),
-          fragment->GetInnerVerticesNum() *
-              (sizeof(uint32_t) + sizeof(int64_t)) * (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, LCCDirected32<FRAG_T>>::value) {
-      size_t avg_degree =
-          ((FLAGS_edge_num + FLAGS_vertex_num - 1) / FLAGS_vertex_num + 1) / 2;
-      size_t pool_size = estimate_pool_size(
-          fragment->GetInnerVerticesNum() * sizeof(uint32_t) *
-              (avg_degree + 1) * (fragment->fnum() - 1),
-          fragment->GetOuterVerticesNum() * sizeof(uint32_t) * (avg_degree + 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, LCCDirected64<FRAG_T>>::value) {
-      size_t avg_degree =
-          ((FLAGS_edge_num + FLAGS_vertex_num - 1) / FLAGS_vertex_num + 1) / 2;
-      size_t pool_size = estimate_pool_size(
-          fragment->GetInnerVerticesNum() * sizeof(uint64_t) *
-              (avg_degree + 1) * (fragment->fnum() - 1),
-          fragment->GetOuterVerticesNum() * sizeof(uint64_t) * (avg_degree + 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, LCC64<FRAG_T>>::value) {
-      size_t avg_degree =
-          (FLAGS_edge_num + FLAGS_vertex_num - 1) / FLAGS_vertex_num;
-      size_t pool_size = estimate_pool_size(
-          fragment->GetInnerVerticesNum() * sizeof(uint32_t) *
-              (avg_degree + 1) * (fragment->fnum() - 1),
-          fragment->GetOuterVerticesNum() * sizeof(uint32_t) * (avg_degree + 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, LCC32<FRAG_T>>::value) {
-      size_t avg_degree =
-          (FLAGS_edge_num + FLAGS_vertex_num - 1) / FLAGS_vertex_num;
-      size_t pool_size = estimate_pool_size(
-          fragment->GetInnerVerticesNum() * sizeof(uint64_t) *
-              (avg_degree + 1) * (fragment->fnum() - 1),
-          fragment->GetOuterVerticesNum() * sizeof(uint64_t) * (avg_degree + 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    }
     auto app = std::make_shared<AppType>();
     DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
                                       out_prefix, args...);
@@ -404,29 +304,6 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
     std::shared_ptr<FRAG_T> fragment =
         LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
     using AppType = APP_T<FRAG_T>;
-    if (std::is_same<AppType, SSSPOpt<FRAG_T>>::value) {
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() * (sizeof(uint32_t) + sizeof(double)),
-          fragment->GetInnerVerticesNum() *
-              (sizeof(uint32_t) + sizeof(double)) * (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, BFSOpt<FRAG_T>>::value) {
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() * (sizeof(uint32_t)),
-          fragment->GetInnerVerticesNum() * (sizeof(uint32_t)) *
-              (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    } else if (std::is_same<AppType, WCCOpt<FRAG_T>>::value) {
-      size_t pool_size = estimate_pool_size(
-          fragment->GetOuterVerticesNum() *
-              (sizeof(uint32_t) + sizeof(int64_t)),
-          fragment->GetInnerVerticesNum() *
-              (sizeof(uint32_t) + sizeof(int64_t)) * (fragment->fnum() - 1),
-          kDefaultPoolBatchSize, fragment->fnum(), spec.thread_num);
-      init_buffer_pool(pool_size, kDefaultPoolBatchSize);
-    }
     auto app = std::make_shared<AppType>();
     DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
                                       out_prefix, args...);
