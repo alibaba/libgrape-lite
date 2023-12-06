@@ -225,6 +225,8 @@ class EdgecutFragmentBase
    */
   virtual DestList IEDests(const Vertex<VID_T>& v) const = 0;
 
+  virtual size_t IEDestsSize() const = 0;
+
   /**
    * @brief Return the outgoing edge destination fragment ID list of a inner
    * vertex.
@@ -242,6 +244,8 @@ class EdgecutFragmentBase
    */
   virtual DestList OEDests(const Vertex<VID_T>& v) const = 0;
 
+  virtual size_t OEDestsSize() const = 0;
+
   /**
    * @brief Return the edge destination fragment ID list of a inner vertex.
    *
@@ -257,6 +261,8 @@ class EdgecutFragmentBase
    * @return The edge destination fragment ID list.
    */
   virtual DestList IOEDests(const Vertex<VID_T>& v) const = 0;
+
+  virtual size_t IOEDestsSize() const = 0;
 
   /**
    * @brief Returns the incoming adjacent inner vertices of v.

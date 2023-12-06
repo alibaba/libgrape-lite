@@ -33,15 +33,13 @@ class PageRankPushOptContext : public VertexDataContext<FRAG_T, double> {
 
  public:
   explicit PageRankPushOptContext(const FRAG_T& fragment)
-      : VertexDataContext<FRAG_T, double>(fragment), result(this->data()) {}
+      : VertexDataContext<FRAG_T, double>(fragment), result(this->data()) {
+    next_result.Init(fragment.InnerVertices());
+  }
 
   void Init(ParallelMessageManagerOpt& messages, double delta, int max_round) {
-    auto& frag = this->fragment();
-    auto inner_vertices = frag.InnerVertices();
-
     this->delta = delta;
     this->max_round = max_round;
-    next_result.Init(inner_vertices);
     step = 0;
   }
 

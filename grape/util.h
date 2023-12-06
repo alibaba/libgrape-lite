@@ -143,6 +143,52 @@ static inline bool exists_file(const std::string& name) {
   return (stat(name.c_str(), &buffer) == 0);
 }
 
+inline std::vector<std::string> split_string(const std::string& str,
+                                             char delimiter) {
+  std::vector<std::string> tokens;
+  std::istringstream iss(str);
+  std::string token;
+  while (std::getline(iss, token, delimiter)) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
+inline size_t parse_size(const std::string& str) {
+  std::istringstream iss(str);
+  size_t digit;
+  std::string tail;
+  iss >> digit >> tail;
+  if (tail.empty()) {
+    return digit;
+  } else if (tail == "kB") {
+    return digit * 1024;
+  } else {
+    return 0;
+  }
+}
+
+inline std::map<std::string, size_t> parse_meminfo() {
+  std::ifstream mem_file("/proc/meminfo", std::ios_base::in);
+  std::string line;
+  std::map<std::string, size_t> ret;
+  while (std::getline(mem_file, line)) {
+    std::vector<std::string> parts = split_string(line, ':');
+    assert(parts.size() == 2);
+    ret[parts[0]] = parse_size(parts[1]);
+  }
+  return ret;
+}
+
+size_t get_available_memory() {
+  auto meminfo = parse_meminfo();
+#ifdef USE_HUGEPAGES
+  return meminfo.at("HugePages_Free") * meminfo.at("Hugepagesize");
+#else
+  return meminfo.at("MemAvailable");
+#endif
+}
+
 }  // namespace grape
 
 #endif  // GRAPE_UTIL_H_

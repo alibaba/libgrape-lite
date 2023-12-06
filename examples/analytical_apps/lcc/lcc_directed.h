@@ -51,6 +51,23 @@ InArchive& operator<<(InArchive& arc, const BinaryVecOut<T>& vec) {
 }
 
 template <typename T>
+struct SerializedSize<BinaryVecOut<T>> {
+  static size_t size(const BinaryVecOut<T>& v) {
+    int deg = v.id_vec.size();
+    return sizeof(int) + deg * sizeof(T) + deg * sizeof(uint8_t);
+  }
+};
+
+template <typename T>
+FixedInArchive& operator<<(FixedInArchive& arc, const BinaryVecOut<T>& vec) {
+  int deg = vec.id_vec.size();
+  arc << deg;
+  arc.add_bytes(vec.id_vec.data(), sizeof(T) * deg);
+  arc.add_bytes(vec.weight_vec.data(), sizeof(uint8_t) * deg);
+  return arc;
+}
+
+template <typename T>
 class BinaryVecIn {
  public:
   BinaryVecIn() {}
@@ -342,6 +359,20 @@ class LCCDirected
             atomic_add(ctx.tricnt[u], deg);
           });
     }
+  }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    size_t avg_degree =
+        (frag.GetOutgoingEdgeNum() + frag.GetIncomingEdgeNum()) /
+            frag.GetInnerVerticesNum() +
+        1;
+    send_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.IOEDestsSize();
+    recv_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.GetOuterVerticesNum();
   }
 };
 
@@ -684,6 +715,20 @@ class LCCDirected<FRAG_T, COUNT_T,
             atomic_add(ctx.tricnt[u], deg);
           });
     }
+  }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    size_t avg_degree =
+        (frag.GetOutgoingEdgeNum() + frag.GetIncomingEdgeNum()) /
+            frag.GetInnerVerticesNum() +
+        1;
+    send_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.IOEDestsSize();
+    recv_size =
+        (avg_degree * (sizeof(vid_t) + sizeof(uint8_t)) + sizeof(vertex_t)) *
+        frag.GetOuterVerticesNum();
   }
 };
 

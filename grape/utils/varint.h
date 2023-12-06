@@ -20,6 +20,7 @@ limitations under the License.
 
 #include <vector>
 
+#include "grape/serialization/fixed_in_archive.h"
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"
 
@@ -37,7 +38,7 @@ inline int varint_length(uint64_t value) {
 
 class VarintEncoder {
  public:
-  VarintEncoder() = default;
+  VarintEncoder() { buf_.reserve(2 * 1024 * 1024); }
   ~VarintEncoder() = default;
 
   void encode_u32(uint32_t v) {
@@ -81,7 +82,7 @@ class VarintEncoder {
   bool empty() const { return buf_.empty(); }
 
  private:
-  std::vector<uint8_t> buf_;
+  std::vector<uint8_t, Allocator<uint8_t>> buf_;
 };
 
 class VarintDecoder {
@@ -253,6 +254,15 @@ struct VarintUtil<uint64_t> {
     arc.AddByte(static_cast<char>(v));
   }
 
+  static void encode_to_archive_beta(FixedInArchive& arc, uint64_t v) {
+    static constexpr uint64_t B = 128;
+    while (v >= B) {
+      arc.add_byte(static_cast<char>(v | B));
+      v >>= 7;
+    }
+    arc.add_byte(static_cast<char>(v));
+  }
+
   static void decode_from_archive(OutArchive& arc, uint64_t& val) {
     val = 0;
     uint8_t byte;
@@ -342,6 +352,17 @@ InArchive& operator<<(InArchive& arc, const VarintEncoder& encoder) {
   return arc;
 }
 
+template <>
+struct SerializedSize<VarintEncoder> {
+  static size_t size(const VarintEncoder& v) { return 10 + v.size(); }
+};
+
+FixedInArchive& operator<<(FixedInArchive& arc, const VarintEncoder& encoder) {
+  VarintUtil<uint64_t>::encode_to_archive_beta(arc, encoder.size());
+  arc.add_bytes(encoder.data(), encoder.size());
+  return arc;
+}
+
 OutArchive& operator>>(OutArchive& arc, VarintDecoder& decoder) {
   uint64_t size;
   VarintUtil<uint64_t>::decode_from_archive(arc, size);
@@ -351,6 +372,20 @@ OutArchive& operator>>(OutArchive& arc, VarintDecoder& decoder) {
 
 template <typename T>
 InArchive& operator<<(InArchive& arc, const DeltaVarintEncoder<T>& encoder) {
+  arc << encoder.encoder();
+  return arc;
+}
+
+template <typename T>
+struct SerializedSize<DeltaVarintEncoder<T>> {
+  static size_t size(const DeltaVarintEncoder<T>& v) {
+    return SerializedSize<VarintEncoder>::size(v.encoder());
+  }
+};
+
+template <typename T>
+FixedInArchive& operator<<(FixedInArchive& arc,
+                           const DeltaVarintEncoder<T>& encoder) {
   arc << encoder.encoder();
   return arc;
 }

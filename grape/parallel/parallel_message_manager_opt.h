@@ -29,9 +29,10 @@ limitations under the License.
 #include "grape/communication/sync_comm.h"
 #include "grape/parallel/message_in_buffer.h"
 #include "grape/parallel/message_manager_base.h"
-#include "grape/parallel/thread_local_message_buffer.h"
+#include "grape/parallel/thread_local_message_buffer_opt.h"
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"
+#include "grape/util.h"
 #include "grape/utils/concurrent_queue.h"
 #include "grape/worker/comm_spec.h"
 
@@ -50,7 +51,6 @@ namespace grape {
  * the fixed point is reached.
  *
  */
-
 class ParallelMessageManagerOpt : public MessageManagerBase {
   static constexpr size_t default_msg_send_block_size = 2 * 1023 * 1024;
   static constexpr size_t default_msg_send_block_capacity = 2 * 1024 * 1024;
@@ -67,6 +67,8 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
    * @brief Inherit
    */
   void Init(MPI_Comm comm) override {
+    int channel_num = std::thread::hardware_concurrency();
+
     MPI_Comm_dup(comm, &comm_);
     comm_spec_.Init(comm_);
     fid_ = comm_spec_.fid();
@@ -82,7 +84,19 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
 
     sent_size_ = 0;
     total_sent_size_ = 0;
+
+    channels_.resize(channel_num);
+    for (auto& channel : channels_) {
+      channel.Init(fid_, fnum_, this, &pool_);
+    }
+
+    recv_bufs_[0] = pool_.take_default();
+    recv_bufs_[1] = pool_.take_default();
+    recv_bufs_loc_[0] = 0;
+    recv_bufs_loc_[1] = 0;
   }
+
+  MessageBufferPool& GetPool() { return pool_; }
 
   /**
    * @brief Inherit
@@ -98,8 +112,7 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
       auto& rq = recv_queues_[round_ % 2];
       if (!to_self_.empty()) {
         for (auto& iarc : to_self_) {
-          OutArchive oarc(std::move(iarc));
-          rq.Put(std::move(oarc));
+          rq.Put(std::move(iarc));
         }
         to_self_.clear();
       }
@@ -107,6 +120,9 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     }
     sent_size_ = 0;
     startSendThread();
+    for (auto& channel : channels_) {
+      channel.Prepare();
+    }
   }
 
   /**
@@ -187,13 +203,26 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
   void InitChannels(int channel_num = 1,
                     size_t block_size = default_msg_send_block_size,
                     size_t block_cap = default_msg_send_block_capacity) {
-    channels_.resize(channel_num);
-    for (auto& channel : channels_) {
-      channel.Init(fnum_, this, block_size, block_cap);
+    if (static_cast<size_t>(channel_num) > channels_.size()) {
+      size_t before = channels_.size();
+      channels_.resize(channel_num);
+      for (size_t i = 0; i < before; ++i) {
+        channels_[i].SetBlockSize(block_size);
+      }
+      for (int i = before; i < channel_num; ++i) {
+        channels_[i].Init(fid_, fnum_, this, &pool_);
+        channels_[i].SetBlockSize(block_size);
+      }
+    } else {
+      channels_.resize(channel_num);
+      for (auto& channel : channels_) {
+        channel.SetBlockSize(block_size);
+      }
     }
   }
 
-  std::vector<ThreadLocalMessageBuffer<ParallelMessageManagerOpt>>& Channels() {
+  std::vector<ThreadLocalMessageBufferOpt<ParallelMessageManagerOpt>>&
+  Channels() {
     return channels_;
   }
 
@@ -203,8 +232,8 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
    * @param fid Destination fragment id.
    * @param arc Message buffer.
    */
-  inline void SendRawMsgByFid(fid_t fid, InArchive&& arc) {
-    std::pair<fid_t, InArchive> item;
+  inline void SendMicroBufferByFid(fid_t fid, MicroBuffer&& arc) {
+    std::pair<fid_t, MicroBuffer> item;
     item.first = fid;
     item.second = std::move(arc);
     sending_queue_.Put(std::move(item));
@@ -308,10 +337,12 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
    * @param buf Message buffer which holds a grape::OutArchive.
    */
   inline bool GetMessageInBuffer(MessageInBuffer& buf) {
-    grape::OutArchive arc;
+    // grape::OutArchive arc;
+    MicroBuffer arc;
     auto& que = recv_queues_[round_ % 2];
     if (que.Get(arc)) {
-      buf.Init(std::move(arc));
+      // buf.Init(std::move(arc));
+      buf.Init(arc);
       return true;
     } else {
       return false;
@@ -342,7 +373,9 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
             MESSAGE_T msg;
             auto& que = recv_queues_[round_ % 2];
             OutArchive arc;
-            while (que.Get(arc)) {
+            MicroBuffer buf;
+            while (que.Get(buf)) {
+              arc.SetSlice(buf.buffer, buf.size);
               while (!arc.Empty()) {
                 arc >> id >> msg;
                 frag.Gid2Vertex(id, vertex);
@@ -356,6 +389,10 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     for (auto& thrd : threads) {
       thrd.join();
     }
+    for (auto& buf : recv_bufs_stash_[round_ % 2]) {
+      pool_.give(std::move(buf));
+    }
+    recv_bufs_stash_[round_ % 2].clear();
   }
 
   template <typename GRAPH_T, typename MESSAGE_T, typename FUNC_T>
@@ -371,9 +408,11 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
             typename GRAPH_T::vertex_t vertex(0);
             MESSAGE_T msg;
             auto& que = recv_queues_[round_ % 2];
+            MicroBuffer buf;
             OutArchive arc;
             size_t local_count = 0;
-            while (que.Get(arc)) {
+            while (que.Get(buf)) {
+              arc.SetSlice(buf.buffer, buf.size);
               while (!arc.Empty()) {
                 arc >> id >> msg;
                 frag.Gid2Vertex(id, vertex);
@@ -389,6 +428,10 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     for (auto& thrd : threads) {
       thrd.join();
     }
+    for (auto& buf : recv_bufs_stash_[round_ % 2]) {
+      pool_.give(std::move(buf));
+    }
+    recv_bufs_stash_[round_ % 2].clear();
     return ret.load();
   }
 
@@ -412,8 +455,10 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
           [&](int tid) {
             MESSAGE_T msg;
             auto& que = recv_queues_[round_ % 2];
+            MicroBuffer buf;
             OutArchive arc;
-            while (que.Get(arc)) {
+            while (que.Get(buf)) {
+              arc.SetSlice(buf.buffer, buf.size);
               while (!arc.Empty()) {
                 arc >> msg;
                 func(tid, msg);
@@ -426,6 +471,10 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     for (auto& thrd : threads) {
       thrd.join();
     }
+    for (auto& buf : recv_bufs_stash_[round_ % 2]) {
+      pool_.give(std::move(buf));
+    }
+    recv_bufs_stash_[round_ % 2].clear();
   }
 
  private:
@@ -438,9 +487,9 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     send_thread_ = std::thread(
         [this](int msg_round) {
           std::vector<MPI_Request> reqs;
-          std::pair<fid_t, InArchive> item;
+          std::pair<fid_t, MicroBuffer> item;
           while (sending_queue_.Get(item)) {
-            if (item.second.GetSize() == 0) {
+            if (item.second.size == 0) {
               continue;
             }
             if (item.first == fid_) {
@@ -448,10 +497,9 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
             } else {
               MPI_Request req;
               sync_comm::isend_small_buffer<char>(
-                  item.second.GetBuffer(), item.second.GetSize(),
+                  item.second.buffer, item.second.size,
                   comm_spec_.FragToWorker(item.first), msg_round, comm_, req);
               reqs.push_back(req);
-              to_others_.emplace_back(std::move(item.second));
             }
           }
           for (fid_t i = 0; i < fnum_; ++i) {
@@ -464,7 +512,6 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
             reqs.push_back(req);
           }
           MPI_Waitall(reqs.size(), &reqs[0], MPI_STATUSES_IGNORE);
-          to_others_.clear();
         },
         round + 1);
   }
@@ -486,10 +533,19 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
                                            comm_);
         recv_queues_[tag % 2].DecProducerNum();
       } else {
-        OutArchive arc(count);
-        sync_comm::recv_small_buffer<char>(arc.GetBuffer(), count,
-                                           status.MPI_SOURCE, tag, comm_);
-        recv_queues_[tag % 2].Put(std::move(arc));
+        size_t loc = recv_bufs_loc_[tag % 2];
+        if (loc + count > recv_bufs_[tag % 2].size) {
+          recv_bufs_stash_[tag % 2].emplace_back(
+              std::move(recv_bufs_[tag % 2]));
+          recv_bufs_[tag % 2] = pool_.take(count);
+          recv_bufs_loc_[tag % 2] = 0;
+          loc = 0;
+        }
+        char* buf = recv_bufs_[tag % 2].buffer + loc;
+        sync_comm::recv_small_buffer<char>(buf, count, status.MPI_SOURCE, tag,
+                                           comm_);
+        recv_queues_[tag % 2].Put(MicroBuffer(buf, count));
+        recv_bufs_loc_[tag % 2] += count;
       }
     }
   }
@@ -515,10 +571,19 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
                                              comm_);
           recv_queues_[tag % 2].DecProducerNum();
         } else {
-          OutArchive arc(count);
-          sync_comm::recv_small_buffer<char>(arc.GetBuffer(), count,
-                                             status.MPI_SOURCE, tag, comm_);
-          recv_queues_[tag % 2].Put(std::move(arc));
+          size_t loc = recv_bufs_loc_[tag % 2];
+          if (loc + count > recv_bufs_[tag % 2].size) {
+            recv_bufs_stash_[tag % 2].emplace_back(
+                std::move(recv_bufs_[tag % 2]));
+            recv_bufs_[tag % 2] = pool_.take(count);
+            recv_bufs_loc_[tag % 2] = 0;
+            loc = 0;
+          }
+          char* buf = recv_bufs_[tag % 2].buffer + loc;
+          sync_comm::recv_small_buffer<char>(buf, count, status.MPI_SOURCE, tag,
+                                             comm_);
+          recv_queues_[tag % 2].Put(MicroBuffer(buf, count));
+          recv_bufs_loc_[tag % 2] += count;
         }
       } else {
         break;
@@ -574,9 +639,14 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
   void resetRecvQueue() {
     auto& curr_recv_queue = recv_queues_[round_ % 2];
     if (round_) {
-      OutArchive arc;
+      MicroBuffer arc;
       while (curr_recv_queue.Get(arc)) {}
     }
+    recv_bufs_loc_[round_ % 2] = 0;
+    for (auto& buf : recv_bufs_stash_[round_ % 2]) {
+      pool_.give(std::move(buf));
+    }
+    recv_bufs_stash_[round_ % 2].clear();
     curr_recv_queue.SetProducerNum(fnum_);
   }
 
@@ -588,16 +658,19 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
 
   MPI_Comm comm_;
 
-  std::vector<InArchive> to_self_;
-  std::vector<InArchive> to_others_;
+  std::vector<MicroBuffer> to_self_;
 
-  std::vector<ThreadLocalMessageBuffer<ParallelMessageManagerOpt>> channels_;
+  std::vector<ThreadLocalMessageBufferOpt<ParallelMessageManagerOpt>> channels_;
   int round_;
 
-  BlockingQueue<std::pair<fid_t, InArchive>> sending_queue_;
+  BlockingQueue<std::pair<fid_t, MicroBuffer>> sending_queue_;
   std::thread send_thread_;
 
-  std::array<BlockingQueue<OutArchive>, 2> recv_queues_;
+  std::array<BlockingQueue<MicroBuffer>, 2> recv_queues_;
+  std::array<MessageBuffer, 2> recv_bufs_;
+  std::array<size_t, 2> recv_bufs_loc_;
+  std::array<std::vector<MessageBuffer>, 2> recv_bufs_stash_;
+
   std::thread recv_thread_;
 
   bool force_continue_;
@@ -606,6 +679,8 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
 
   bool force_terminate_;
   TerminateInfo terminate_info_;
+
+  MessageBufferPool pool_;
 };
 
 }  // namespace grape

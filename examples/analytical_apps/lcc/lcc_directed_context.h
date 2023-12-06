@@ -39,18 +39,15 @@ class LCCDirectedContext : public VertexDataContext<FRAG_T, double> {
   using count_t = COUNT_T;
 
   explicit LCCDirectedContext(const FRAG_T& fragment)
-      : VertexDataContext<FRAG_T, double>(fragment) {}
-
-  void Init(ParallelMessageManagerOpt& messages) {
-    auto& frag = this->fragment();
-    auto vertices = frag.Vertices();
-
-    global_degree.Init(vertices);
-    deduped_degree.Init(frag.InnerVertices());
-    complete_neighbor.Init(vertices);
-    neighbor_weight.Init(vertices);
-    tricnt.Init(vertices, 0);
+      : VertexDataContext<FRAG_T, double>(fragment) {
+    global_degree.Init(fragment.Vertices());
+    deduped_degree.Init(fragment.InnerVertices());
+    complete_neighbor.Init(fragment.Vertices());
+    neighbor_weight.Init(fragment.Vertices());
+    tricnt.Init(fragment.Vertices());
   }
+
+  void Init(ParallelMessageManagerOpt& messages) { tricnt.SetValue(0); }
 
   void Output(std::ostream& os) override {
     auto& frag = this->fragment();

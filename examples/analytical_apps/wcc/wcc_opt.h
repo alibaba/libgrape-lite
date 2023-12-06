@@ -132,6 +132,8 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
 
     messages.InitChannels(thread_num(), 98304, 98304);
 
+    ctx.next_modified.ParallelClear(GetThreadPool());
+
     ForEach(inner_vertices, [&frag, &ctx](int tid, vertex_t v) {
       auto es = frag.GetOutgoingInnerVertexAdjList(v);
       vertex_t parent = v;
@@ -193,6 +195,15 @@ class WCCOpt : public ParallelAppBase<FRAG_T, WCCOptContext<FRAG_T>,
     }
 
     ctx.curr_modified.Swap(ctx.next_modified);
+  }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    LOG(INFO) << "EstimateMessageSize";
+    send_size = frag.GetOuterVerticesNum();
+    send_size *= (sizeof(vertex_t) + sizeof(oid_t));
+    recv_size = frag.GetInnerVerticesNum();
+    recv_size *= ((sizeof(vertex_t) + sizeof(oid_t)) * (frag.fnum() - 1));
   }
 };
 

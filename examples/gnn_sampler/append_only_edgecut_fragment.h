@@ -772,14 +772,29 @@ class AppendOnlyEdgecutFragment
     return DestList(0, 0);
   }
 
+  size_t IEDestsSize() const override {
+    LOG(FATAL) << "Not implemented.";
+    return 0;
+  }
+
   DestList OEDests(const vertex_t& v) const override {
     LOG(FATAL) << "Not implemented.";
     return DestList(0, 0);
   }
 
+  size_t OEDestsSize() const override {
+    LOG(FATAL) << "Not implemented.";
+    return 0;
+  }
+
   DestList IOEDests(const vertex_t& v) const override {
     LOG(FATAL) << "Not implemented.";
     return DestList(0, 0);
+  }
+
+  size_t IOEDestsSize() const override {
+    LOG(FATAL) << "Not implemented.";
+    return 0;
   }
 
   adj_list_t GetIncomingAdjList(const vertex_t& v) override {

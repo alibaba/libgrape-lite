@@ -37,15 +37,13 @@ class WCCOptContext : public WCCOptContextType<FRAG_T> {
   using vertex_t = typename FRAG_T::vertex_t;
 
   explicit WCCOptContext(const FRAG_T& fragment)
-      : WCCOptContextType<FRAG_T>(fragment, true), comp_id(this->data()) {}
-
-  void Init(ParallelMessageManagerOpt& messages) {
-    auto& frag = this->fragment();
-
-    tree.Init(frag.Vertices());
-    curr_modified.Init(frag.InnerVertices());
-    next_modified.Init(frag.InnerVertices());
+      : WCCOptContextType<FRAG_T>(fragment, true), comp_id(this->data()) {
+    tree.Init(fragment.Vertices());
+    curr_modified.Init(fragment.InnerVertices());
+    next_modified.Init(fragment.InnerVertices());
   }
+
+  void Init(ParallelMessageManagerOpt& messages) {}
 
   void Output(std::ostream& os) override {
     auto& frag = this->fragment();

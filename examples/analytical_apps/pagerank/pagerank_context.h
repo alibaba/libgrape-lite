@@ -34,27 +34,41 @@ class PageRankContext : public VertexDataContext<FRAG_T, double> {
  public:
   explicit PageRankContext(const FRAG_T& fragment)
       : VertexDataContext<FRAG_T, double>(fragment, true),
-        result(this->data()) {}
-
-  void Init(BatchShuffleMessageManager& messages, double delta, int max_round) {
-    auto& frag = this->fragment();
-    auto inner_vertices = frag.InnerVertices();
-    auto vertices = frag.Vertices();
-
-    this->delta = delta;
-    this->max_round = max_round;
-    degree.Init(inner_vertices, 0);
-    result.SetValue(0.0);
+        result(this->data()) {
+    auto inner_vertices = fragment.InnerVertices();
+    auto vertices = fragment.Vertices();
+    degree.Init(inner_vertices);
     next_result.Init(vertices);
-    step = 0;
+    avg_degree = static_cast<double>(fragment.GetEdgeNum()) /
+                 static_cast<double>(fragment.GetInnerVerticesNum());
 
-    avg_degree = static_cast<double>(frag.GetEdgeNum()) /
-                 static_cast<double>(frag.GetInnerVerticesNum());
+    send_buffers.resize(fragment.fnum());
+    recv_buffers.resize(fragment.fnum());
+    for (fid_t k = 0; k < fragment.fnum(); k++) {
+      size_t send_size = fragment.MirrorVertices(k).size() * sizeof(double);
+      size_t recv_size = fragment.OuterVertices(k).size() * sizeof(double);
+      send_buffers[k].resize(send_size);
+      memset(send_buffers[k].data(), 0, send_size);
+      recv_buffers[k].resize(recv_size);
+      memset(recv_buffers[k].data(), 0, recv_size);
+    }
+
 #ifdef PROFILING
     preprocess_time = 0;
     exec_time = 0;
     postprocess_time = 0;
 #endif
+  }
+  ~PageRankContext() {}
+
+  void Init(BatchShuffleMessageManager& messages, double delta, int max_round) {
+    this->delta = delta;
+    this->max_round = max_round;
+    for (fid_t i = 0; i < this->fragment().fnum(); i++) {
+      messages.SetupBuffer(i, std::move(send_buffers[i]),
+                           std::move(recv_buffers[i]));
+    }
+    step = 0;
   }
 
   void Output(std::ostream& os) override {
@@ -74,6 +88,8 @@ class PageRankContext : public VertexDataContext<FRAG_T, double> {
   typename FRAG_T::template inner_vertex_array_t<int> degree;
   typename FRAG_T::template vertex_array_t<double>& result;
   typename FRAG_T::template vertex_array_t<double> next_result;
+  std::vector<std::vector<char, Allocator<char>>> send_buffers;
+  std::vector<std::vector<char, Allocator<char>>> recv_buffers;
 
 #ifdef PROFILING
   double preprocess_time = 0;

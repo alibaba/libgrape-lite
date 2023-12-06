@@ -35,19 +35,18 @@ class CDLPOptContext : public VertexDataContext<FRAG_T, LABEL_T> {
 
   explicit CDLPOptContext(const FRAG_T& fragment)
       : VertexDataContext<FRAG_T, label_t>(fragment, true),
-        labels(this->data()) {}
-
-  void Init(ParallelMessageManagerOpt& messages, int max_round,
-            double threshold = 0.002) {
+        labels(this->data()) {
     auto& frag = this->fragment();
     auto inner_vertices = frag.InnerVertices();
-
-    this->max_round = max_round;
-    this->threshold = threshold;
     changed.Init(inner_vertices);
     potential_change.Init(inner_vertices);
     new_ilabels.Init(frag.Vertices());
+  }
 
+  void Init(ParallelMessageManagerOpt& messages, int max_round,
+            double threshold = 0.002) {
+    this->max_round = max_round;
+    this->threshold = threshold;
     step = 0;
   }
 

@@ -144,6 +144,14 @@ class PageRankPushOpt
       });
     }
   }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    send_size = frag.GetOuterVerticesNum();
+    send_size *= (sizeof(vertex_t) + sizeof(double));
+    recv_size = frag.GetInnerVerticesNum();
+    recv_size *= ((sizeof(vertex_t) + sizeof(double)) * (frag.fnum() - 1));
+  }
 };
 
 }  // namespace grape

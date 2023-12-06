@@ -224,6 +224,13 @@ class CDLPOptUDDense
       }
     }
   }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    send_size = frag.OEDestsSize() * (sizeof(vertex_t) + sizeof(label_t));
+    recv_size = frag.GetOuterVerticesNum();
+    recv_size *= (sizeof(vertex_t) + sizeof(label_t));
+  }
 };
 
 }  // namespace grape

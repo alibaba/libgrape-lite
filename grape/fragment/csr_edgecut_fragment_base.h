@@ -190,6 +190,11 @@ class CSREdgecutFragmentBase
     return DestList(idst_.get_begin(v.GetValue()), idst_.get_end(v.GetValue()));
   }
 
+  inline size_t IEDestsSize() const override {
+    assert(!idst_.empty());
+    return idst_.edge_num();
+  }
+
   /**
    * @brief Return the outgoing edge destination fragment ID list of a Vertex.
    *
@@ -204,6 +209,11 @@ class CSREdgecutFragmentBase
     assert(!odst_.empty());
     assert(IsInnerVertex(v));
     return DestList(odst_.get_begin(v.GetValue()), odst_.get_end(v.GetValue()));
+  }
+
+  inline size_t OEDestsSize() const override {
+    assert(!odst_.empty());
+    return odst_.edge_num();
   }
 
   /**
@@ -221,6 +231,11 @@ class CSREdgecutFragmentBase
     assert(IsInnerVertex(v));
     return DestList(iodst_.get_begin(v.GetValue()),
                     iodst_.get_end(v.GetValue()));
+  }
+
+  inline size_t IOEDestsSize() const override {
+    assert(!iodst_.empty());
+    return iodst_.edge_num();
   }
 
   using base_t::GetFragId;

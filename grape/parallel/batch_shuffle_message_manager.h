@@ -81,7 +81,7 @@ class PostProcess : public PostProcessBase {
 
  public:
   PostProcess(const GRAPH_T& frag, array_t& data,
-              std::vector<std::vector<char>>& buffers)
+              std::vector<std::vector<char, Allocator<char>>>& buffers)
       : frag_(frag), data_(data), buffers_(buffers) {}
 
   void exec(fid_t fid) {
@@ -102,7 +102,7 @@ class PostProcess : public PostProcessBase {
  private:
   const GRAPH_T& frag_;
   array_t& data_;
-  std::vector<std::vector<char>>& buffers_;
+  std::vector<std::vector<char, Allocator<char>>>& buffers_;
 };
 
 }  // namespace batch_shuffle_message_manager_impl
@@ -148,6 +148,17 @@ class BatchShuffleMessageManager : public MessageManagerBase {
 
     recv_thread_ =
         std::thread(&BatchShuffleMessageManager::recvThreadRoutine, this);
+  }
+
+  void ReserveBuffer(fid_t fid, size_t send_size, size_t recv_size) {
+    shuffle_out_buffers_[fid].reserve(send_size);
+    shuffle_in_buffers_[fid].reserve(recv_size);
+  }
+
+  void SetupBuffer(fid_t fid, std::vector<char, Allocator<char>>&& send_buffer,
+                   std::vector<char, Allocator<char>>&& recv_buffer) {
+    shuffle_out_buffers_[fid] = std::move(send_buffer);
+    shuffle_in_buffers_[fid] = std::move(recv_buffer);
   }
 
   /**
@@ -545,9 +556,9 @@ class BatchShuffleMessageManager : public MessageManagerBase {
 
   MPI_Comm comm_;
 
-  std::vector<std::vector<char>> shuffle_out_buffers_;
+  std::vector<std::vector<char, Allocator<char>>> shuffle_out_buffers_;
   std::vector<InArchive> shuffle_out_archives_;
-  std::vector<std::vector<char>> shuffle_in_buffers_;
+  std::vector<std::vector<char, Allocator<char>>> shuffle_in_buffers_;
 
   std::shared_ptr<batch_shuffle_message_manager_impl::PostProcessBase>
       post_process_handle_;

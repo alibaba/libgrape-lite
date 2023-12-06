@@ -175,6 +175,14 @@ class BFSOpt : public ParallelAppBase<FRAG_T, BFSOptContext<FRAG_T>,
 
     ctx.next_inner_updated.Swap(ctx.curr_inner_updated);
   }
+
+  void EstimateMessageSize(const fragment_t& frag, size_t& send_size,
+                           size_t& recv_size) {
+    send_size = frag.GetOuterVerticesNum();
+    send_size *= sizeof(vertex_t);
+    recv_size = frag.GetInnerVerticesNum();
+    recv_size *= (sizeof(vertex_t) * (frag.fnum() - 1));
+  }
 };
 
 }  // namespace grape

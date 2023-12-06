@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H_
 #define GRAPE_PARALLEL_MESSAGE_IN_BUFFER_H_
 
+#include "grape/serialization/fixed_in_archive.h"
 #include "grape/serialization/out_archive.h"
 
 namespace grape {
@@ -32,6 +33,11 @@ class MessageInBuffer {
   explicit MessageInBuffer(OutArchive&& arc) : arc_(std::move(arc)) {}
 
   void Init(OutArchive&& arc) { arc_ = std::move(arc); }
+
+  void Init(const MicroBuffer& buf) {
+    arc_.Clear();
+    arc_.SetSlice(buf.buffer, buf.size);
+  }
 
   template <typename MESSAGE_T>
   inline bool GetMessage(MESSAGE_T& msg) {
