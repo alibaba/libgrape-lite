@@ -143,6 +143,16 @@ static inline bool exists_file(const std::string& name) {
   return (stat(name.c_str(), &buffer) == 0);
 }
 
+static inline size_t file_size(const std::string& name) {
+  struct stat buffer;
+  int rc = stat(name.c_str(), &buffer);
+  if (rc == 0) {
+    return buffer.st_size;
+  } else {
+    return 0;
+  }
+}
+
 inline std::vector<std::string> split_string(const std::string& str,
                                              char delimiter) {
   std::vector<std::string> tokens;

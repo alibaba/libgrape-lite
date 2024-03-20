@@ -125,13 +125,6 @@ class VertexMapBase {
   virtual size_t GetTotalVertexSize() const = 0;
   virtual size_t GetInnerVertexSize(fid_t fid) const = 0;
 
-  // for constructing the vertexmap.
-  virtual void AddVertex(const OID_T& oid) = 0;
-  virtual bool AddVertex(const OID_T& oid, VID_T& gid) = 0;
-
-  virtual void UpdateToBalance(std::vector<VID_T>& vnum_list,
-                               std::vector<std::vector<VID_T>>& gid_maps) = 0;
-
   // convert the vertex ids with the help of mappings.
   virtual bool GetOid(const VID_T& gid, OID_T& oid) const = 0;
 
@@ -140,6 +133,24 @@ class VertexMapBase {
   virtual bool GetGid(fid_t fid, const OID_T& oid, VID_T& gid) const = 0;
 
   virtual bool GetGid(const OID_T& oid, VID_T& gid) const = 0;
+
+  virtual void UpdateToBalance(std::vector<VID_T>& vnum_list,
+                               std::vector<std::vector<VID_T>>& gid_maps) {
+    LOG(FATAL) << "not implemented...";
+  }
+};
+
+template <typename OID_T, typename VID_T, typename PARTITIONER_T>
+class MutableVertexMapBase : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
+  using base_t = VertexMapBase<OID_T, VID_T, PARTITIONER_T>;
+
+ public:
+  explicit MutableVertexMapBase(const CommSpec& comm_spec)
+      : base_t(comm_spec) {}
+
+  // for constructing the vertexmap.
+  virtual void AddVertex(const OID_T& oid) = 0;
+  virtual bool AddVertex(const OID_T& oid, VID_T& gid) = 0;
 };
 
 }  // namespace grape

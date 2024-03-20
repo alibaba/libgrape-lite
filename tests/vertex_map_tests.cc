@@ -32,7 +32,9 @@ limitations under the License.
 #include <grape/grape.h>
 #include <grape/util.h>
 #include <grape/vertex_map/global_vertex_map.h>
+#include <grape/vertex_map/imm_global_vertex_map.h>
 #include <grape/vertex_map/local_vertex_map.h>
+#include <grape/vertex_map/ph_global_vertex_map.h>
 
 #include "sssp/sssp.h"
 #include "timer.h"
@@ -154,9 +156,15 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
   } else {
     if (FLAGS_segmented_partition) {
       if (FLAGS_global_vertex_map) {
+        // using VertexMapType =
+        //     grape::GlobalVertexMap<OID_T, VID_T,
+        //                            grape::SegmentedPartitioner<OID_T>>;
         using VertexMapType =
-            grape::GlobalVertexMap<OID_T, VID_T,
-                                   grape::SegmentedPartitioner<OID_T>>;
+            grape::ImmGlobalVertexMap<OID_T, VID_T,
+                                      grape::SegmentedPartitioner<OID_T>>;
+        // using VertexMapType =
+        //     grape::PHGlobalVertexMap<OID_T, VID_T,
+        //                              grape::SegmentedPartitioner<OID_T>>;
         using FRAG_T =
             grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                             load_strategy, VertexMapType>;
@@ -183,7 +191,9 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
     } else {
       graph_spec.set_rebalance(false, 0);
       if (FLAGS_global_vertex_map) {
-        using VertexMapType = grape::GlobalVertexMap<OID_T, VID_T>;
+        // using VertexMapType = grape::GlobalVertexMap<OID_T, VID_T>;
+        using VertexMapType = grape::ImmGlobalVertexMap<OID_T, VID_T>;
+        // using VertexMapType = grape::PHGlobalVertexMap<OID_T, VID_T>;
         using FRAG_T =
             grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                             load_strategy, VertexMapType>;

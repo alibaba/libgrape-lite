@@ -13,54 +13,44 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_VERTEX_MAP_GLOBAL_VERTEX_MAP_H_
-#define GRAPE_VERTEX_MAP_GLOBAL_VERTEX_MAP_H_
+#ifndef GRAPE_VERTEX_MAP_PH_GLOBAL_VERTEX_MAP_H_
+#define GRAPE_VERTEX_MAP_PH_GLOBAL_VERTEX_MAP_H_
 
-#include <algorithm>
-#include <atomic>
-#include <fstream>
-#include <memory>
-#include <string>
-#include <thread>
-#include <utility>
-#include <vector>
-
-#include "grape/config.h"
 #include "grape/fragment/partitioner.h"
-#include "grape/graph/hashmap_indexer.h"
-#include "grape/serialization/in_archive.h"
-#include "grape/serialization/out_archive.h"
+#include "grape/graph/perfect_hash_indexer.h"
 #include "grape/vertex_map/vertex_map_base.h"
-#include "grape/worker/comm_spec.h"
 
 namespace grape {
 
 template <typename OID_T, typename VID_T, typename PARTITIONER_T>
-class GlobalVertexMap;
+class PHGlobalVertexMap;
 
 template <typename OID_T, typename VID_T, typename PARTITIONER_T>
-class GlobalVertexMapBuilder {
+class PHGlobalVertexMapBuilder {
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
  private:
-  GlobalVertexMapBuilder(fid_t fid, HMIdxer<internal_oid_t, VID_T>& indexer,
-                         const PARTITIONER_T& partitioner,
-                         const IdParser<VID_T>& id_parser)
-      : fid_(fid),
-        indexer_(indexer),
-        partitioner_(partitioner),
-        id_parser_(id_parser) {}
+  PHGlobalVertexMapBuilder(fid_t fid, const PARTITIONER_T& partitioner,
+                           const IdParser<VID_T>& id_parser)
+      : fid_(fid), partitioner_(partitioner), id_parser_(id_parser) {}
 
  public:
-  ~GlobalVertexMapBuilder() {}
+  ~PHGlobalVertexMapBuilder() {}
 
   void add_vertex(const internal_oid_t& id) {
     if (partitioner_.GetPartitionId(id) == fid_) {
-      indexer_._add(id);
+      id_set_.insert(OID_T(id));
     }
   }
 
-  void finish(GlobalVertexMap<OID_T, VID_T, PARTITIONER_T>& vertex_map) {
+  void finish(PHGlobalVertexMap<OID_T, VID_T, PARTITIONER_T>& vertex_map) {
+    PHIdxerViewBuilder<internal_oid_t, VID_T> builder;
+    for (auto& k : id_set_) {
+      builder.add(internal_oid_t(k));
+    }
+    vertex_map.indexers_[fid_] = builder.finish();
+    const auto& buffer = vertex_map.indexers_[fid_].buffer();
+
     const CommSpec& comm_spec = vertex_map.GetCommSpec();
     int worker_id = comm_spec.worker_id();
     int worker_num = comm_spec.worker_num();
@@ -73,8 +63,9 @@ class GlobalVertexMapBuilder {
             if (comm_spec.FragToWorker(fid) != src_worker_id) {
               continue;
             }
-            sync_comm::Recv(vertex_map.indexers_[fid], src_worker_id, 0,
-                            comm_spec.comm());
+            std::vector<char> buf;
+            sync_comm::Recv(buf, src_worker_id, 0, comm_spec.comm());
+            vertex_map.indexers_[fid].Init(std::move(buf));
           }
           src_worker_id = (src_worker_id + 1) % worker_num;
         }
@@ -86,7 +77,7 @@ class GlobalVertexMapBuilder {
             if (comm_spec.FragToWorker(fid) != worker_id) {
               continue;
             }
-            sync_comm::Send(indexer_, dst_worker_id, 0, comm_spec.comm());
+            sync_comm::Send(buffer, dst_worker_id, 0, comm_spec.comm());
           }
           dst_worker_id = (dst_worker_id + worker_num - 1) % worker_num;
         }
@@ -98,71 +89,36 @@ class GlobalVertexMapBuilder {
 
  private:
   template <typename _OID_T, typename _VID_T, typename _PARTITIONER_T>
-  friend class GlobalVertexMap;
+  friend class PHGlobalVertexMap;
 
   fid_t fid_;
-  HMIdxer<internal_oid_t, VID_T>& indexer_;
   const PARTITIONER_T& partitioner_;
   const IdParser<VID_T>& id_parser_;
+
+  std::set<OID_T> id_set_;
 };
 
-/**
- * @brief a kind of VertexMapBase which holds global mapping information in
- * each worker.
- *
- * @tparam OID_T
- * @tparam VID_T
- */
 template <typename OID_T, typename VID_T,
           typename PARTITIONER_T = HashPartitioner<OID_T>>
-class GlobalVertexMap
-    : public MutableVertexMapBase<OID_T, VID_T, PARTITIONER_T> {
-  // TODO(lxj): to support shared-memory for workers on same host (auto apps)
-
-  using base_t = MutableVertexMapBase<OID_T, VID_T, PARTITIONER_T>;
+class PHGlobalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
+  using base_t = VertexMapBase<OID_T, VID_T, PARTITIONER_T>;
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
  public:
-  explicit GlobalVertexMap(const CommSpec& comm_spec) : base_t(comm_spec) {}
-  ~GlobalVertexMap() = default;
+  explicit PHGlobalVertexMap(const CommSpec& comm_spec) : base_t(comm_spec) {}
+  ~PHGlobalVertexMap() = default;
+
   void Init() { indexers_.resize(comm_spec_.fnum()); }
 
   size_t GetTotalVertexSize() const {
     size_t size = 0;
-    for (const auto& v : indexers_) {
-      size += v.size();
+    for (auto& idxer : indexers_) {
+      size += idxer.size();
     }
     return size;
   }
 
   size_t GetInnerVertexSize(fid_t fid) const { return indexers_[fid].size(); }
-  void AddVertex(const OID_T& oid) {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    indexers_[fid]._add(oid);
-  }
-
-  using base_t::Lid2Gid;
-  bool AddVertex(const OID_T& oid, VID_T& gid) {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    internal_oid_t internal_oid(oid);
-    if (indexers_[fid].add(std::move(internal_oid), gid)) {
-      gid = Lid2Gid(fid, gid);
-      return true;
-    }
-    gid = Lid2Gid(fid, gid);
-    return false;
-  }
-
-  bool AddVertex(OID_T&& oid, VID_T& gid) {
-    fid_t fid = partitioner_.GetPartitionId(oid);
-    internal_oid_t internal_oid(std::move(oid));
-    if (indexers_[fid].add(std::move(internal_oid), gid)) {
-      gid = Lid2Gid(fid, gid);
-      return true;
-    }
-    gid = Lid2Gid(fid, gid);
-    return false;
-  }
 
   using base_t::GetFidFromGid;
   using base_t::GetLidFromGid;
@@ -181,6 +137,7 @@ class GlobalVertexMap
     return false;
   }
 
+  using base_t::Lid2Gid;
   bool _GetGid(fid_t fid, const internal_oid_t& oid, VID_T& gid) const {
     if (indexers_[fid].get_index(oid, gid)) {
       gid = Lid2Gid(fid, gid);
@@ -204,13 +161,12 @@ class GlobalVertexMap
     return GetGid(fid, oid, gid);
   }
 
-  GlobalVertexMapBuilder<OID_T, VID_T, PARTITIONER_T> GetLocalBuilder() {
+  PHGlobalVertexMapBuilder<OID_T, VID_T, PARTITIONER_T> GetLocalBuilder() {
     fid_t fid = comm_spec_.fid();
-    return GlobalVertexMapBuilder<OID_T, VID_T, PARTITIONER_T>(
-        fid, indexers_[fid], partitioner_, id_parser_);
+    return PHGlobalVertexMapBuilder<OID_T, VID_T, PARTITIONER_T>(
+        fid, partitioner_, id_parser_);
   }
 
- private:
   template <typename IOADAPTOR_T>
   void serialize(const std::string& path) {
     {
@@ -221,15 +177,10 @@ class GlobalVertexMap
     }
     for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
       std::string part_path = path + "_p_" + std::to_string(i);
-      auto io_adaptor =
-          std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(part_path));
-      io_adaptor->Open("wb");
-      indexers_[i].Serialize(io_adaptor);
-      io_adaptor->Close();
+      indexers_[i].template Serialize<IOADAPTOR_T>(part_path);
     }
   }
 
- public:
   template <typename IOADAPTOR_T>
   void Serialize(const std::string& prefix) {
     char fbuf[1024];
@@ -270,53 +221,15 @@ class GlobalVertexMap
     indexers_.resize(comm_spec_.fnum());
     for (fid_t i = 0; i < comm_spec_.fnum(); ++i) {
       std::string part_path = std::string(fbuf) + "_p_" + std::to_string(i);
-      auto io_adaptor =
-          std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(part_path));
-      io_adaptor->Open();
-
-      indexers_[i].Deserialize(io_adaptor);
-      io_adaptor->Close();
+      indexers_[i].template Deserialize<IOADAPTOR_T>(part_path);
     }
-  }
-
-  void UpdateToBalance(std::vector<VID_T>& vnum_list,
-                       std::vector<std::vector<VID_T>>& gid_maps) {
-    fid_t fnum = comm_spec_.fnum();
-    std::vector<std::vector<internal_oid_t>> oid_lists(fnum);
-    for (fid_t i = 0; i < fnum; ++i) {
-      oid_lists[i].resize(vnum_list[i]);
-    }
-    for (fid_t fid = 0; fid < fnum; ++fid) {
-      auto& old_indexer = indexers_[fid];
-      VID_T vnum = old_indexer.size();
-      for (VID_T i = 0; i < vnum; ++i) {
-        VID_T new_gid = gid_maps[fid][i];
-        internal_oid_t oid;
-        fid_t new_fid = GetFidFromGid(new_gid);
-        CHECK(old_indexer.get_key(i, oid));
-        if (new_fid != fid) {
-          OID_T id = InternalOID<OID_T>::FromInternal(oid);
-          partitioner_.SetPartitionId(id, new_fid);
-        }
-        VID_T new_lid = GetLidFromGid(new_gid);
-        oid_lists[new_fid][new_lid] = oid;
-      }
-    }
-    std::vector<HMIdxer<internal_oid_t, VID_T>> new_indexers(fnum);
-    for (fid_t i = 0; i < fnum; ++i) {
-      auto& indexer = new_indexers[i];
-      for (auto& oid : oid_lists[i]) {
-        indexer._add(oid);
-      }
-    }
-    std::swap(indexers_, new_indexers);
   }
 
  private:
   template <typename _OID_T, typename _VID_T, typename _PARTITIONER_T>
-  friend class GlobalVertexMapBuilder;
+  friend class PHGlobalVertexMapBuilder;
 
-  std::vector<HMIdxer<internal_oid_t, VID_T>> indexers_;
+  std::vector<ImmPHIdxer<internal_oid_t, VID_T>> indexers_;
   using base_t::comm_spec_;
   using base_t::id_parser_;
   using base_t::partitioner_;
@@ -324,4 +237,4 @@ class GlobalVertexMap
 
 }  // namespace grape
 
-#endif  // GRAPE_VERTEX_MAP_GLOBAL_VERTEX_MAP_H_
+#endif  // GRAPE_VERTEX_MAP_IMM_GLOBAL_VERTEX_MAP_H_
