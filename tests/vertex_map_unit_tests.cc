@@ -201,8 +201,16 @@ int main(int argc, char** argv) {
                                          grape::HashPartitioner<int64_t>>>(
         comm_spec);
 
+    TestVertexMap<grape::GlobalVertexMap<int64_t, uint32_t,
+                                         grape::SegmentedPartitioner<int64_t>>>(
+        comm_spec);
+
     TestVertexMap<
         grape::GlobalVertexMap<int, uint32_t, grape::HashPartitioner<int>>>(
+        comm_spec);
+
+    TestVertexMap<grape::GlobalVertexMap<int, uint32_t,
+                                         grape::SegmentedPartitioner<int>>>(
         comm_spec);
 
     TestVertexMap<grape::GlobalVertexMap<std::string, uint32_t,
@@ -213,9 +221,15 @@ int main(int argc, char** argv) {
                                             grape::HashPartitioner<int64_t>>>(
         comm_spec);
 
+    TestVertexMap<grape::ImmGlobalVertexMap<
+        int64_t, uint32_t, grape::SegmentedPartitioner<int64_t>>>(comm_spec);
+
     TestVertexMap<grape::ImmGlobalVertexMap<int32_t, uint32_t,
                                             grape::HashPartitioner<int32_t>>>(
         comm_spec);
+
+    TestVertexMap<grape::ImmGlobalVertexMap<
+        int32_t, uint32_t, grape::SegmentedPartitioner<int32_t>>>(comm_spec);
 
     TestVertexMap<grape::ImmGlobalVertexMap<
         std::string, uint32_t, grape::HashPartitioner<std::string>>>(comm_spec);
@@ -224,8 +238,15 @@ int main(int argc, char** argv) {
                                            grape::HashPartitioner<int64_t>>>(
         comm_spec);
 
+    TestVertexMap<grape::PHGlobalVertexMap<
+        int64_t, uint32_t, grape::SegmentedPartitioner<int64_t>>>(comm_spec);
+
     TestVertexMap<
         grape::PHGlobalVertexMap<int, uint32_t, grape::HashPartitioner<int>>>(
+        comm_spec);
+
+    TestVertexMap<grape::PHGlobalVertexMap<int, uint32_t,
+                                           grape::SegmentedPartitioner<int>>>(
         comm_spec);
 
     TestVertexMap<grape::PHGlobalVertexMap<
