@@ -140,62 +140,6 @@ void save_vec(std::ostream& os, std::vector<T, Allocator> const& vec) {
            static_cast<std::streamsize>(sizeof(T) * n));
 }
 
-struct json_lines {
-  struct property {
-    property(std::string n, std::string v) : name(n), value(v) {}
-
-    std::string name;
-    std::string value;
-  };
-
-  void new_line() { m_properties.push_back(std::vector<property>()); }
-
-  template <typename T>
-  void add(std::string name, T value) {
-    if (!m_properties.size()) {
-      new_line();
-    }
-    if constexpr (std::is_same<T, char const*>::value) {
-      m_properties.back().emplace_back(name, value);
-    } else {
-      m_properties.back().emplace_back(name, std::to_string(value));
-    }
-  }
-
-  void save_to_file(char const* filename) const {
-    std::ofstream out(filename);
-    print_to(out);
-    out.close();
-  }
-
-  void print_line() const { print_line_to(m_properties.back(), std::cerr); }
-
-  void print() const { print_to(std::cerr); }
-
- private:
-  std::vector<std::vector<property>> m_properties;
-
-  template <typename T>
-  void print_line_to(std::vector<property> const& properties, T& device) const {
-    device << "{";
-    for (uint64_t i = 0; i != properties.size(); ++i) {
-      auto const& p = properties[i];
-      device << "\"" << p.name << "\": \"" << p.value << "\"";
-      if (i != properties.size() - 1) {
-        device << ", ";
-      }
-    }
-    device << "}\n";
-  }
-
-  template <typename T>
-  void print_to(T& device) const {
-    for (auto const& properties : m_properties) {
-      print_line_to(properties, device);
-    }
-  }
-};
-
 template <typename ClockType, typename DurationType>
 struct timer {
   void start() { m_start = ClockType::now(); }

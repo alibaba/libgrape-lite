@@ -25,108 +25,12 @@
 
 #include "pthash/encoders/compact_vector.hpp"
 #include "pthash/encoders/ef_sequence.hpp"
-#include "pthash/encoders/sdc_sequence.hpp"
 
 #include <cassert>
 #include <unordered_map>
 #include <vector>
 
 namespace pthash {
-
-struct compact {
-  template <typename Iterator>
-  void encode(Iterator begin, uint64_t n) {
-    m_values.build(begin, n);
-  }
-
-  static std::string name() { return "compact"; }
-
-  size_t size() const { return m_values.size(); }
-
-  size_t num_bits() const { return m_values.bytes() * 8; }
-
-  uint64_t access(uint64_t i) const { return m_values.access(i); }
-
-  template <typename Visitor>
-  void visit(Visitor& visitor) {
-    visitor.visit(m_values);
-  }
-
- private:
-  compact_vector m_values;
-};
-
-struct partitioned_compact {
-  static const uint64_t partition_size = 256;
-  static_assert(partition_size > 0);
-
-  template <typename Iterator>
-  void encode(Iterator begin, uint64_t n) {
-    uint64_t num_partitions = (n + partition_size - 1) / partition_size;
-    bit_vector_builder bvb;
-    bvb.reserve(32 * n);
-    m_bits_per_value.reserve(num_partitions + 1);
-    m_bits_per_value.push_back(0);
-    for (uint64_t i = 0, begin_partition = 0; i != num_partitions; ++i) {
-      uint64_t end_partition = begin_partition + partition_size;
-      if (end_partition > n)
-        end_partition = n;
-      uint64_t max_value =
-          *std::max_element(begin + begin_partition, begin + end_partition);
-      uint64_t num_bits =
-          (max_value == 0) ? 1 : std::ceil(std::log2(max_value + 1));
-      assert(num_bits > 0);
-
-      // std::cout << i << ": " << num_bits << '\n';
-      // for (uint64_t k = begin_partition; k != end_partition; ++k) {
-      //     uint64_t num_bits_val = (begin[k] == 0) ? 1 :
-      //     std::ceil(std::log2(begin[k] + 1)); std::cout << "  " <<
-      //     num_bits_val << '/' << num_bits << '\n';
-      // }
-
-      for (uint64_t k = begin_partition; k != end_partition; ++k) {
-        bvb.append_bits(*(begin + k), num_bits);
-      }
-      assert(m_bits_per_value.back() + num_bits < (1ULL << 32));
-      m_bits_per_value.push_back(m_bits_per_value.back() + num_bits);
-      begin_partition = end_partition;
-    }
-    m_values.build(&bvb);
-  }
-
-  static std::string name() { return "partitioned_compact"; }
-
-  size_t size() const { return m_size; }
-
-  size_t num_bits() const {
-    return (sizeof(m_size) +
-            m_bits_per_value.size() * sizeof(m_bits_per_value.front()) +
-            m_values.bytes()) *
-           8;
-  }
-
-  uint64_t access(uint64_t i) const {
-    uint64_t partition = i / partition_size;
-    uint64_t offset = i % partition_size;
-    uint64_t num_bits =
-        m_bits_per_value[partition + 1] - m_bits_per_value[partition];
-    uint64_t position =
-        m_bits_per_value[partition] * partition_size + offset * num_bits;
-    return m_values.get_bits(position, num_bits);
-  }
-
-  template <typename Visitor>
-  void visit(Visitor& visitor) {
-    visitor.visit(m_size);
-    visitor.visit(m_bits_per_value);
-    visitor.visit(m_values);
-  }
-
- private:
-  uint64_t m_size;
-  std::vector<uint32_t> m_bits_per_value;
-  bit_vector m_values;
-};
 
 template <typename Iterator>
 std::pair<std::vector<uint64_t>, std::vector<uint64_t>>
@@ -209,62 +113,6 @@ struct dictionary {
   compact_vector m_dict;
 };
 
-struct elias_fano {
-  template <typename Iterator>
-  void encode(Iterator begin, uint64_t n) {
-    m_values.encode(begin, n);
-  }
-
-  static std::string name() { return "elias_fano"; }
-
-  size_t size() const { return m_values.size(); }
-
-  size_t num_bits() const { return m_values.num_bits(); }
-
-  uint64_t access(uint64_t i) const {
-    assert(i + 1 < m_values.size());
-    return m_values.diff(i);
-  }
-
-  template <typename Visitor>
-  void visit(Visitor& visitor) {
-    visitor.visit(m_values);
-  }
-
- private:
-  ef_sequence<true> m_values;
-};
-
-struct sdc {
-  template <typename Iterator>
-  void encode(Iterator begin, uint64_t n) {
-    auto [ranks, dict] = compute_ranks_and_dictionary(begin, n);
-    m_ranks.build(ranks.begin(), ranks.size());
-    m_dict.build(dict.begin(), dict.size());
-  }
-
-  static std::string name() { return "sdc"; }
-
-  size_t size() const { return m_ranks.size(); }
-
-  size_t num_bits() const { return (m_ranks.bytes() + m_dict.bytes()) * 8; }
-
-  uint64_t access(uint64_t i) const {
-    uint64_t rank = m_ranks.access(i);
-    return m_dict.access(rank);
-  }
-
-  template <typename Visitor>
-  void visit(Visitor& visitor) {
-    visitor.visit(m_ranks);
-    visitor.visit(m_dict);
-  }
-
- private:
-  sdc_sequence m_ranks;
-  compact_vector m_dict;
-};
-
 template <typename Front, typename Back>
 struct dual {
   template <typename Iterator>
@@ -308,8 +156,6 @@ struct dual {
 };
 
 /* dual encoders */
-typedef dual<compact, compact> compact_compact;
 typedef dual<dictionary, dictionary> dictionary_dictionary;
-typedef dual<dictionary, elias_fano> dictionary_elias_fano;
 
 }  // namespace pthash

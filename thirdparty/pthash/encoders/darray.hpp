@@ -178,15 +178,8 @@ struct identity_getter {
   }
 };
 
-struct negating_getter {
-  uint64_t operator()(std::vector<uint64_t> const& data, size_t idx) const {
-    return ~data[idx];
-  }
-};
-
 }  // namespace detail
 
 typedef detail::darray<detail::identity_getter> darray1;
-typedef detail::darray<detail::negating_getter> darray0;
 
 }  // namespace pthash
