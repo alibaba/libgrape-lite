@@ -27,7 +27,9 @@ limitations under the License.
 #include <sys/time.h>
 
 #include <algorithm>
+#include <cassert>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -180,7 +182,7 @@ inline std::map<std::string, size_t> parse_meminfo() {
   return ret;
 }
 
-size_t get_available_memory() {
+inline size_t get_available_memory() {
   auto meminfo = parse_meminfo();
 #ifdef USE_HUGEPAGES
   return meminfo.at("HugePages_Free") * meminfo.at("Hugepagesize");

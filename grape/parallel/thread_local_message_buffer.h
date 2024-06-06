@@ -22,6 +22,7 @@ limitations under the License.
 
 #include "grape/graph/adj_list.h"
 #include "grape/serialization/in_archive.h"
+#include "grape/util.h"
 
 namespace grape {
 
