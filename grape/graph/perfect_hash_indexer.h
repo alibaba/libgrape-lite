@@ -17,7 +17,9 @@
 #define GRAPE_GRAPH_PERFECT_HASH_INDEXER_H_
 
 #include "grape/graph/hashmap_indexer_impl.h"
+#include "grape/util.h"
 #include "grape/utils/pthash_utils/single_phf_view.h"
+#include "grape/utils/string_view_vector.h"
 
 namespace grape {
 
@@ -67,6 +69,10 @@ class ImmPHIdxer {
   void Init(std::vector<char>&& buf) {
     buffer_ = std::move(buf);
     idxer_.init(buffer_.data(), buffer_.size());
+  }
+
+  void Init(const char *buf, size_t size) {
+    idxer_.init(buf, size);
   }
 
   size_t entry_num() const { return idxer_.entry_num(); }
@@ -119,33 +125,34 @@ class PHIdxerViewBuilder {
 
   void add(KEY_T&& oid) { keys_.push_back(std::move(oid)); }
 
-  ImmPHIdxer<KEY_T, INDEX_T> finish() {
-    mem_dumper dumper;
-    {
-      SinglePHFView<murmurhasher>::build(keys_.begin(), keys_.size(), dumper,
-                                         1);
-      mem_loader loader(dumper.buffer().data(), dumper.buffer().size());
-      SinglePHFView<murmurhasher> phf;
-      phf.load(loader);
-      hashmap_indexer_impl::KeyBuffer<KEY_T> key_buffer;
-
-      std::vector<KEY_T> ordered_keys(keys_.size());
-      for (auto& key : keys_) {
-        size_t idx = phf(key);
-        ordered_keys[idx] = key;
-      }
-      for (auto& key : ordered_keys) {
-        key_buffer.push_back(key);
-      }
-      key_buffer.dump(dumper);
+  void buildPhf() {
+    SinglePHFView<murmurhasher>::build(keys_.begin(),
+                                                     keys_.size(), phf, 1);
+    std::vector<KEY_T> ordered_keys(keys_.size());
+    for (auto& key : keys_) {
+      size_t idx = phf(key);
+      ordered_keys[idx] = key;
     }
-    ImmPHIdxer<KEY_T, INDEX_T> idxer;
-    idxer.Init(std::move(dumper.buffer()));
-    return idxer;
+    for (auto& key : ordered_keys) {
+      key_buffer.push_back(key);
+    }
+  }
+
+  void finish(void *buffer, size_t size, ImmPHIdxer<KEY_T, INDEX_T> &idxer) {
+    external_mem_dumper dumper(buffer, size);
+    phf.dump(dumper);
+    key_buffer.dump(dumper);
+    idxer.Init(static_cast<const char*>(dumper.buffer()), dumper.size());
+  }
+
+  size_t getSerializeSize() {
+    return phf.num_bits() / 8 + key_buffer.dump_size();
   }
 
  private:
   std::vector<KEY_T> keys_;
+  hashmap_indexer_impl::KeyBuffer<KEY_T> key_buffer;
+  pthash::single_phf<murmurhasher, pthash::dictionary_dictionary, true> phf;
 };
 
 }  // namespace grape

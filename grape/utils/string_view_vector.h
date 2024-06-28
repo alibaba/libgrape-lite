@@ -161,6 +161,50 @@ struct ref_vector<nonstd::string_view> {
   ref_vector<size_t> offsets_;
 };
 
+#if __cplusplus >= 201703L
+template <>
+struct ref_vector<std::string_view> {
+  ref_vector() {}
+  ~ref_vector() {}
+
+  size_t init(const void* buffer, size_t size) {
+    size_t buffer_size = buffer_.init(buffer, size);
+    const void* ptr = reinterpret_cast<const char*>(buffer) + buffer_size;
+    size_t offset_size = offsets_.init(ptr, size - buffer_size);
+    return buffer_size + offset_size;
+  }
+
+  ref_vector<char>& buffer() { return buffer_; }
+  ref_vector<size_t>& offsets() { return offsets_; }
+
+  const ref_vector<char>& buffer() const { return buffer_; }
+  const ref_vector<size_t>& offsets() const { return offsets_; }
+
+  size_t size() const {
+    if (offsets_.size() == 0) {
+      return 0;
+    }
+    return offsets_.size() - 1;
+  }
+
+  std::string_view get(size_t idx) const {
+    size_t from = offsets_.get(idx);
+    size_t to = offsets_.get(idx + 1);
+    return std::string_view(buffer_.data() + from, to - from);
+  }
+
+  template <typename Loader>
+  void load(Loader& loader) {
+    loader.load_ref_vec(buffer_);
+    loader.load_ref_vec(offsets_);
+  }
+
+ private:
+  ref_vector<char> buffer_;
+  ref_vector<size_t> offsets_;
+};
+#endif
+
 }  // namespace grape
 
 #endif  // GRAPE_UTILS_STRING_VIEW_VECTOR_H_

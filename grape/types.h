@@ -156,6 +156,12 @@ struct murmurhasher {
   static inline hash_type hash(const nonstd::string_view& val, uint64_t seed) {
     return pthash::MurmurHash2_64(val.data(), val.size(), seed);
   }
+
+#if __cplusplus >= 201703L
+  static inline hash_type hash(std::string_view const& val, uint64_t seed) {
+    return pthash::MurmurHash2_64(val.data(), val.size(), seed);
+  }
+#endif
 };
 
 }  // namespace grape

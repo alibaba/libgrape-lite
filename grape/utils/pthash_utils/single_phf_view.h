@@ -55,6 +55,46 @@ struct mem_dumper {
   std::vector<char> buf_;
 };
 
+struct external_mem_dumper {
+ public:
+  external_mem_dumper(void* buf, size_t size) : buf_(buf), size_(size) {}
+
+  ~external_mem_dumper() = default;
+
+  template <typename T>
+  void dump(const T& val) {
+    static_assert(std::is_pod<T>::value);
+    const char* ptr = reinterpret_cast<const char*>(&val);
+    if (pos_ + sizeof(T) > size_) {
+      return;
+    }
+    memcpy(reinterpret_cast<char*>(buf_) + pos_, ptr, sizeof(T));
+    pos_ += sizeof(T);
+  }
+
+  template <typename T, typename ALLOC_T>
+  void dump_vec(const std::vector<T, ALLOC_T>& vec) {
+    static_assert(std::is_pod<T>::value);
+    size_t n = vec.size();
+    if (pos_ + sizeof(T) * n + sizeof(size_t) > size_) {
+      return;
+    }
+    dump(n);
+    const char* ptr = reinterpret_cast<const char*>(vec.data());
+    memcpy(reinterpret_cast<char*>(buf_) + pos_, ptr, sizeof(T) * n);
+    pos_ += sizeof(T) * n;
+  }
+
+  const void* buffer() const { return buf_; }
+
+  size_t size() const { return size_; }
+
+ private:
+  void* buf_ = nullptr;
+  size_t pos_ = 0;
+  size_t size_ = 0;
+};
+
 struct mem_loader {
  public:
   mem_loader(const char* buf, size_t size)
@@ -145,6 +185,22 @@ struct SinglePHFView {
       ++keys;
     }
     phf.dump(dumper);
+  }
+
+  template <typename Iterator>
+  static void build(
+      Iterator keys, uint64_t n,
+      pthash::single_phf<murmurhasher, pthash::dictionary_dictionary, true>&
+          phf,
+      int thread_num) {
+    pthash::build_configuration config;
+    config.c = 7.0;
+    config.alpha = 0.94;
+    config.num_threads = thread_num;
+    config.minimal_output = true;
+    config.verbose_output = false;
+
+    phf.build_in_internal_memory(keys, n, config);
   }
 
  private:
