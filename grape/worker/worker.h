@@ -93,8 +93,6 @@ class Worker {
     context_->Init(messages_, std::forward<Args>(args)...);
     processMutation();
 
-    int round = 0;
-
     messages_.Start();
 
     messages_.StartARound();
@@ -113,7 +111,6 @@ class Worker {
 
     while (!messages_.ToTerminate()) {
       t = GetCurrentTime();
-      round++;
       messages_.StartARound();
 
       runIncEval();

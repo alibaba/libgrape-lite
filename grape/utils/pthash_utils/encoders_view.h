@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef GRAPHSCOPE_PTHASH_UTILS_ENCODERS_VIEW_VIEW_H_
-#define GRAPHSCOPE_PTHASH_UTILS_ENCODERS_VIEW_VIEW_H_
+#ifndef GRAPE_UTILS_PTHASH_UTILS_ENCODERS_VIEW_H_
+#define GRAPE_UTILS_PTHASH_UTILS_ENCODERS_VIEW_H_
 
 #include "grape/utils/pthash_utils/ef_sequence_view.h"
 
@@ -59,4 +59,4 @@ struct dual_dictionary_view {
 
 }  // namespace grape
 
-#endif  // GRAPHSCOPE_PTHASH_UTILS_ENCODERS_VIEW_VIEW_H_
+#endif  // GRAPE_UTILS_PTHASH_UTILS_ENCODERS_VIEW_H_

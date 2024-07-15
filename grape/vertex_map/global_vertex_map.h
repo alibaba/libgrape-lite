@@ -274,7 +274,7 @@ class GlobalVertexMap
           std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(part_path));
       io_adaptor->Open();
 
-      indexers_[i].Deserialize(io_adaptor);
+      indexers_[i].template Deserialize(io_adaptor);
       io_adaptor->Close();
     }
   }

@@ -39,6 +39,12 @@ static const int sequential = POSIX_MADV_SEQUENTIAL;
 template <typename T>
 struct file {
   file() { init(); }
+  file(file&& other) {
+    m_fd = other.m_fd;
+    m_size = other.m_size;
+    m_data = other.m_data;
+    other.init();
+  }
 
   ~file() { close(); }
 

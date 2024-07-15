@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef GRAPHSCOPE_PTHASH_UTILS_EF_SEQUENCE_VIEW_VIEW_H_
-#define GRAPHSCOPE_PTHASH_UTILS_EF_SEQUENCE_VIEW_VIEW_H_
+#ifndef GRAPE_UTILS_PTHASH_UTILS_EF_SEQUENCE_VIEW_H_
+#define GRAPE_UTILS_PTHASH_UTILS_EF_SEQUENCE_VIEW_H_
 
 #include <assert.h>
 #include <stddef.h>
@@ -146,4 +146,4 @@ struct ef_sequence_view {
 
 }  // namespace grape
 
-#endif  // GRAPHSCOPE_PTHASH_UTILS_EF_SEQUENCE_VIEW_VIEW_H_
+#endif  // GRAPE_UTILS_PTHASH_UTILS_EF_SEQUENCE_VIEW_H_

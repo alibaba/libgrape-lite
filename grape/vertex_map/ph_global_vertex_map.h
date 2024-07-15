@@ -48,7 +48,7 @@ class PHGlobalVertexMapBuilder {
     for (auto& k : id_set_) {
       builder.add(internal_oid_t(k));
     }
-    vertex_map.indexers_[fid_] = builder.finish();
+    builder.finish(vertex_map.indexers_[fid_]);
     const auto& buffer = vertex_map.indexers_[fid_].buffer();
 
     const CommSpec& comm_spec = vertex_map.GetCommSpec();
@@ -237,4 +237,4 @@ class PHGlobalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
 
 }  // namespace grape
 
-#endif  // GRAPE_VERTEX_MAP_IMM_GLOBAL_VERTEX_MAP_H_
+#endif  // GRAPE_VERTEX_MAP_PH_GLOBAL_VERTEX_MAP_H_

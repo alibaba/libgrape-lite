@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include <cstdint>
 #include <cassert>
+#include <cstdint>
 
 #if defined(__x86_64__) && __SSE4_2__
 #include <immintrin.h>
@@ -74,19 +74,36 @@ inline uint8_t lsb(uint64_t x) {
 
 inline uint64_t popcount(uint64_t x) {
 #ifdef __SSE4_2__
-    return static_cast<uint64_t>(_mm_popcnt_u64(x));
+  return static_cast<uint64_t>(_mm_popcnt_u64(x));
 #elif __cplusplus >= 202002L
-    return std::popcount(x);
+  return std::popcount(x);
 #else
-    return static_cast<uint64_t>(__builtin_popcountll(x));
+  return static_cast<uint64_t>(__builtin_popcountll(x));
 #endif
 }
 
 inline uint64_t select64_pdep_tzcnt(uint64_t x, const uint64_t k) {
+#if defined(__x86_64__) && defined(__BMI2__) || defined(__AVX2__)
   uint64_t i = 1ULL << k;
   asm("pdep %[x], %[mask], %[x]" : [x] "+r"(x) : [mask] "r"(i));
   asm("tzcnt %[bit], %[index]" : [index] "=r"(i) : [bit] "g"(x) : "cc");
   return i;
+#else
+  uint64_t count = 0;
+  uint64_t result = 0;
+
+  for (uint64_t bit = 0; bit < 64; ++bit) {
+    if ((x >> bit) & 1) {
+      if (count == k) {
+        result = bit;
+        break;
+      }
+      ++count;
+    }
+  }
+
+  return result;
+#endif
 }
 
 inline uint64_t select_in_word(const uint64_t x, const uint64_t k) {

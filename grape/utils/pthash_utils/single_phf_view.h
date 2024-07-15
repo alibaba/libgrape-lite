@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef GRAPHSCOPE_PTHASH_UTILS_SINGLE_PHF_VIEW_H_
-#define GRAPHSCOPE_PTHASH_UTILS_SINGLE_PHF_VIEW_H_
+#ifndef GRAPE_UTILS_PTHASH_UTILS_SINGLE_PHF_VIEW_H_
+#define GRAPE_UTILS_PTHASH_UTILS_SINGLE_PHF_VIEW_H_
 
 #include "grape/utils/pthash_utils/encoders_view.h"
 #include "pthash/builders/util.hpp"
@@ -32,14 +32,14 @@ struct mem_dumper {
 
   template <typename T>
   void dump(const T& val) {
-    static_assert(std::is_pod<T>::value);
+    static_assert(std::is_pod<T>::value, "T must be POD type");
     const char* ptr = reinterpret_cast<const char*>(&val);
     buf_.insert(buf_.end(), ptr, ptr + sizeof(T));
   }
 
   template <typename T, typename ALLOC_T>
   void dump_vec(const std::vector<T, ALLOC_T>& vec) {
-    static_assert(std::is_pod<T>::value);
+    static_assert(std::is_pod<T>::value, "T must be POD type");
     size_t n = vec.size();
     dump(n);
     const char* ptr = reinterpret_cast<const char*>(vec.data());
@@ -63,7 +63,7 @@ struct external_mem_dumper {
 
   template <typename T>
   void dump(const T& val) {
-    static_assert(std::is_pod<T>::value);
+    static_assert(std::is_pod<T>::value, "T must be POD type");
     const char* ptr = reinterpret_cast<const char*>(&val);
     if (pos_ + sizeof(T) > size_) {
       return;
@@ -74,7 +74,7 @@ struct external_mem_dumper {
 
   template <typename T, typename ALLOC_T>
   void dump_vec(const std::vector<T, ALLOC_T>& vec) {
-    static_assert(std::is_pod<T>::value);
+    static_assert(std::is_pod<T>::value, "T must be POD type");
     size_t n = vec.size();
     if (pos_ + sizeof(T) * n + sizeof(size_t) > size_) {
       return;
@@ -109,7 +109,7 @@ struct mem_loader {
 
   template <typename T>
   void load_vec(std::vector<T>& vec) {
-    static_assert(std::is_pod<T>::value);
+    static_assert(std::is_pod<T>::value, "T must be POD type");
     size_t n;
     load(n);
     vec.resize(n);
@@ -215,4 +215,4 @@ struct SinglePHFView {
 
 }  // namespace grape
 
-#endif  // GRAPHSCOPE_PTHASH_UTILS_SINGLE_PHF_VIEW_H_
+#endif  // GRAPE_UTILS_PTHASH_UTILS_SINGLE_PHF_VIEW_H_

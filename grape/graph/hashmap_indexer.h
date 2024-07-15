@@ -397,7 +397,7 @@ class HMIdxer {
   }
 
   static int8_t compute_max_lookups(size_t num_buckets) {
-    int8_t desired = hashmap_indexer_impl::log2(num_buckets);
+    int8_t desired = ska::detailv3::log2(num_buckets);
     return std::max(hashmap_indexer_impl::min_lookups, desired);
   }
 
@@ -412,8 +412,8 @@ class HMIdxer {
 
   std::hash<KEY_T> hasher_;
 
-  template <typename _T>
-  friend class sync_comm::CommImpl;
+  template <typename _T, typename _E>
+  friend struct sync_comm::CommImpl;
 };
 
 template <typename KEY_T, typename INDEX_T>

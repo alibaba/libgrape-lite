@@ -71,9 +71,7 @@ class ImmPHIdxer {
     idxer_.init(buffer_.data(), buffer_.size());
   }
 
-  void Init(const char *buf, size_t size) {
-    idxer_.init(buf, size);
-  }
+  void Init(const char* buf, size_t size) { idxer_.init(buf, size); }
 
   size_t entry_num() const { return idxer_.entry_num(); }
 
@@ -126,8 +124,7 @@ class PHIdxerViewBuilder {
   void add(KEY_T&& oid) { keys_.push_back(std::move(oid)); }
 
   void buildPhf() {
-    SinglePHFView<murmurhasher>::build(keys_.begin(),
-                                                     keys_.size(), phf, 1);
+    SinglePHFView<murmurhasher>::build(keys_.begin(), keys_.size(), phf, 1);
     std::vector<KEY_T> ordered_keys(keys_.size());
     for (auto& key : keys_) {
       size_t idx = phf(key);
@@ -138,11 +135,14 @@ class PHIdxerViewBuilder {
     }
   }
 
-  void finish(void *buffer, size_t size, ImmPHIdxer<KEY_T, INDEX_T> &idxer) {
-    external_mem_dumper dumper(buffer, size);
+  void finish(ImmPHIdxer<KEY_T, INDEX_T>& idxer) {
+    buildPhf();
+    std::vector<char> buffer;
+    buffer.resize(getSerializeSize());
+    external_mem_dumper dumper(buffer.data(), buffer.size());
     phf.dump(dumper);
     key_buffer.dump(dumper);
-    idxer.Init(static_cast<const char*>(dumper.buffer()), dumper.size());
+    idxer.Init(std::move(buffer));
   }
 
   size_t getSerializeSize() {
