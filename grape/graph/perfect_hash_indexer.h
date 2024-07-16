@@ -135,6 +135,29 @@ class PHIdxerViewBuilder {
     }
   }
 
+  size_t getSerializeSize() {
+    return phf.num_bits() / 8 + key_buffer.dump_size();
+  }
+
+  /*
+   * Finish building the perfect hash index in a allocated buffer.
+   * After add all keys, call buildPhf to build the perfect hash function.
+   * And then allocate a buffer with getSerializeSize() bytes.
+   * Call finishInplace to finish building the index in the buffer.
+   */
+  void finishInplace(void* buffer, size_t size,
+                     ImmPHIdxer<KEY_T, INDEX_T>& idxer) {
+    external_mem_dumper dumper(reinterpret_cast<char*>(buffer), size);
+    phf.dump(dumper);
+    key_buffer.dump(dumper);
+    idxer.Init(buffer, size);
+  }
+
+  /*
+   * Finish building the perfect hash index in an internal
+   * buffer(std::vector<char>). After add all keys, call finish to build the
+   * perfect hash index and serialize it.
+   */
   void finish(ImmPHIdxer<KEY_T, INDEX_T>& idxer) {
     buildPhf();
     std::vector<char> buffer;
@@ -143,10 +166,6 @@ class PHIdxerViewBuilder {
     phf.dump(dumper);
     key_buffer.dump(dumper);
     idxer.Init(std::move(buffer));
-  }
-
-  size_t getSerializeSize() {
-    return phf.num_bits() / 8 + key_buffer.dump_size();
   }
 
  private:
