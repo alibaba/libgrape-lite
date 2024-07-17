@@ -73,7 +73,7 @@ class EVFragmentLoader {
                                            const LoadGraphSpec& spec) {
     std::shared_ptr<fragment_t> fragment(nullptr);
     CHECK(!spec.rebalance);
-    if (spec.deserialize && (!spec.serialize)) {
+    if (spec.deserialize) {
       bool deserialized = basic_fragment_loader_.DeserializeFragment(
           fragment, spec.deserialization_prefix);
       int flag = 0;

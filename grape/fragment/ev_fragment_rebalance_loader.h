@@ -71,7 +71,7 @@ class EVFragmentRebalanceLoader {
                                            const std::string& vfile,
                                            const LoadGraphSpec& spec) {
     std::shared_ptr<fragment_t> fragment(nullptr);
-    if (spec.deserialize && (!spec.serialize)) {
+    if (spec.deserialize) {
       bool deserialized = deserializeFragment(fragment, spec);
       int flag = 0;
       int sum = 0;
