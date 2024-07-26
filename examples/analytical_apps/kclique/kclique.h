@@ -136,6 +136,7 @@ class KClique : public ParallelAppBase<FRAG_T, KCliqueContext<FRAG_T>,
 
 }  // namespace grape
 
-#undef USE_RECURSIVE
+#undef PEVAL_USE_RECURSIVE
+// #undef INCEVAL_USE_RECURSIVE
 
 #endif  // EXAMPLES_ANALYTICAL_APPS_KCLIQUE_KCLIQUE_H_

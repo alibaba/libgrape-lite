@@ -25,9 +25,8 @@ namespace grape {
 
 template <typename VID_T>
 struct GidComparer {
-  GidComparer() : mask_(0x7FFFFFFF) {}
   GidComparer(const GidComparer& rhs) : mask_(rhs.mask_) {}
-  GidComparer(fid_t fnum) {
+  explicit GidComparer(fid_t fnum) {
     fid_t maxfid = fnum - 1;
     int fid_offset;
     if (maxfid == 0) {

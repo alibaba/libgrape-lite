@@ -316,9 +316,9 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
 }
 
 template <typename EDATA_T, LoadStrategy load_strategy,
-          template <class> class APP1_T, template <class> class APP2_T, 
+          template <class> class APP1_T, template <class> class APP2_T,
           typename... Args>
-void CreateAndQueryStagedAppOpt(const CommSpec& comm_spec, 
+void CreateAndQueryStagedAppOpt(const CommSpec& comm_spec,
                                 const std::string& out_prefix,
                                 const ParallelEngineSpec& spec, Args... args) {
   timer_next("load graph");
@@ -467,7 +467,8 @@ void RunOpt() {
     }
   } else if (name == "bc") {
     CreateAndQueryStagedAppOpt<EmptyType, LoadStrategy::kOnlyOut, StagedBCBFS,
-        StagedBC, int64_t>(comm_spec, out_prefix, spec, FLAGS_bc_source);
+                               StagedBC, int64_t>(comm_spec, out_prefix, spec,
+                                                  FLAGS_bc_source);
   } else if (name == "kcore") {
     CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, KCore, int>(
         comm_spec, out_prefix, spec, FLAGS_kcore_k);

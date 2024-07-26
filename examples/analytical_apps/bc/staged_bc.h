@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef EXAMPLES_ANALYTICAL_APPS_CENTRALITY_CENTRALITY_H_
-#define EXAMPLES_ANALYTICAL_APPS_CENTRALITY_CENTRALITY_H_
+#ifndef EXAMPLES_ANALYTICAL_APPS_BC_STAGED_BC_H_
+#define EXAMPLES_ANALYTICAL_APPS_BC_STAGED_BC_H_
 
 #include <grape/grape.h>
 
@@ -178,4 +178,4 @@ class StagedBC : public ParallelAppBase<FRAG_T, BCContext<FRAG_T>,
 
 }  // namespace grape
 
-#endif  // EXAMPLES_ANALYTICAL_APPS_CENTRALITY_CENTRALITY_H_
+#endif  // EXAMPLES_ANALYTICAL_APPS_BC_STAGED_BC_H_
