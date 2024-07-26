@@ -86,7 +86,9 @@ class Worker {
 
     comm_spec_ = comm_spec;
     MPI_Barrier(comm_spec_.comm());
-    context_ = std::make_shared<context_t>(graph);
+    if (context_ == nullptr) {
+      context_ = std::make_shared<context_t>(graph);
+    }
 
     initPool(pe_spec);
     messages_.Init(comm_spec_.comm());
