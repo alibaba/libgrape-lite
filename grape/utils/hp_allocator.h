@@ -77,6 +77,9 @@ class HpAllocator {
   }
 
   pointer allocate(size_type __n) {
+    if (__n == 0) {
+      return nullptr;
+    }
     void* addr =
         mmap(ADDR, ROUND_UP(__n * sizeof(_Tp)), PROTECTION, FLAGS, -1, 0);
     if (addr == MAP_FAILED) {
@@ -97,6 +100,9 @@ class HpAllocator {
   void destroy(pointer p) { p->~_Tp(); }
 
   void deallocate(pointer __p, size_type __n) {
+    if (__n == 0) {
+      return;
+    }
     if (munmap(__p, ROUND_UP(__n * sizeof(_Tp)))) {
       perror("huge page allocator deallocate");
       free(__p);
