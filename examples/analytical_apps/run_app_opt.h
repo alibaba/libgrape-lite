@@ -16,10 +16,15 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_RUN_APP_OPT_H_
 #define EXAMPLES_ANALYTICAL_APPS_RUN_APP_OPT_H_
 
+#include "bc/staged_bc.h"
+#include "bc/staged_bc_bfs.h"
 #include "bfs/bfs_opt.h"
 #include "cdlp/cdlp_opt.h"
 #include "cdlp/cdlp_opt_ud.h"
 #include "cdlp/cdlp_opt_ud_dense.h"
+#include "core_decomposition/core_decomposition.h"
+#include "kclique/kclique.h"
+#include "kcore/kcore.h"
 #include "lcc/lcc_beta.h"
 #include "lcc/lcc_directed.h"
 #include "lcc/lcc_opt.h"
@@ -310,6 +315,50 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
   }
 }
 
+template <typename EDATA_T, LoadStrategy load_strategy,
+          template <class> class APP1_T, template <class> class APP2_T,
+          typename... Args>
+void CreateAndQueryStagedAppOpt(const CommSpec& comm_spec,
+                                const std::string& out_prefix,
+                                const ParallelEngineSpec& spec, Args... args) {
+  timer_next("load graph");
+  LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
+  graph_spec.set_directed(FLAGS_directed);
+  graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  if (FLAGS_deserialize) {
+    graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
+  } else if (FLAGS_serialize) {
+    graph_spec.set_serialize(true, FLAGS_serialization_prefix);
+  }
+  if (FLAGS_segmented_partition) {
+    using VertexMapType =
+        GlobalVertexMap<int64_t, uint32_t, SegmentedPartitioner<int64_t>>;
+    using FRAG_T =
+        ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType, EDATA_T,
+                                 load_strategy, VertexMapType>;
+    std::shared_ptr<FRAG_T> fragment =
+        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
+    using App1Type = APP1_T<FRAG_T>;
+    auto app1 = std::make_shared<App1Type>();
+    using App2Type = APP2_T<FRAG_T>;
+    auto app2 = std::make_shared<App2Type>();
+    DoDualQuery<FRAG_T, App1Type, App2Type, Args...>(
+        fragment, app1, app2, comm_spec, spec, out_prefix, args...);
+  } else {
+    graph_spec.set_rebalance(false, 0);
+    using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType,
+                                            EDATA_T, load_strategy>;
+    std::shared_ptr<FRAG_T> fragment =
+        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
+    using App1Type = APP1_T<FRAG_T>;
+    auto app1 = std::make_shared<App1Type>();
+    using App2Type = APP2_T<FRAG_T>;
+    auto app2 = std::make_shared<App2Type>();
+    DoDualQuery<FRAG_T, App1Type, App2Type, Args...>(
+        fragment, app1, app2, comm_spec, spec, out_prefix, args...);
+  }
+}
+
 void RunOpt() {
   CommSpec comm_spec;
   comm_spec.Init(MPI_COMM_WORLD);
@@ -415,6 +464,19 @@ void RunOpt() {
       CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, LCCBeta32>(
           comm_spec, out_prefix, spec);
     }
+  } else if (name == "bc") {
+    CreateAndQueryStagedAppOpt<EmptyType, LoadStrategy::kOnlyOut, StagedBCBFS,
+                               StagedBC, int64_t>(comm_spec, out_prefix, spec,
+                                                  FLAGS_bc_source);
+  } else if (name == "kcore") {
+    CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, KCore, int>(
+        comm_spec, out_prefix, spec, FLAGS_kcore_k);
+  } else if (name == "kclique") {
+    CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, KClique, int>(
+        comm_spec, out_prefix, spec, FLAGS_kclique_k);
+  } else if (name == "core_decomposition") {
+    CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, CoreDecomposition>(
+        comm_spec, out_prefix, spec);
   } else {
     LOG(FATAL) << "No avaiable application named [" << name << "].";
   }

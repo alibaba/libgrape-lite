@@ -65,6 +65,17 @@ class Worker {
         std::is_same<message_manager_t, BatchShuffleMessageManager>::value;
   }
 
+  Worker(std::shared_ptr<APP_T> app, std::shared_ptr<fragment_t> graph,
+         std::shared_ptr<context_t> context)
+      : app_(app), context_(context), fragment_(graph) {
+    prepare_conf_.message_strategy = APP_T::message_strategy;
+    prepare_conf_.need_split_edges = APP_T::need_split_edges;
+    prepare_conf_.need_split_edges_by_fragment =
+        APP_T::need_split_edges_by_fragment;
+    prepare_conf_.need_mirror_info =
+        std::is_same<message_manager_t, BatchShuffleMessageManager>::value;
+  }
+
   ~Worker() = default;
 
   void Init(const CommSpec& comm_spec,

@@ -38,6 +38,9 @@ DEFINE_double(pr_d, 0.85, "damping_factor of pagerank");
 DEFINE_int32(pr_mr, 10, "max rounds of pagerank");
 DEFINE_int32(degree_threshold, std::numeric_limits<int>::max(),
              "Filtering threshold for some algorithms");
+DEFINE_int64(bc_source, 0, "source vertex of centrality.");
+DEFINE_int32(kcore_k, 0, "k value of kcore.");
+DEFINE_int32(kclique_k, 0, "k value of kclique.");
 
 DEFINE_bool(opt, false, "whether to use optimization.");
 
