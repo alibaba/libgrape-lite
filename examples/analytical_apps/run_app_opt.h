@@ -356,7 +356,6 @@ void CreateAndQueryStagedAppOpt(const CommSpec& comm_spec,
     auto app2 = std::make_shared<App2Type>();
     DoDualQuery<FRAG_T, App1Type, App2Type, Args...>(
         fragment, app1, app2, comm_spec, spec, out_prefix, args...);
-    using AppType = APP_T<FRAG_T>;
   }
 }
 
