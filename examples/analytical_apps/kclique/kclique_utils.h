@@ -67,6 +67,13 @@ struct KCliqueMsg {
 };
 
 template <typename VID_T>
+struct SerializedSize<KCliqueMsg<VID_T>> {
+  static size_t size(const KCliqueMsg<VID_T>& msg) {
+    return sizeof(int) + sizeof(int) + msg.size * sizeof(VID_T);
+  }
+};
+
+template <typename VID_T>
 InArchive& operator<<(InArchive& arc, const KCliqueMsg<VID_T>& msg) {
   arc << msg.prefix_size;
   arc << msg.size;
@@ -79,6 +86,14 @@ OutArchive& operator>>(OutArchive& arc, KCliqueMsg<VID_T>& msg) {
   arc >> msg.prefix_size;
   arc >> msg.size;
   msg.data = reinterpret_cast<VID_T*>(arc.GetBytes(msg.size * sizeof(VID_T)));
+  return arc;
+}
+
+template <typename VID_T>
+FixedInArchive& operator<<(FixedInArchive& arc, const KCliqueMsg<VID_T>& msg) {
+  arc << msg.prefix_size;
+  arc << msg.size;
+  arc.add_bytes(msg.data, msg.size * sizeof(VID_T));
   return arc;
 }
 
