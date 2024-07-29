@@ -26,7 +26,7 @@ limitations under the License.
 
 #include "grape/config.h"
 #include "grape/fragment/partitioner.h"
-#include "grape/graph/id_indexer.h"
+#include "grape/graph/hashmap_indexer.h"
 #include "grape/serialization/in_archive.h"
 #include "grape/serialization/out_archive.h"
 #include "grape/vertex_map/vertex_map_base.h"
@@ -43,8 +43,8 @@ class LocalVertexMapBuilder {
 
  private:
   LocalVertexMapBuilder(
-      fid_t fid, std::vector<IdIndexer<internal_oid_t, VID_T>>& oid_to_index,
-      std::vector<IdIndexer<VID_T, VID_T>>& gid_to_index,
+      fid_t fid, std::vector<HMIdxer<internal_oid_t, VID_T>>& oid_to_index,
+      std::vector<HMIdxer<VID_T, VID_T>>& gid_to_index,
       const PARTITIONER_T& partitioner, const IdParser<VID_T>& id_parser)
       : fid_(fid),
         oid_to_index_(oid_to_index),
@@ -54,12 +54,6 @@ class LocalVertexMapBuilder {
 
  public:
   ~LocalVertexMapBuilder() {}
-
-  void add_local_vertex(const internal_oid_t& id, VID_T& gid) {
-    assert(partitioner_.GetPartitionId(id) == fid_);
-    oid_to_index_[fid_].add(id, gid);
-    gid = id_parser_.generate_global_id(fid_, gid);
-  }
 
   void add_vertex(const internal_oid_t& id) {
     fid_t fid = partitioner_.GetPartitionId(id);
@@ -87,13 +81,13 @@ class LocalVertexMapBuilder {
     std::thread response_thread([&]() {
       for (int i = 1; i < worker_num; ++i) {
         int src_worker_id = (worker_id + worker_num - i) % worker_num;
-        typename IdIndexer<internal_oid_t, VID_T>::key_buffer_t keys;
+        typename HMIdxer<internal_oid_t, VID_T>::key_buffer_t keys;
         sync_comm::Recv(keys, src_worker_id, 0, comm_spec.comm());
         std::vector<VID_T> gid_list(keys.size());
         VID_T gid;
         auto& native_indexer = oid_to_index_[fid_];
         for (size_t k = 0; k < keys.size(); ++k) {
-          CHECK(native_indexer.get_index(keys[k], gid));
+          CHECK(native_indexer.get_index(keys.get(k), gid));
           gid = id_parser_.generate_global_id(fid_, gid);
           gid_list[k] = gid;
         }
@@ -115,8 +109,8 @@ class LocalVertexMapBuilder {
   friend class LocalVertexMap;
 
   fid_t fid_;
-  std::vector<IdIndexer<internal_oid_t, VID_T>>& oid_to_index_;
-  std::vector<IdIndexer<VID_T, VID_T>>& gid_to_index_;
+  std::vector<HMIdxer<internal_oid_t, VID_T>>& oid_to_index_;
+  std::vector<HMIdxer<VID_T, VID_T>>& gid_to_index_;
   const PARTITIONER_T& partitioner_;
   const IdParser<VID_T> id_parser_;
 };
@@ -144,16 +138,10 @@ class LocalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
   }
 
   size_t GetInnerVertexSize(fid_t fid) const { return vertices_num_[fid]; }
-  void AddVertex(const OID_T& oid) { LOG(FATAL) << "not implemented"; }
-
-  using base_t::Lid2Gid;
-  bool AddVertex(const OID_T& oid, VID_T& gid) {
-    LOG(FATAL) << "not implemented";
-    return false;
-  }
 
   using base_t::GetFidFromGid;
   using base_t::GetLidFromGid;
+  using base_t::Lid2Gid;
   bool GetOid(const VID_T& gid, OID_T& oid) const {
     fid_t fid = GetFidFromGid(gid);
     return GetOid(fid, id_parser_.get_local_id(gid), oid);
@@ -266,8 +254,8 @@ class LocalVertexMap : public VertexMapBase<OID_T, VID_T, PARTITIONER_T> {
   template <typename _OID_T, typename _VID_T, typename _PARTITIONER_T>
   friend class LocalVertexMapBuilder;
 
-  std::vector<IdIndexer<internal_oid_t, VID_T>> oid_to_index_;
-  std::vector<IdIndexer<VID_T, VID_T>> gid_to_index_;
+  std::vector<HMIdxer<internal_oid_t, VID_T>> oid_to_index_;
+  std::vector<HMIdxer<VID_T, VID_T>> gid_to_index_;
   using base_t::comm_spec_;
   using base_t::id_parser_;
   using base_t::partitioner_;

@@ -195,14 +195,11 @@ class BasicFragmentMutator {
 
     auto builder = vm_ptr_->GetLocalBuilder();
     for (auto& buffers : got_vertices_to_add_) {
-      foreach_rval(buffers,
-                   [this, &builder](internal_oid_t&& id, vdata_t&& data) {
-                     vid_t gid;
-                     builder.add_local_vertex(id, gid);
-                     parsed_vertices_to_add_.emplace_back(gid, std::move(data));
-                   });
+      foreach_helper(
+          buffers,
+          [&builder](const internal_oid_t& id) { builder.add_vertex(id); },
+          make_index_sequence<1>{});
     }
-    got_vertices_to_add_.clear();
 
     for (auto& buffers : got_edges_to_add_) {
       foreach_helper(
@@ -214,6 +211,16 @@ class BasicFragmentMutator {
           make_index_sequence<2>{});
     }
     builder.finish(*vm_ptr_);
+
+    for (auto& buffers : got_vertices_to_add_) {
+      foreach_rval(buffers, [this](internal_oid_t&& id, vdata_t&& data) {
+        vid_t gid;
+        if (vm_ptr_->_GetGid(id, gid)) {
+          parsed_vertices_to_add_.emplace_back(gid, std::move(data));
+        }
+      });
+    }
+    got_vertices_to_add_.clear();
 
     for (auto& buffers : got_edges_to_add_) {
       foreach_rval(buffers, [this](internal_oid_t&& src, internal_oid_t&& dst,

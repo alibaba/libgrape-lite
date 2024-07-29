@@ -121,6 +121,13 @@ function MutableFragmentTest() {
   eval ${cmd}
 }
 
+function GlobalVertexMapTest() {
+  NP=$1; shift
+  cmd="mpirun -n ${NP} ./vertex_map_unit_tests --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --out_prefix ./gvm_tests_output $@"
+  echo ${cmd}
+  eval ${cmd}
+}
+
 function MutableFragmentTests() {
   np=$1; shift
 
@@ -183,6 +190,8 @@ function VertexMapTestOnMutableFragment() {
 
 function VertexMapTests() {
   np=$1; shift
+
+  GlobalVertexMapTest ${np}
 
   VertexMapTest ${np} --string_id
   ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
