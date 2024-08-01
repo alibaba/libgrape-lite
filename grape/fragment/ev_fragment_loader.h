@@ -51,8 +51,6 @@ class EVFragmentLoader {
   using vdata_t = typename fragment_t::vdata_t;
   using edata_t = typename fragment_t::edata_t;
 
-  using vertex_map_t = typename fragment_t::vertex_map_t;
-  using partitioner_t = typename vertex_map_t::partitioner_t;
   using io_adaptor_t = IOADAPTOR_T;
   using line_parser_t = LINE_PARSER_T;
 
@@ -74,8 +72,8 @@ class EVFragmentLoader {
     std::shared_ptr<fragment_t> fragment(nullptr);
     CHECK(!spec.rebalance);
     if (spec.deserialize) {
-      bool deserialized = basic_fragment_loader_.DeserializeFragment(
-          fragment, spec.deserialization_prefix);
+      bool deserialized = DeserializeFragment<fragment_t, IOADAPTOR_T>(
+          fragment, comm_spec_, efile, vfile, spec);
       int flag = 0;
       int sum = 0;
       if (!deserialized) {
@@ -122,9 +120,17 @@ class EVFragmentLoader {
       io_adaptor->Close();
     }
 
-    partitioner_t partitioner(comm_spec_.fnum(), id_list);
+    fid_t fnum = comm_spec_.fnum();
+    IPartitioner<oid_t>* partitioner = nullptr;
+    if (spec.partitioner_type == PartitionerType::kHashPartitioner) {
+      partitioner = new HashPartitionerBeta<oid_t>(fnum);
+    } else if (spec.partitioner_type == PartitionerType::kMapPartitioner) {
+      partitioner = new MapPartitioner<oid_t>(fnum, id_list);
+    } else {
+      LOG(FATAL) << "Unsupported partitioner type.";
+    }
 
-    basic_fragment_loader_.SetPartitioner(std::move(partitioner));
+    basic_fragment_loader_.SetPartitioner(partitioner);
 
     basic_fragment_loader_.Start();
 
@@ -173,8 +179,8 @@ class EVFragmentLoader {
     basic_fragment_loader_.ConstructFragment(fragment, spec.directed);
 
     if (spec.serialize) {
-      bool serialized = basic_fragment_loader_.SerializeFragment(
-          fragment, spec.serialization_prefix);
+      bool serialized = SerializeFragment<fragment_t, IOADAPTOR_T>(
+          fragment, comm_spec_, efile, vfile, spec);
       if (!serialized) {
         VLOG(2) << "[worker-" << comm_spec_.worker_id()
                 << "] Serialization failed.";

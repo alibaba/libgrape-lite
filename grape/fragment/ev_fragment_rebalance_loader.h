@@ -47,12 +47,11 @@ template <typename FRAG_T, typename IOADAPTOR_T = LocalIOAdaptor,
 class EVFragmentRebalanceLoader {
   using fragment_t = FRAG_T;
   using oid_t = typename fragment_t::oid_t;
+  using internal_oid_t = typename InternalOID<oid_t>::type;
   using vid_t = typename fragment_t::vid_t;
   using vdata_t = typename fragment_t::vdata_t;
   using edata_t = typename fragment_t::edata_t;
 
-  using vertex_map_t = typename fragment_t::vertex_map_t;
-  using partitioner_t = typename vertex_map_t::partitioner_t;
   using line_parser_t = LINE_PARSER_T;
 
   static constexpr LoadStrategy load_strategy = fragment_t::load_strategy;
@@ -72,7 +71,8 @@ class EVFragmentRebalanceLoader {
                                            const LoadGraphSpec& spec) {
     std::shared_ptr<fragment_t> fragment(nullptr);
     if (spec.deserialize) {
-      bool deserialized = deserializeFragment(fragment, spec);
+      bool deserialized = DeserializeFragment<fragment_t, IOADAPTOR_T>(
+          fragment, comm_spec_, efile, vfile, spec);
       int flag = 0;
       int sum = 0;
       if (!deserialized) {
@@ -122,18 +122,26 @@ class EVFragmentRebalanceLoader {
     }
 
     fid_t fnum = comm_spec_.fnum();
-    partitioner_t partitioner(fnum, id_list);
-
-    std::shared_ptr<vertex_map_t> vm_ptr =
-        std::make_shared<vertex_map_t>(comm_spec_);
-    vm_ptr->SetPartitioner(partitioner);
-    vm_ptr->Init();
-    auto builder = vm_ptr->GetLocalBuilder();
-
-    for (auto id : id_list) {
-      builder.add_vertex(id);
+    IPartitioner<oid_t>* partitioner = nullptr;
+    if (spec.partitioner_type == PartitionerType::kHashPartitioner) {
+      partitioner = new HashPartitionerBeta<oid_t>(fnum);
+    } else if (spec.partitioner_type == PartitionerType::kMapPartitioner) {
+      partitioner = new MapPartitioner<oid_t>(fnum, id_list);
+    } else {
+      LOG(FATAL) << "Unsupported partitioner type.";
     }
-    builder.finish(*vm_ptr);
+
+    VertexMap<oid_t, vid_t> vm;
+    {
+      VertexMapBuilder<oid_t, vid_t> builder(comm_spec_.fid(),
+                                             comm_spec_.fnum(), partitioner,
+                                             spec.global_vertex_map);
+      for (auto id : id_list) {
+        internal_oid_t oid(id);
+        builder.add_vertex(oid);
+      }
+      builder.finish(comm_spec_, vm);
+    }
 
     std::vector<vid_t> src_list, dst_list;
     std::vector<edata_t> edata_list;
@@ -165,8 +173,8 @@ class EVFragmentRebalanceLoader {
           continue;
         }
 
-        CHECK(vm_ptr->GetGid(src, src_gid));
-        CHECK(vm_ptr->GetGid(dst, dst_gid));
+        CHECK(vm.GetGid(src, src_gid));
+        CHECK(vm.GetGid(dst, dst_gid));
 
         src_list.push_back(src_gid);
         dst_list.push_back(dst_gid);
@@ -178,19 +186,19 @@ class EVFragmentRebalanceLoader {
     std::vector<std::vector<int>> degree_lists(fnum);
     std::vector<std::vector<vid_t>> gid_map(fnum);
     for (fid_t i = 0; i < fnum; ++i) {
-      degree_lists[i].resize(vm_ptr->GetInnerVertexSize(i), 0);
-      gid_map[i].resize(vm_ptr->GetInnerVertexSize(i));
+      degree_lists[i].resize(vm.GetInnerVertexSize(i), 0);
+      gid_map[i].resize(vm.GetInnerVertexSize(i));
     }
 
     for (auto v : src_list) {
-      fid_t fid = vm_ptr->GetFidFromGid(v);
-      vid_t lid = vm_ptr->GetLidFromGid(v);
+      fid_t fid = vm.GetFidFromGid(v);
+      vid_t lid = vm.GetLidFromGid(v);
       ++degree_lists[fid][lid];
     }
     if (!spec.directed) {
       for (auto v : dst_list) {
-        fid_t fid = vm_ptr->GetFidFromGid(v);
-        vid_t lid = vm_ptr->GetLidFromGid(v);
+        fid_t fid = vm.GetFidFromGid(v);
+        vid_t lid = vm.GetLidFromGid(v);
         ++degree_lists[fid][lid];
       }
     }
@@ -232,7 +240,7 @@ class EVFragmentRebalanceLoader {
         enum_before[i] += degree_lists[i][j];
         scores_after[mapped_fid] += v_score;
         enum_after[mapped_fid] += degree_lists[i][j];
-        gid_map[i][j] = vm_ptr->Lid2Gid(mapped_fid, mapped_lid);
+        gid_map[i][j] = vm.Lid2Gid(mapped_fid, mapped_lid);
         ++cur_num;
         if (cur_score >= expected_score) {
           ++mapped_fid;
@@ -264,17 +272,17 @@ class EVFragmentRebalanceLoader {
     }
 
     for (auto& v : src_list) {
-      fid_t fid = vm_ptr->GetFidFromGid(v);
-      vid_t lid = vm_ptr->GetLidFromGid(v);
+      fid_t fid = vm.GetFidFromGid(v);
+      vid_t lid = vm.GetLidFromGid(v);
       v = gid_map[fid][lid];
     }
     for (auto& v : dst_list) {
-      fid_t fid = vm_ptr->GetFidFromGid(v);
-      vid_t lid = vm_ptr->GetLidFromGid(v);
+      fid_t fid = vm.GetFidFromGid(v);
+      vid_t lid = vm.GetLidFromGid(v);
       v = gid_map[fid][lid];
     }
 
-    vm_ptr->UpdateToBalance(vnum_list, gid_map);
+    vm.UpdateToBalance(comm_spec_, vnum_list, gid_map);
 
     std::vector<ShuffleOut<vid_t, vid_t, edata_t>> edges_to_frag(fnum);
     for (fid_t i = 0; i < fnum; ++i) {
@@ -310,8 +318,8 @@ class EVFragmentRebalanceLoader {
 
     size_t local_enum = src_list.size();
     for (size_t i = 0; i < local_enum; ++i) {
-      fid_t src_fid = vm_ptr->GetFidFromGid(src_list[i]);
-      fid_t dst_fid = vm_ptr->GetFidFromGid(dst_list[i]);
+      fid_t src_fid = vm.GetFidFromGid(src_list[i]);
+      fid_t dst_fid = vm.GetFidFromGid(dst_list[i]);
       edges_to_frag[src_fid].Emplace(src_list[i], dst_list[i], edata_list[i]);
       if (src_fid != dst_fid) {
         edges_to_frag[dst_fid].Emplace(src_list[i], dst_list[i], edata_list[i]);
@@ -334,17 +342,17 @@ class EVFragmentRebalanceLoader {
     if (!std::is_same<vdata_t, EmptyType>::value) {
       for (size_t i = 0; i < vertex_num; ++i) {
         vid_t gid;
-        CHECK(vm_ptr->GetGid(id_list[i], gid));
-        fid_t fid = vm_ptr->GetFidFromGid(gid);
+        CHECK(vm.GetGid(id_list[i], gid));
+        fid_t fid = vm.GetFidFromGid(gid);
         if (fid == comm_spec_.fid()) {
           processed_vertices.emplace_back(gid, vdata_list[i]);
         }
       }
     }
 
-    fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr));
-    fragment->Init(comm_spec_.fid(), spec.directed, processed_vertices,
-                   processed_edges);
+    fragment = std::shared_ptr<fragment_t>(new fragment_t());
+    fragment->Init(comm_spec_.fid(), spec.directed, std::move(vm),
+                   processed_vertices, processed_edges);
 
     if (!std::is_same<vdata_t, EmptyType>::value) {
       for (size_t i = 0; i < vertex_num; ++i) {
@@ -358,7 +366,8 @@ class EVFragmentRebalanceLoader {
     }
 
     if (spec.serialize) {
-      bool serialized = serializeFragment(fragment, vm_ptr, spec);
+      bool serialized = SerializeFragment<fragment_t, IOADAPTOR_T>(
+          fragment, comm_spec_, efile, vfile, spec);
       if (!serialized) {
         VLOG(2) << "[worker-" << comm_spec_.worker_id()
                 << "] Serialization failed.";
@@ -369,58 +378,6 @@ class EVFragmentRebalanceLoader {
   }
 
  private:
-  bool existSerializationFile(const std::string& prefix) {
-    char vm_fbuf[1024], frag_fbuf[1024];
-    snprintf(vm_fbuf, sizeof(vm_fbuf), "%s/%s", prefix.c_str(),
-             kSerializationVertexMapFilename);
-    snprintf(frag_fbuf, sizeof(frag_fbuf), kSerializationFilenameFormat,
-             prefix.c_str(), comm_spec_.fid());
-    std::string vm_path = vm_fbuf;
-    std::string frag_path = frag_fbuf;
-    return exists_file(vm_path) && exists_file(frag_path);
-  }
-
-  bool deserializeFragment(std::shared_ptr<fragment_t>& fragment,
-                           const LoadGraphSpec& spec) {
-    std::string type_prefix = fragment_t::type_info();
-    CHECK(spec.rebalance);
-    type_prefix += ("_rb_" + std::to_string(spec.rebalance_vertex_factor));
-    std::string typed_prefix = spec.deserialization_prefix + "/" + type_prefix;
-    LOG(INFO) << "typed_prefix = " << typed_prefix;
-    if (!existSerializationFile(typed_prefix)) {
-      return false;
-    }
-    auto io_adaptor =
-        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(typed_prefix));
-    if (io_adaptor->IsExist()) {
-      std::shared_ptr<vertex_map_t> vm_ptr =
-          std::make_shared<vertex_map_t>(comm_spec_);
-      vm_ptr->template Deserialize<IOADAPTOR_T>(typed_prefix, comm_spec_.fid());
-      fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr));
-      fragment->template Deserialize<IOADAPTOR_T>(typed_prefix,
-                                                  comm_spec_.fid());
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  bool serializeFragment(std::shared_ptr<fragment_t> fragment,
-                         std::shared_ptr<vertex_map_t> vm_ptr,
-                         const LoadGraphSpec& spec) {
-    std::string type_prefix = fragment_t::type_info();
-    CHECK(spec.rebalance);
-    type_prefix += ("_rb_" + std::to_string(spec.rebalance_vertex_factor));
-    std::string typed_prefix = spec.serialization_prefix + "/" + type_prefix;
-    char serial_file[1024];
-    snprintf(serial_file, sizeof(serial_file), "%s/%s", typed_prefix.c_str(),
-             kSerializationVertexMapFilename);
-    vm_ptr->template Serialize<IOADAPTOR_T>(typed_prefix);
-    fragment->template Serialize<IOADAPTOR_T>(typed_prefix);
-
-    return true;
-  }
-
   static constexpr int edge_tag = 6;
 
   CommSpec comm_spec_;

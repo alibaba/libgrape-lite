@@ -22,6 +22,7 @@ limitations under the License.
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
+#include "grape/vertex_map/vertex_map_beta.h"
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
@@ -51,25 +52,22 @@ template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           typename TRAITS_T>
 class FragmentBase {
  public:
-  using vertex_map_t = typename TRAITS_T::vertex_map_t;
-
   using fragment_adj_list_t = typename TRAITS_T::fragment_adj_list_t;
   using fragment_const_adj_list_t =
       typename TRAITS_T::fragment_const_adj_list_t;
 
   FragmentBase() : vm_ptr_(nullptr) {}
 
-  explicit FragmentBase(std::shared_ptr<vertex_map_t> vm_ptr)
-      : vm_ptr_(vm_ptr) {}
-
-  std::shared_ptr<vertex_map_t> GetVertexMap() { return vm_ptr_; }
-  const std::shared_ptr<vertex_map_t> GetVertexMap() const { return vm_ptr_; }
+  VertexMap<OID_T, VID_T>& GetVertexMap() { return *vm_ptr_; }
+  const VertexMap<OID_T, VID_T>& GetVertexMap() const { return *vm_ptr_; }
 
  protected:
-  void init(fid_t fid, bool directed) {
+  void init(fid_t fid, bool directed, VertexMap<OID_T, VID_T>&& vm) {
     fid_ = fid;
     directed_ = directed;
-    fnum_ = vm_ptr_->GetFragmentNum();
+    fnum_ = vm.GetFragmentNum();
+    vm_ptr_ = std::make_shared<VertexMap<OID_T, VID_T>>();
+    *vm_ptr_ = std::move(vm);
     id_parser_.init(fnum_);
     ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
   }
@@ -82,7 +80,7 @@ class FragmentBase {
    * @param vertices A set of vertices.
    * @param edges A set of edges.
    */
-  virtual void Init(fid_t fid, bool directed,
+  virtual void Init(fid_t fid, bool directed, VertexMap<OID_T, VID_T>&& vm,
                     std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
                     std::vector<Edge<VID_T, EDATA_T>>& edges) = 0;
 
@@ -170,7 +168,7 @@ class FragmentBase {
    * @return Its original ID.
    */
   OID_T GetId(const Vertex<VID_T>& v) const {
-    OID_T oid;
+    OID_T oid{};
     vm_ptr_->GetOid(Vertex2Gid(v), oid);
     return oid;
   }
@@ -309,7 +307,7 @@ class FragmentBase {
   template <typename IOADAPTOR_T>
   void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
     InArchive arc;
-    arc << fid_ << fnum_ << directed_ << ivnum_ << vertices_;
+    arc << fid_ << directed_ << ivnum_ << vertices_;
     CHECK(writer->WriteArchive(arc));
   }
 
@@ -317,8 +315,7 @@ class FragmentBase {
   void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));
-    arc >> fid_ >> fnum_ >> directed_ >> ivnum_ >> vertices_;
-    id_parser_.init(fnum_);
+    arc >> fid_ >> directed_ >> ivnum_ >> vertices_;
   }
 
   fid_t fid_, fnum_;
@@ -326,7 +323,7 @@ class FragmentBase {
   VID_T ivnum_;
 
   vertices_t vertices_;
-  std::shared_ptr<vertex_map_t> vm_ptr_;
+  std::shared_ptr<VertexMap<OID_T, VID_T>> vm_ptr_;
 
   IdParser<VID_T> id_parser_;
 };

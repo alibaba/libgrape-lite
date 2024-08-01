@@ -22,6 +22,7 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "grape/config.h"
+#include "grape/io/io_adaptor_base.h"
 #include "grape/types.h"
 #include "grape/utils/string_view_vector.h"
 
@@ -51,8 +52,7 @@ template <typename T>
 struct KeyBuffer {
   using type = std::vector<T, Allocator<T>>;
 
-  template <typename IOADAPTOR_T>
-  static void serialize(std::unique_ptr<IOADAPTOR_T>& writer, type& buffer) {
+  static void serialize(IOAdaptorBase* writer, type& buffer) {
     size_t size = buffer.size();
     CHECK(writer->Write(&size, sizeof(size_t)));
     if (size > 0) {
@@ -60,8 +60,7 @@ struct KeyBuffer {
     }
   }
 
-  template <typename IOADAPTOR_T>
-  static void deserialize(std::unique_ptr<IOADAPTOR_T>& reader, type& buffer) {
+  static void deserialize(IOAdaptorBase* reader, type& buffer) {
     size_t size;
     CHECK(reader->Read(&size, sizeof(size_t)));
     if (size > 0) {
@@ -85,8 +84,7 @@ template <>
 struct KeyBuffer<nonstd::string_view> {
   using type = StringViewVector;
 
-  template <typename IOADAPTOR_T>
-  static void serialize(std::unique_ptr<IOADAPTOR_T>& writer, type& buffer) {
+  static void serialize(IOAdaptorBase* writer, type& buffer) {
     size_t content_buffer_size = buffer.content_buffer().size();
     CHECK(writer->Write(&content_buffer_size, sizeof(size_t)));
     if (content_buffer_size > 0) {
@@ -101,8 +99,7 @@ struct KeyBuffer<nonstd::string_view> {
     }
   }
 
-  template <typename IOADAPTOR_T>
-  static void deserialize(std::unique_ptr<IOADAPTOR_T>& reader, type& buffer) {
+  static void deserialize(IOAdaptorBase* reader, type& buffer) {
     size_t content_buffer_size;
     CHECK(reader->Read(&content_buffer_size, sizeof(size_t)));
     if (content_buffer_size > 0) {
@@ -140,7 +137,13 @@ class IdIndexer {
   using dist_buffer_t = std::vector<int8_t, Allocator<int8_t>>;
 
   IdIndexer() : hasher_() { reset_to_empty_state(); }
+  IdIndexer(IdIndexer&& rhs) { swap(rhs); }
   ~IdIndexer() {}
+
+  IdIndexer& operator=(IdIndexer&& rhs) {
+    swap(rhs);
+    return *this;
+  }
 
   size_t entry_num() const { return distances_.size(); }
 
@@ -330,8 +333,7 @@ class IdIndexer {
 
   key_buffer_t& keys() { return keys_; }
 
-  template <typename IOADAPTOR_T>
-  void Serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
+  void Serialize(IOAdaptorBase* writer) {
     id_indexer_impl::KeyBuffer<KEY_T>::serialize(writer, keys_);
     InArchive arc;
     arc << hash_policy_.get_mod_function_index() << max_lookups_
@@ -349,8 +351,7 @@ class IdIndexer {
     }
   }
 
-  template <typename IOADAPTOR_T>
-  void Deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+  void Deserialize(IOAdaptorBase* reader) {
     id_indexer_impl::KeyBuffer<KEY_T>::deserialize(reader, keys_);
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));

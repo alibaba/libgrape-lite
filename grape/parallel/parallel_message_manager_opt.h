@@ -35,6 +35,12 @@ limitations under the License.
 #include "grape/utils/concurrent_queue.h"
 #include "grape/worker/comm_spec.h"
 
+#define USE_LOCKFREE_QUEUE
+
+#ifdef USE_LOCKFREE_QUEUE
+#include "grape/utils/lockfree_queue.h"
+#endif
+
 namespace grape {
 
 /**
@@ -56,7 +62,13 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
   static constexpr size_t default_msg_send_block_capacity = 2 * 1024 * 1024;
 
  public:
+#ifdef USE_LOCKFREE_QUEUE
+  ParallelMessageManagerOpt()
+      : comm_(NULL_COMM),
+        lockfree_sending_queue_(std::thread::hardware_concurrency() * 64) {}
+#else
   ParallelMessageManagerOpt() : comm_(NULL_COMM) {}
+#endif
   ~ParallelMessageManagerOpt() override {
     if (ValidComm(comm_)) {
       MPI_Comm_free(&comm_);
@@ -207,7 +219,15 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     std::pair<fid_t, InArchive> item;
     item.first = fid;
     item.second = std::move(arc);
+#ifdef USE_LOCKFREE_QUEUE
+    if (!lockfree_sending_queue_.push(std::move(item))) {
+      LOG(INFO)
+          << "Lockfree sending queue is full, fallback to blocking queue ";
+      sending_queue_.Put(std::move(item));
+    }
+#else
     sending_queue_.Put(std::move(item));
+#endif
   }
 
   /**
@@ -433,13 +453,59 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
     force_continue_ = false;
     int round = round_;
 
+#ifdef USE_LOCKFREE_QUEUE
+    CHECK_EQ(lockfree_sending_queue_.size(), 0);
+#endif
     CHECK_EQ(sending_queue_.Size(), 0);
     sending_queue_.SetProducerNum(1);
     send_thread_ = std::thread(
         [this](int msg_round) {
           std::vector<MPI_Request> reqs;
           std::pair<fid_t, InArchive> item;
-          while (sending_queue_.Get(item)) {
+          std::deque<std::pair<fid_t, InArchive>> buf;
+          bool blocking_queue_empty = false;
+          while (!blocking_queue_empty) {
+#ifdef USE_LOCKFREE_QUEUE
+            while (lockfree_sending_queue_.pop(item)) {
+              if (item.second.GetSize() == 0) {
+                continue;
+              }
+              if (item.first == fid_) {
+                to_self_.emplace_back(std::move(item.second));
+              } else {
+                MPI_Request req;
+                sync_comm::isend_small_buffer<char>(
+                    item.second.GetBuffer(), item.second.GetSize(),
+                    comm_spec_.FragToWorker(item.first), msg_round, comm_, req);
+                reqs.push_back(req);
+                to_others_.emplace_back(std::move(item.second));
+              }
+            }
+#endif
+            {
+              blocking_queue_empty = !sending_queue_.TryGetAll(buf);
+              while (!buf.empty()) {
+                item = std::move(buf.front());
+                buf.pop_front();
+                if (item.second.GetSize() == 0) {
+                  continue;
+                }
+                if (item.first == fid_) {
+                  to_self_.emplace_back(std::move(item.second));
+                } else {
+                  MPI_Request req;
+                  sync_comm::isend_small_buffer<char>(
+                      item.second.GetBuffer(), item.second.GetSize(),
+                      comm_spec_.FragToWorker(item.first), msg_round, comm_,
+                      req);
+                  reqs.push_back(req);
+                  to_others_.emplace_back(std::move(item.second));
+                }
+              }
+            }
+          }
+#ifdef USE_LOCKFREE_QUEUE
+          while (lockfree_sending_queue_.pop(item)) {
             if (item.second.GetSize() == 0) {
               continue;
             }
@@ -454,6 +520,7 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
               to_others_.emplace_back(std::move(item.second));
             }
           }
+#endif
           for (fid_t i = 0; i < fnum_; ++i) {
             if (i == fid_) {
               continue;
@@ -594,6 +661,9 @@ class ParallelMessageManagerOpt : public MessageManagerBase {
   std::vector<ThreadLocalMessageBuffer<ParallelMessageManagerOpt>> channels_;
   int round_;
 
+#ifdef USE_LOCKFREE_QUEUE
+  LockFreeQueue<std::pair<fid_t, InArchive>> lockfree_sending_queue_;
+#endif
   BlockingQueue<std::pair<fid_t, InArchive>> sending_queue_;
   std::thread send_thread_;
 

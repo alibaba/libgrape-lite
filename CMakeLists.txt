@@ -198,6 +198,9 @@ if (NOT RDKAFKA_FOUND)
   message(STATUS "rdkafka not found, build without rdkafka")
 endif ()
 
+# find openssl---------------------------------------------------------------------
+find_package(OpenSSL REQUIRED)
+
 macro(install_libgrapelite_target target)
   # install
   install(TARGETS ${target}
@@ -232,7 +235,7 @@ else ()
                              examples/analytical_apps)
   set_target_properties(analytical_apps PROPERTIES OUTPUT_NAME run_app)
   target_link_libraries(analytical_apps grape-lite ${MPI_CXX_LIBRARIES}
-                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
+                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} OpenSSL::SSL OpenSSL::Crypto)
   install_libgrapelite_target(analytical_apps)
 
   file(GLOB TEST_FILES RELATIVE "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/*.cc")
@@ -247,7 +250,7 @@ else ()
     endif()
     target_include_directories(${T_NAME} PRIVATE examples/analytical_apps)
     target_link_libraries(${T_NAME} PRIVATE grape-lite ${MPI_CXX_LIBRARIES}
-                          ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
+                          ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} OpenSSL::SSL OpenSSL::Crypto)
   endforeach()
 
   if (WITH_CUDA)
@@ -265,15 +268,6 @@ if (NOT GFLAGS_FOUND)
 elseif (NOT RDKAFKA_FOUND)
   message(WARNING "Disable gnn_sampler because rdkafka not found")
 else ()
-  add_executable(gnn_sampler examples/gnn_sampler/run_sampler.cc)
-  set_target_properties(gnn_sampler PROPERTIES OUTPUT_NAME run_sampler)
-  target_include_directories(gnn_sampler PRIVATE
-                             examples/gnn_sampler
-                             examples/gnn_sampler/thirdparty
-                             ${RDKAFKA_INCLUDE_DIR})
-  target_link_libraries(gnn_sampler grape-lite ${MPI_CXX_LIBRARIES}
-                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES})
-  install_libgrapelite_target(gnn_sampler)
 endif ()
 
 set(EXAMPLES_DIR ${PROJECT_SOURCE_DIR}/examples)

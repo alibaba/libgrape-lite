@@ -49,8 +49,7 @@ namespace grape {
 class CommSpec;
 class OutArchive;
 
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          typename VERTEX_MAP_T>
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
 struct ImmutableEdgecutFragmentTraits {
   using inner_vertices_t = VertexRange<VID_T>;
   using outer_vertices_t = VertexRange<VID_T>;
@@ -63,7 +62,6 @@ struct ImmutableEdgecutFragmentTraits {
   using csr_t = ImmutableCSR<VID_T, Nbr<VID_T, EDATA_T>>;
   using csr_builder_t = ImmutableCSRBuild<VID_T, Nbr<VID_T, EDATA_T>>;
   using mirror_vertices_t = std::vector<Vertex<VID_T>>;
-  using vertex_map_t = VERTEX_MAP_T;
 };
 
 /**
@@ -114,16 +112,14 @@ struct ImmutableEdgecutFragmentTraits {
  *
  */
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          LoadStrategy _load_strategy = LoadStrategy::kOnlyOut,
-          typename VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T>>
+          LoadStrategy _load_strategy = LoadStrategy::kOnlyOut>
 class ImmutableEdgecutFragment
     : public CSREdgecutFragmentBase<
           OID_T, VID_T, VDATA_T, EDATA_T,
-          ImmutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T,
-                                         VERTEX_MAP_T>> {
+          ImmutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T>> {
  public:
-  using traits_t = ImmutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T,
-                                                  EDATA_T, VERTEX_MAP_T>;
+  using traits_t =
+      ImmutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T>;
   using base_t =
       CSREdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>;
   using internal_vertex_t = internal::Vertex<VID_T, VDATA_T>;
@@ -134,7 +130,6 @@ class ImmutableEdgecutFragment
   using oid_t = OID_T;
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
-  using vertex_map_t = typename traits_t::vertex_map_t;
 
   using IsEdgeCut = std::true_type;
   using IsVertexCut = std::false_type;
@@ -155,10 +150,8 @@ class ImmutableEdgecutFragment
   template <typename T>
   using vertex_array_t = VertexArray<vertices_t, T>;
 
-  ImmutableEdgecutFragment() {}
-
-  explicit ImmutableEdgecutFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
+  ImmutableEdgecutFragment()
+      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
 
   virtual ~ImmutableEdgecutFragment() = default;
 
@@ -167,41 +160,64 @@ class ImmutableEdgecutFragment
   using base_t::IsInnerVertexGid;
 
   static std::string type_info() {
-    std::string ret = "";
+    std::string ret = "ImmutableEdgecutFragment<";
+    if (std::is_same<OID_T, int64_t>::value) {
+      ret += "int64_t, ";
+    } else if (std::is_same<OID_T, int32_t>::value) {
+      ret += "int32_t, ";
+    } else if (std::is_same<OID_T, std::string>::value) {
+      ret += "std::string, ";
+    } else {
+      LOG(FATAL) << "OID_T type not supported...";
+    }
+
+    if (std::is_same<VID_T, uint64_t>::value) {
+      ret += "uint64_t, ";
+    } else if (std::is_same<VID_T, uint32_t>::value) {
+      ret += "uint32_t, ";
+    } else {
+      LOG(FATAL) << "VID_T type not supported...";
+    }
+
+    if (std::is_same<VDATA_T, EmptyType>::value) {
+      ret += "empty, ";
+    } else if (std::is_same<VDATA_T, double>::value) {
+      ret += "double, ";
+    } else if (std::is_same<VDATA_T, float>::value) {
+      ret += "float, ";
+    } else {
+      LOG(FATAL) << "Vertex data type not supported...";
+    }
+
     if (std::is_same<EDATA_T, EmptyType>::value) {
-      ret += "empty";
+      ret += "empty, ";
     } else if (std::is_same<EDATA_T, double>::value) {
-      ret += "double";
+      ret += "double, ";
     } else if (std::is_same<EDATA_T, float>::value) {
-      ret += "float";
+      ret += "float, ";
     } else {
       LOG(FATAL) << "Edge data type not supported...";
     }
 
     if (_load_strategy == LoadStrategy::kOnlyOut) {
-      ret += "_out";
+      ret += "out";
     } else if (_load_strategy == LoadStrategy::kOnlyIn) {
-      ret += "_in";
+      ret += "in";
     } else if (_load_strategy == LoadStrategy::kBothOutIn) {
-      ret += "_both";
+      ret += "both";
     } else {
       LOG(FATAL) << "Invalid load strategy...";
     }
 
-    using partitioner_t = typename VERTEX_MAP_T::partitioner_t;
-    if (std::is_same<partitioner_t, HashPartitioner<OID_T>>::value) {
-      ret += "_hash";
-    } else if (std::is_same<partitioner_t,
-                            SegmentedPartitioner<OID_T>>::value) {
-      ret += "_seg";
-    }
+    ret += ">";
 
     return ret;
   }
 
-  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, VertexMap<OID_T, VID_T>&& vm,
+            std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid, directed);
+    init(fid, directed, std::move(vm));
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
@@ -365,7 +381,10 @@ class ImmutableEdgecutFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const std::string& prefix, const fid_t fid) {
+  void Deserialize(VertexMap<OID_T, VID_T>&& vm, const std::string& prefix,
+                   const fid_t fid) {
+    vm_ptr_ = std::make_shared<VertexMap<OID_T, VID_T>>();
+    *vm_ptr_ = std::move(vm);
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), kSerializationFilenameFormat, prefix.c_str(),
              fid);
@@ -374,6 +393,8 @@ class ImmutableEdgecutFragment
     io_adaptor->Open();
 
     base_t::deserialize(io_adaptor);
+    fnum_ = vm_ptr_->GetFragmentNum();
+    id_parser_.init(fnum_);
 
     OutArchive oa;
     int ils;
@@ -722,6 +743,7 @@ class ImmutableEdgecutFragment
   using base_t::fid_;
   using base_t::fnum_;
   using base_t::id_parser_;
+  using base_t::vm_ptr_;
 
   ska::flat_hash_map<VID_T, VID_T, std::hash<VID_T>, std::equal_to<VID_T>,
                      Allocator<std::pair<VID_T, VID_T>>>

@@ -343,14 +343,15 @@ class LCCOpt<FRAG_T, COUNT_T,
     auto inner_vertices = frag.InnerVertices();
 
     messages.InitChannels(thread_num());
+    auto& channels = messages.Channels();
 
     ctx.stage = 0;
 
     // Each vertex scatter its own out degree.
-    ForEach(inner_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
+    ForEach(inner_vertices, [&channels, &frag, &ctx](int tid, vertex_t v) {
       ctx.global_degree[v] = frag.GetLocalOutDegree(v);
-      messages.SendMsgThroughOEdges<fragment_t, int>(frag, v,
-                                                     ctx.global_degree[v], tid);
+      channels[tid].SendMsgThroughOEdges<fragment_t, int>(frag, v,
+                                                          ctx.global_degree[v]);
     });
 
     // Just in case we are running on single process and no messages will
@@ -496,6 +497,7 @@ class LCCOpt<FRAG_T, COUNT_T,
                message_manager_t& messages) {
     auto inner_vertices = frag.InnerVertices();
     auto outer_vertices = frag.OuterVertices();
+    auto& channels = messages.Channels();
 
     if (ctx.stage == 0) {
       ctx.stage = 1;
@@ -503,7 +505,7 @@ class LCCOpt<FRAG_T, COUNT_T,
           thread_num(), frag,
           [&ctx](int tid, vertex_t u, int msg) { ctx.global_degree[u] = msg; });
       ctx.memory_pools.resize(thread_num());
-      ForEach(inner_vertices, [&frag, &ctx, &messages](int tid, vertex_t v) {
+      ForEach(inner_vertices, [&frag, &ctx, &channels](int tid, vertex_t v) {
         vid_t v_gid_hash = IdHasher<vid_t>::hash(frag.GetInnerVertexGid(v));
         auto& pool = ctx.memory_pools[tid];
         auto& nbr_vec = ctx.complete_neighbor[v];
@@ -535,8 +537,8 @@ class LCCOpt<FRAG_T, COUNT_T,
 #else
         std::sort(nbr_ptr, nbr_ptr + nbr_vec.size());
 #endif
-        messages.SendMsgThroughOEdges<fragment_t, VecOutType>(frag, v, msg_vec,
-                                                              tid);
+        channels[tid].SendMsgThroughOEdges<fragment_t, VecOutType>(frag, v,
+                                                                   msg_vec);
       });
       messages.ForceContinue();
     } else if (ctx.stage == 1) {
@@ -578,10 +580,10 @@ class LCCOpt<FRAG_T, COUNT_T,
           atomic_add(ctx.tricnt[v], v_count);
         }
       });
-      ForEach(outer_vertices, [&messages, &frag, &ctx](int tid, vertex_t v) {
+      ForEach(outer_vertices, [&channels, &frag, &ctx](int tid, vertex_t v) {
         if (ctx.tricnt[v] != 0) {
-          messages.SyncStateOnOuterVertex<fragment_t, count_t>(
-              frag, v, ctx.tricnt[v], tid);
+          channels[tid].SyncStateOnOuterVertex<fragment_t, count_t>(
+              frag, v, ctx.tricnt[v]);
         }
       });
       messages.ForceContinue();

@@ -22,13 +22,17 @@ limitations under the License.
 #endif
 #endif
 
+#include <limits.h>
+#include <openssl/md5.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 
 #include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -138,9 +142,56 @@ struct IdenticalHasher<uint64_t> {
   static uint64_t hash(uint64_t x) { return x; }
 };
 
-bool exists_file(const std::string& name) {
+inline bool exists_file(const std::string& name) {
   struct stat buffer;
   return (stat(name.c_str(), &buffer) == 0);
+}
+
+inline std::string get_absolute_path(const std::string& path) {
+  char abs_path[PATH_MAX];
+  if (realpath(path.c_str(), abs_path) == nullptr) {
+    LOG(ERROR) << "Failed to get absolute path for " << path;
+    return "";
+  }
+  return std::string(abs_path);
+}
+
+inline std::string compute_md5(const std::vector<std::string>& inputs) {
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
+  for (const auto& input : inputs) {
+    MD5_Update(&ctx, input.c_str(), input.size());
+  }
+  unsigned char md[MD5_DIGEST_LENGTH];
+  MD5_Final(md, &ctx);
+
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0');
+  for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
+    ss << std::setw(2) << static_cast<int>(md[i]);
+  }
+  return ss.str();
+}
+
+inline bool create_directories(const std::string& path) {
+  char temp_path[256];
+  std::strcpy(temp_path, path.c_str());
+
+  for (char* p = temp_path + 1; *p; ++p) {
+    if (*p == '/') {
+      *p = '\0';
+      if (mkdir(temp_path, 0755) != 0 && errno != EEXIST) {
+        std::cerr << "Error creating directory: " << temp_path << std::endl;
+        return false;
+      }
+      *p = '/';
+    }
+  }
+  if (mkdir(temp_path, 0755) != 0 && errno != EEXIST) {
+    std::cerr << "Error creating directory: " << temp_path << std::endl;
+    return false;
+  }
+  return true;
 }
 
 }  // namespace grape

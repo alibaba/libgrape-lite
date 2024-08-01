@@ -33,6 +33,8 @@ limitations under the License.
 #include "grape/util.h"
 #include "grape/utils/concurrent_queue.h"
 #include "grape/utils/vertex_array.h"
+#include "grape/vertex_map/partitioner.h"
+#include "grape/vertex_map/vertex_map_beta.h"
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
@@ -52,6 +54,9 @@ struct LoadGraphSpec {
   bool deserialize;
   std::string deserialization_prefix;
 
+  PartitionerType partitioner_type;
+  bool global_vertex_map;
+
   void set_directed(bool val = true) { directed = val; }
   void set_rebalance(bool flag, int weight) {
     rebalance = flag;
@@ -67,6 +72,25 @@ struct LoadGraphSpec {
     deserialize = flag;
     deserialization_prefix = prefix;
   }
+
+  std::string to_string() const {
+    std::string ret;
+    ret += (directed ? "directed-" : "undirected-");
+    if (rebalance) {
+      ret += "rebalance-" + std::to_string(rebalance_vertex_factor) + "-";
+    } else {
+      ret += "no-rebalance-";
+    }
+    if (partitioner_type == PartitionerType::kHashPartitioner) {
+      ret += "hash-partitioner-";
+    } else if (partitioner_type == PartitionerType::kMapPartitioner) {
+      ret += "map-partitioner-";
+    } else {
+      LOG(FATAL) << "Unknown partitioner type";
+    }
+    ret += (global_vertex_map ? "global-vertex-map" : "local-vertex-map");
+    return ret;
+  }
 };
 
 inline LoadGraphSpec DefaultLoadGraphSpec() {
@@ -76,7 +100,100 @@ inline LoadGraphSpec DefaultLoadGraphSpec() {
   spec.rebalance_vertex_factor = 0;
   spec.serialize = false;
   spec.deserialize = false;
+  spec.partitioner_type = PartitionerType::kHashPartitioner;
+  spec.global_vertex_map = true;
   return spec;
+}
+
+template <typename FRAG_T>
+std::pair<std::string, std::string> generate_signature(
+    const std::string& efile, const std::string& vfile,
+    const LoadGraphSpec& spec) {
+  std::string spec_info = spec.to_string();
+  std::string frag_type_name = FRAG_T::type_info();
+  std::string md5 = compute_md5({efile, vfile, spec_info, frag_type_name});
+  std::string desc = "efile: " + efile + "\n";
+  desc += "vfile: " + vfile + "\n";
+  desc += "spec: " + spec_info + "\n";
+  desc += "frag_type: " + frag_type_name + "\n";
+  return std::make_pair(md5, desc);
+}
+
+template <typename FRAG_T, typename IOADAPTOR_T>
+bool SerializeFragment(std::shared_ptr<FRAG_T>& fragment,
+                       const CommSpec& comm_spec, const std::string& efile,
+                       const std::string& vfile, const LoadGraphSpec& spec) {
+  auto pair = generate_signature<FRAG_T>(efile, vfile, spec);
+  std::string typed_prefix = spec.serialization_prefix + "/" + pair.first;
+  if (!create_directories(typed_prefix)) {
+    LOG(ERROR) << "Failed to create directory: " << typed_prefix << ", "
+               << std::strerror(errno);
+    return false;
+  }
+  std::string sigfile_name = typed_prefix + "/sig";
+  if (exists_file(sigfile_name)) {
+    LOG(ERROR) << "Signature file exists: " << sigfile_name;
+    return false;
+  }
+
+  char serial_file[1024];
+  snprintf(serial_file, sizeof(serial_file), "%s/%s", typed_prefix.c_str(),
+           kSerializationVertexMapFilename);
+  fragment->GetVertexMap().template Serialize<IOADAPTOR_T>(typed_prefix,
+                                                           comm_spec);
+  fragment->template Serialize<IOADAPTOR_T>(typed_prefix);
+
+  MPI_Barrier(comm_spec.comm());
+  if (comm_spec.worker_id() == 0) {
+    std::ofstream sigfile(sigfile_name);
+    if (!sigfile.is_open()) {
+      LOG(ERROR) << "Failed to open signature file: " << sigfile_name;
+      return false;
+    }
+    sigfile << pair.second;
+  }
+
+  return true;
+}
+
+template <typename FRAG_T, typename IOADAPTOR_T>
+bool DeserializeFragment(std::shared_ptr<FRAG_T>& fragment,
+                         const CommSpec& comm_spec, const std::string& efile,
+                         const std::string& vfile, const LoadGraphSpec& spec) {
+  auto pair = generate_signature<FRAG_T>(efile, vfile, spec);
+  std::string typed_prefix = spec.deserialization_prefix + "/" + pair.first;
+  std::string sigfile_name = typed_prefix + "/sig";
+  if (!exists_file(sigfile_name)) {
+    LOG(ERROR) << "Signature file not exists: " << sigfile_name;
+    return false;
+  }
+  std::string sigfile_content;
+  std::ifstream sigfile(sigfile_name);
+  if (!sigfile.is_open()) {
+    LOG(ERROR) << "Failed to open signature file: " << sigfile_name;
+    return false;
+  }
+  std::string line;
+  while (std::getline(sigfile, line)) {
+    sigfile_content += line + "\n";
+  }
+  if (sigfile_content != pair.second) {
+    LOG(ERROR) << "Signature mismatch: " << sigfile_content
+               << ", expected: " << pair.second;
+    return false;
+  }
+
+  auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(typed_prefix));
+  if (io_adaptor->IsExist()) {
+    VertexMap<typename FRAG_T::oid_t, typename FRAG_T::vid_t> vm;
+    vm.template Deserialize<IOADAPTOR_T>(typed_prefix, comm_spec);
+    fragment = std::shared_ptr<FRAG_T>(new FRAG_T());
+    fragment->template Deserialize<IOADAPTOR_T>(std::move(vm), typed_prefix,
+                                                comm_spec.fid());
+    return true;
+  } else {
+    return false;
+  }
 }
 
 template <typename FRAG_T, typename IOADAPTOR_T>
@@ -88,16 +205,12 @@ class BasicFragmentLoader {
   using vdata_t = typename fragment_t::vdata_t;
   using edata_t = typename fragment_t::edata_t;
 
-  using vertex_map_t = typename fragment_t::vertex_map_t;
-  using partitioner_t = typename vertex_map_t::partitioner_t;
-
   static constexpr LoadStrategy load_strategy = fragment_t::load_strategy;
 
  public:
   explicit BasicFragmentLoader(const CommSpec& comm_spec)
       : comm_spec_(comm_spec) {
     comm_spec_.Dup();
-    vm_ptr_ = std::make_shared<vertex_map_t>(comm_spec_);
     vertices_to_frag_.resize(comm_spec_.fnum());
     edges_to_frag_.resize(comm_spec_.fnum());
     for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
@@ -117,12 +230,8 @@ class BasicFragmentLoader {
 
   ~BasicFragmentLoader() { Stop(); }
 
-  void SetPartitioner(const partitioner_t& partitioner) {
-    vm_ptr_->SetPartitioner(partitioner);
-  }
-
-  void SetPartitioner(partitioner_t&& partitioner) {
-    vm_ptr_->SetPartitioner(std::move(partitioner));
+  void SetPartitioner(IPartitioner<oid_t>* partitioner) {
+    partitioner_ = partitioner;
   }
 
   void Start() {
@@ -149,65 +258,18 @@ class BasicFragmentLoader {
 
   void AddVertex(const oid_t& id, const vdata_t& data) {
     internal_oid_t internal_id(id);
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t fid = partitioner.GetPartitionId(internal_id);
+    fid_t fid = partitioner_->GetPartitionId(internal_id);
     vertices_to_frag_[fid].Emplace(internal_id, data);
   }
 
   void AddEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
     internal_oid_t internal_src(src);
     internal_oid_t internal_dst(dst);
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t src_fid = partitioner.GetPartitionId(internal_src);
-    fid_t dst_fid = partitioner.GetPartitionId(internal_dst);
+    fid_t src_fid = partitioner_->GetPartitionId(internal_src);
+    fid_t dst_fid = partitioner_->GetPartitionId(internal_dst);
     edges_to_frag_[src_fid].Emplace(internal_src, internal_dst, data);
     if (src_fid != dst_fid) {
       edges_to_frag_[dst_fid].Emplace(internal_src, internal_dst, data);
-    }
-  }
-
-  bool SerializeFragment(std::shared_ptr<fragment_t>& fragment,
-                         const std::string& serialization_prefix) {
-    std::string type_prefix = fragment_t::type_info();
-    std::string typed_prefix = serialization_prefix + "/" + type_prefix;
-    char serial_file[1024];
-    snprintf(serial_file, sizeof(serial_file), "%s/%s", typed_prefix.c_str(),
-             kSerializationVertexMapFilename);
-    vm_ptr_->template Serialize<IOADAPTOR_T>(typed_prefix);
-    fragment->template Serialize<IOADAPTOR_T>(typed_prefix);
-
-    return true;
-  }
-
-  bool existSerializationFile(const std::string& prefix) {
-    char vm_fbuf[1024], frag_fbuf[1024];
-    snprintf(vm_fbuf, sizeof(vm_fbuf), "%s/%s", prefix.c_str(),
-             kSerializationVertexMapFilename);
-    snprintf(frag_fbuf, sizeof(frag_fbuf), kSerializationFilenameFormat,
-             prefix.c_str(), comm_spec_.fid());
-    std::string vm_path = vm_fbuf;
-    std::string frag_path = frag_fbuf;
-    return exists_file(vm_path) && exists_file(frag_path);
-  }
-
-  bool DeserializeFragment(std::shared_ptr<fragment_t>& fragment,
-                           const std::string& deserialization_prefix) {
-    std::string type_prefix = fragment_t::type_info();
-    std::string typed_prefix = deserialization_prefix + "/" + type_prefix;
-    if (!existSerializationFile(typed_prefix)) {
-      return false;
-    }
-    auto io_adaptor =
-        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(typed_prefix));
-    if (io_adaptor->IsExist()) {
-      vm_ptr_->template Deserialize<IOADAPTOR_T>(typed_prefix,
-                                                 comm_spec_.fid());
-      fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
-      fragment->template Deserialize<IOADAPTOR_T>(typed_prefix,
-                                                  comm_spec_.fid());
-      return true;
-    } else {
-      return false;
     }
   }
 
@@ -231,31 +293,34 @@ class BasicFragmentLoader {
         std::move(edges_to_frag_[comm_spec_.fid()].buffers()));
     edges_to_frag_[comm_spec_.fid()].Clear();
 
-    vm_ptr_->Init();
-    auto builder = vm_ptr_->GetLocalBuilder();
-    for (auto& buffers : got_vertices_) {
-      foreach_helper(
-          buffers,
-          [&builder](const internal_oid_t& id) { builder.add_vertex(id); },
-          make_index_sequence<1>{});
+    VertexMap<oid_t, vid_t> vm;
+    {
+      VertexMapBuilder<oid_t, vid_t> builder(
+          comm_spec_.fid(), comm_spec_.fnum(), partitioner_, true);
+      for (auto& buffers : got_vertices_) {
+        foreach_helper(
+            buffers,
+            [&builder](const internal_oid_t& id) { builder.add_vertex(id); },
+            make_index_sequence<1>{});
+      }
+      for (auto& buffers : got_edges_) {
+        foreach_helper(
+            buffers,
+            [&builder](const internal_oid_t& src, const internal_oid_t& dst) {
+              builder.add_vertex(src);
+              builder.add_vertex(dst);
+            },
+            make_index_sequence<2>{});
+      }
+      builder.finish(comm_spec_, vm);
     }
-    for (auto& buffers : got_edges_) {
-      foreach_helper(
-          buffers,
-          [&builder](const internal_oid_t& src, const internal_oid_t& dst) {
-            builder.add_vertex(src);
-            builder.add_vertex(dst);
-          },
-          make_index_sequence<2>{});
-    }
-    builder.finish(*vm_ptr_);
 
     processed_vertices_.clear();
     if (!std::is_same<vdata_t, EmptyType>::value) {
       for (auto& buffers : got_vertices_) {
-        foreach_rval(buffers, [this](internal_oid_t&& id, vdata_t&& data) {
+        foreach_rval(buffers, [this, &vm](internal_oid_t&& id, vdata_t&& data) {
           vid_t gid;
-          CHECK(vm_ptr_->_GetGid(id, gid));
+          CHECK(vm.GetGid(oid_t(id), gid));
           processed_vertices_.emplace_back(gid, std::move(data));
         });
       }
@@ -263,18 +328,18 @@ class BasicFragmentLoader {
     got_vertices_.clear();
 
     for (auto& buffers : got_edges_) {
-      foreach_rval(buffers, [this](internal_oid_t&& src, internal_oid_t&& dst,
-                                   edata_t&& data) {
+      foreach_rval(buffers, [this, &vm](internal_oid_t&& src,
+                                        internal_oid_t&& dst, edata_t&& data) {
         vid_t src_gid, dst_gid;
-        CHECK(vm_ptr_->_GetGid(src, src_gid));
-        CHECK(vm_ptr_->_GetGid(dst, dst_gid));
+        CHECK(vm.GetGid(oid_t(src), src_gid));
+        CHECK(vm.GetGid(oid_t(dst), dst_gid));
         processed_edges_.emplace_back(src_gid, dst_gid, std::move(data));
       });
     }
 
-    fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
-    fragment->Init(comm_spec_.fid(), directed, processed_vertices_,
-                   processed_edges_);
+    fragment = std::shared_ptr<fragment_t>(new fragment_t());
+    fragment->Init(comm_spec_.fid(), directed, std::move(vm),
+                   processed_vertices_, processed_edges_);
 
     if (!std::is_same<vdata_t, EmptyType>::value) {
       initOuterVertexData(fragment);
@@ -354,7 +419,7 @@ class BasicFragmentLoader {
 
  private:
   CommSpec comm_spec_;
-  std::shared_ptr<vertex_map_t> vm_ptr_;
+  IPartitioner<oid_t>* partitioner_;
 
   std::vector<ShuffleOut<internal_oid_t, vdata_t>> vertices_to_frag_;
   std::vector<ShuffleOut<internal_oid_t, internal_oid_t, edata_t>>

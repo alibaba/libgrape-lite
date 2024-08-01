@@ -136,6 +136,17 @@ class BlockingQueue {
     }
   }
 
+  bool TryGetAll(std::deque<T>& items) {
+    {
+      std::unique_lock<std::mutex> lk(lock_);
+      if (!queue_.empty()) {
+        std::swap(items, queue_);
+        full_.notify_all();
+      }
+      return (producer_num_ != 0);
+    }
+  }
+
   size_t Size() const { return queue_.size(); }
 
  private:
@@ -156,8 +167,7 @@ class SpinLock {
  public:
   void lock() {
     while (locked.test_and_set(std::memory_order_acquire)) {
-      {
-      }
+      {}
     }
   }
 

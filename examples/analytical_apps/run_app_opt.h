@@ -65,12 +65,11 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
   if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
+  graph_spec.global_vertex_map = true;
   if (FLAGS_segmented_partition) {
-    using VertexMapType =
-        GlobalVertexMap<int64_t, uint32_t, SegmentedPartitioner<int64_t>>;
-    using FRAG_T =
-        ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType, EmptyType,
-                                 load_strategy, VertexMapType>;
+    graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
+    using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
+                                            EmptyType, load_strategy>;
     std::shared_ptr<FRAG_T> fragment =
         LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
     bool push;
@@ -114,6 +113,7 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
     }
   } else {
     graph_spec.set_rebalance(false, 0);
+    graph_spec.partitioner_type = PartitionerType::kHashPartitioner;
     using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
                                             EmptyType, load_strategy>;
     std::shared_ptr<FRAG_T> fragment =
@@ -208,7 +208,7 @@ void RunDirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
       LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
 
   std::pair<int64_t, int64_t> min_max_id =
-      get_min_max_id(*fragment->GetVertexMap());
+      get_min_max_id(fragment->GetVertexMap());
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
     using AppType = CDLPOpt<FRAG_T, int32_t>;
     auto app = std::make_shared<AppType>();
@@ -235,11 +235,9 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
 
-  using VertexMapType =
-      GlobalVertexMap<int64_t, uint32_t, SegmentedPartitioner<int64_t>>;
-  using FRAG_T =
-      ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType, EmptyType,
-                               LoadStrategy::kOnlyOut, VertexMapType>;
+  graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
+  using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
+                                          EmptyType, LoadStrategy::kOnlyOut>;
 
   std::shared_ptr<FRAG_T> fragment =
       LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
@@ -247,7 +245,7 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   double avg_degree = static_cast<double>(FLAGS_edge_num) /
                       static_cast<double>(FLAGS_vertex_num);
   std::pair<int64_t, int64_t> min_max_id =
-      get_min_max_id(*fragment->GetVertexMap());
+      get_min_max_id(fragment->GetVertexMap());
   if (is_int32(min_max_id.first) && is_int32(min_max_id.second)) {
     if (avg_degree > 256) {
       using AppType = CDLPOptUDDense<FRAG_T, int32_t>;
@@ -290,11 +288,9 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
   if (FLAGS_segmented_partition) {
-    using VertexMapType =
-        GlobalVertexMap<int64_t, uint32_t, SegmentedPartitioner<int64_t>>;
-    using FRAG_T =
-        ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType, EDATA_T,
-                                 load_strategy, VertexMapType>;
+    graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
+    using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType,
+                                            EDATA_T, load_strategy>;
     std::shared_ptr<FRAG_T> fragment =
         LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
     using AppType = APP_T<FRAG_T>;
@@ -302,6 +298,7 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
     DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
                                       out_prefix, args...);
   } else {
+    graph_spec.partitioner_type = PartitionerType::kHashPartitioner;
     graph_spec.set_rebalance(false, 0);
     using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType,
                                             EDATA_T, load_strategy>;
