@@ -99,7 +99,7 @@ function BasicTests() {
   RunApp ${np} cdlp_auto --cdlp_mr=10
   ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-CDLP
 
-  RunApp ${np} lcc --serialize=true --serialization_prefix=./serial/${GRAPH}
+  RunApp ${np} lcc --deserialize=true --serialization_prefix=./serial/${GRAPH}
   ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-LCC
 
   RunApp ${np} lcc_auto --deserialize=true --serialization_prefix=./serial/${GRAPH}

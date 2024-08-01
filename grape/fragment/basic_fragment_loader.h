@@ -124,7 +124,8 @@ bool SerializeFragment(std::shared_ptr<FRAG_T>& fragment,
                        const CommSpec& comm_spec, const std::string& efile,
                        const std::string& vfile, const LoadGraphSpec& spec) {
   auto pair = generate_signature<FRAG_T>(efile, vfile, spec);
-  std::string typed_prefix = spec.serialization_prefix + "/" + pair.first;
+  std::string typed_prefix = spec.serialization_prefix + "/" + pair.first +
+                             "/" + "part_" + std::to_string(comm_spec.fnum());
   if (!create_directories(typed_prefix)) {
     LOG(ERROR) << "Failed to create directory: " << typed_prefix << ", "
                << std::strerror(errno);
@@ -161,7 +162,8 @@ bool DeserializeFragment(std::shared_ptr<FRAG_T>& fragment,
                          const CommSpec& comm_spec, const std::string& efile,
                          const std::string& vfile, const LoadGraphSpec& spec) {
   auto pair = generate_signature<FRAG_T>(efile, vfile, spec);
-  std::string typed_prefix = spec.deserialization_prefix + "/" + pair.first;
+  std::string typed_prefix = spec.deserialization_prefix + "/" + pair.first +
+                             "/" + "part_" + std::to_string(comm_spec.fnum());
   std::string sigfile_name = typed_prefix + "/sig";
   if (!exists_file(sigfile_name)) {
     LOG(ERROR) << "Signature file not exists: " << sigfile_name;
@@ -185,10 +187,11 @@ bool DeserializeFragment(std::shared_ptr<FRAG_T>& fragment,
 
   auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(typed_prefix));
   if (io_adaptor->IsExist()) {
-    VertexMap<typename FRAG_T::oid_t, typename FRAG_T::vid_t> vm;
-    vm.template Deserialize<IOADAPTOR_T>(typed_prefix, comm_spec);
+    std::unique_ptr<VertexMap<typename FRAG_T::oid_t, typename FRAG_T::vid_t>>
+        vm_ptr(new VertexMap<typename FRAG_T::oid_t, typename FRAG_T::vid_t>());
+    vm_ptr->template Deserialize<IOADAPTOR_T>(typed_prefix, comm_spec);
     fragment = std::shared_ptr<FRAG_T>(new FRAG_T());
-    fragment->template Deserialize<IOADAPTOR_T>(std::move(vm), typed_prefix,
+    fragment->template Deserialize<IOADAPTOR_T>(std::move(vm_ptr), typed_prefix,
                                                 comm_spec.fid());
     return true;
   } else {
@@ -293,7 +296,8 @@ class BasicFragmentLoader {
         std::move(edges_to_frag_[comm_spec_.fid()].buffers()));
     edges_to_frag_[comm_spec_.fid()].Clear();
 
-    VertexMap<oid_t, vid_t> vm;
+    std::unique_ptr<VertexMap<oid_t, vid_t>> vm_ptr(
+        new VertexMap<oid_t, vid_t>());
     {
       VertexMapBuilder<oid_t, vid_t> builder(
           comm_spec_.fid(), comm_spec_.fnum(), partitioner_, true);
@@ -312,33 +316,35 @@ class BasicFragmentLoader {
             },
             make_index_sequence<2>{});
       }
-      builder.finish(comm_spec_, vm);
+      builder.finish(comm_spec_, *vm_ptr);
     }
 
     processed_vertices_.clear();
     if (!std::is_same<vdata_t, EmptyType>::value) {
       for (auto& buffers : got_vertices_) {
-        foreach_rval(buffers, [this, &vm](internal_oid_t&& id, vdata_t&& data) {
-          vid_t gid;
-          CHECK(vm.GetGid(oid_t(id), gid));
-          processed_vertices_.emplace_back(gid, std::move(data));
-        });
+        foreach_rval(buffers,
+                     [this, &vm_ptr](internal_oid_t&& id, vdata_t&& data) {
+                       vid_t gid;
+                       CHECK(vm_ptr->GetGid(oid_t(id), gid));
+                       processed_vertices_.emplace_back(gid, std::move(data));
+                     });
       }
     }
     got_vertices_.clear();
 
     for (auto& buffers : got_edges_) {
-      foreach_rval(buffers, [this, &vm](internal_oid_t&& src,
-                                        internal_oid_t&& dst, edata_t&& data) {
-        vid_t src_gid, dst_gid;
-        CHECK(vm.GetGid(oid_t(src), src_gid));
-        CHECK(vm.GetGid(oid_t(dst), dst_gid));
-        processed_edges_.emplace_back(src_gid, dst_gid, std::move(data));
-      });
+      foreach_rval(
+          buffers, [this, &vm_ptr](internal_oid_t&& src, internal_oid_t&& dst,
+                                   edata_t&& data) {
+            vid_t src_gid, dst_gid;
+            CHECK(vm_ptr->GetGid(oid_t(src), src_gid));
+            CHECK(vm_ptr->GetGid(oid_t(dst), dst_gid));
+            processed_edges_.emplace_back(src_gid, dst_gid, std::move(data));
+          });
     }
 
     fragment = std::shared_ptr<fragment_t>(new fragment_t());
-    fragment->Init(comm_spec_.fid(), directed, std::move(vm),
+    fragment->Init(comm_spec_.fid(), directed, std::move(vm_ptr),
                    processed_vertices_, processed_edges_);
 
     if (!std::is_same<vdata_t, EmptyType>::value) {

@@ -22,6 +22,7 @@ limitations under the License.
 #include <grape/graph/edge.h>
 #include <grape/graph/vertex.h>
 #include <grape/utils/concurrent_queue.h>
+#include <grape/vertex_map/vertex_map_beta.h>
 #include <grape/worker/comm_spec.h>
 
 namespace grape {
@@ -59,10 +60,6 @@ class BasicFragmentMutator {
   }
 
   ~BasicFragmentMutator() = default;
-
-  void SetPartitioner(IPartitioner<oid_t>* partitioner) {
-    partitioner_ = partitioner;
-  }
 
   void AddVerticesToRemove(const std::vector<vid_t>& id_vec) {
     if (parsed_vertices_to_remove_.empty()) {
@@ -126,6 +123,7 @@ class BasicFragmentMutator {
       shuf.Flush();
     }
     recv_thread_.join();
+    MPI_Barrier(comm_spec_.comm());
     got_vertices_to_add_.emplace_back(
         std::move(vertices_to_add_[comm_spec_.fid()].buffers()));
     got_vertices_to_remove_.emplace_back(
@@ -189,22 +187,15 @@ class BasicFragmentMutator {
     got_vertices_to_update_.clear();
 
     std::vector<oid_t> local_vertices_to_add;
-    std::vector<oid_t> remote_vertices_to_add;
 
     for (auto& buffers : got_vertices_to_add_) {
-      foreach(buffers, [this, &vertices_to_add](const internal_oid_t& id) {
+      foreach(buffers, [this, &local_vertices_to_add](const internal_oid_t& id,
+                                                      const vdata_t& data) {
         local_vertices_to_add.emplace_back(oid_t(id));
       });
     }
-    for (auto& buffers : got_vertices_to_add_) {
-      foreach_rval(buffers, [this, &vertices_to_add](internal_oid_t&& id,
-                                                     vdata_t&& data) {
-        remote_vertices_to_add.emplace_back(oid_t(id));
-      });
-    }
 
-    vm_.ExtendVertices(comm_spec_, std::move(local_vertices_to_add),
-                       std::move(remote_vertices_to_add));
+    vm_.ExtendVertices(comm_spec_, std::move(local_vertices_to_add));
 
     for (auto& buffers : got_vertices_to_add_) {
       foreach_rval(buffers, [this](internal_oid_t&& id, vdata_t&& data) {
@@ -278,7 +269,7 @@ class BasicFragmentMutator {
   }
 
   void AddVertex(const internal_oid_t& id, const vdata_t& data) {
-    fid_t fid = vm_.GetFragmentId(id);
+    fid_t fid = vm_.GetFragmentId(oid_t(id));
     vertices_to_add_[fid].Emplace(id, data);
   }
 
@@ -295,8 +286,8 @@ class BasicFragmentMutator {
 
   void AddEdge(const internal_oid_t& src, const internal_oid_t& dst,
                const edata_t& data) {
-    fid_t src_fid = vm_.GetFragmentId(src);
-    fid_t dst_fid = vm_.GetFragmentId(dst);
+    fid_t src_fid = vm_.GetFragmentId(oid_t(src));
+    fid_t dst_fid = vm_.GetFragmentId(oid_t(dst));
     edges_to_add_[src_fid].Emplace(src, dst, data);
     if (src_fid != dst_fid) {
       edges_to_add_[dst_fid].Emplace(src, dst, data);
@@ -485,6 +476,7 @@ class BasicFragmentMutator {
   }
 
   CommSpec comm_spec_;
+
   std::shared_ptr<fragment_t> fragment_;
 
   std::thread recv_thread_;

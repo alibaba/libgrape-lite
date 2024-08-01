@@ -38,6 +38,8 @@ class VertexMap {
     return partitioner_->GetPartitionId(internal_oid);
   }
 
+  const IdParser<VID_T>& GetIdParser() const { return id_parser_; }
+
   VID_T Lid2Gid(fid_t fid, const VID_T& lid) const {
     return id_parser_.generate_global_id(fid, lid);
   }
@@ -98,8 +100,7 @@ class VertexMap {
   }
 
   void ExtendVertices(const CommSpec& comm_spec,
-                      std::vector<OID_T>&& local_vertices_to_add,
-                      std::vector<OID_T>&& remote_vertices_to_add) {
+                      std::vector<OID_T>&& local_vertices_to_add) {
     int worker_id = comm_spec.worker_id();
     int worker_num = comm_spec.worker_num();
     if (is_global_) {

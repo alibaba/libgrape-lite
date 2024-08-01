@@ -214,10 +214,11 @@ class ImmutableEdgecutFragment
     return ret;
   }
 
-  void Init(fid_t fid, bool directed, VertexMap<OID_T, VID_T>&& vm,
+  void Init(fid_t fid, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
             std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid, directed, std::move(vm));
+    init(fid, directed, std::move(vm_ptr));
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
@@ -381,10 +382,9 @@ class ImmutableEdgecutFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(VertexMap<OID_T, VID_T>&& vm, const std::string& prefix,
-                   const fid_t fid) {
-    vm_ptr_ = std::make_shared<VertexMap<OID_T, VID_T>>();
-    *vm_ptr_ = std::move(vm);
+  void Deserialize(std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string& prefix, const fid_t fid) {
+    vm_ptr_ = std::move(vm_ptr);
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), kSerializationFilenameFormat, prefix.c_str(),
              fid);
@@ -393,8 +393,6 @@ class ImmutableEdgecutFragment
     io_adaptor->Open();
 
     base_t::deserialize(io_adaptor);
-    fnum_ = vm_ptr_->GetFragmentNum();
-    id_parser_.init(fnum_);
 
     OutArchive oa;
     int ils;

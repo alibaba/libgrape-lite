@@ -131,7 +131,8 @@ class EVFragmentRebalanceLoader {
       LOG(FATAL) << "Unsupported partitioner type.";
     }
 
-    VertexMap<oid_t, vid_t> vm;
+    std::unique_ptr<VertexMap<oid_t, vid_t>> vm_ptr(
+        new VertexMap<oid_t, vid_t>);
     {
       VertexMapBuilder<oid_t, vid_t> builder(comm_spec_.fid(),
                                              comm_spec_.fnum(), partitioner,
@@ -140,8 +141,9 @@ class EVFragmentRebalanceLoader {
         internal_oid_t oid(id);
         builder.add_vertex(oid);
       }
-      builder.finish(comm_spec_, vm);
+      builder.finish(comm_spec_, *vm_ptr);
     }
+    const IdParser<vid_t>& id_parser = vm_ptr->GetIdParser();
 
     std::vector<vid_t> src_list, dst_list;
     std::vector<edata_t> edata_list;
@@ -173,8 +175,8 @@ class EVFragmentRebalanceLoader {
           continue;
         }
 
-        CHECK(vm.GetGid(src, src_gid));
-        CHECK(vm.GetGid(dst, dst_gid));
+        CHECK(vm_ptr->GetGid(src, src_gid));
+        CHECK(vm_ptr->GetGid(dst, dst_gid));
 
         src_list.push_back(src_gid);
         dst_list.push_back(dst_gid);
@@ -186,19 +188,19 @@ class EVFragmentRebalanceLoader {
     std::vector<std::vector<int>> degree_lists(fnum);
     std::vector<std::vector<vid_t>> gid_map(fnum);
     for (fid_t i = 0; i < fnum; ++i) {
-      degree_lists[i].resize(vm.GetInnerVertexSize(i), 0);
-      gid_map[i].resize(vm.GetInnerVertexSize(i));
+      degree_lists[i].resize(vm_ptr->GetInnerVertexSize(i), 0);
+      gid_map[i].resize(vm_ptr->GetInnerVertexSize(i));
     }
 
     for (auto v : src_list) {
-      fid_t fid = vm.GetFidFromGid(v);
-      vid_t lid = vm.GetLidFromGid(v);
+      fid_t fid = id_parser.get_fragment_id(v);
+      vid_t lid = id_parser.get_local_id(v);
       ++degree_lists[fid][lid];
     }
     if (!spec.directed) {
       for (auto v : dst_list) {
-        fid_t fid = vm.GetFidFromGid(v);
-        vid_t lid = vm.GetLidFromGid(v);
+        fid_t fid = id_parser.get_fragment_id(v);
+        vid_t lid = id_parser.get_local_id(v);
         ++degree_lists[fid][lid];
       }
     }
@@ -240,7 +242,7 @@ class EVFragmentRebalanceLoader {
         enum_before[i] += degree_lists[i][j];
         scores_after[mapped_fid] += v_score;
         enum_after[mapped_fid] += degree_lists[i][j];
-        gid_map[i][j] = vm.Lid2Gid(mapped_fid, mapped_lid);
+        gid_map[i][j] = id_parser.generate_global_id(mapped_fid, mapped_lid);
         ++cur_num;
         if (cur_score >= expected_score) {
           ++mapped_fid;
@@ -272,17 +274,17 @@ class EVFragmentRebalanceLoader {
     }
 
     for (auto& v : src_list) {
-      fid_t fid = vm.GetFidFromGid(v);
-      vid_t lid = vm.GetLidFromGid(v);
+      fid_t fid = id_parser.get_fragment_id(v);
+      vid_t lid = id_parser.get_local_id(v);
       v = gid_map[fid][lid];
     }
     for (auto& v : dst_list) {
-      fid_t fid = vm.GetFidFromGid(v);
-      vid_t lid = vm.GetLidFromGid(v);
+      fid_t fid = id_parser.get_fragment_id(v);
+      vid_t lid = id_parser.get_local_id(v);
       v = gid_map[fid][lid];
     }
 
-    vm.UpdateToBalance(comm_spec_, vnum_list, gid_map);
+    vm_ptr->UpdateToBalance(comm_spec_, vnum_list, gid_map);
 
     std::vector<ShuffleOut<vid_t, vid_t, edata_t>> edges_to_frag(fnum);
     for (fid_t i = 0; i < fnum; ++i) {
@@ -318,8 +320,8 @@ class EVFragmentRebalanceLoader {
 
     size_t local_enum = src_list.size();
     for (size_t i = 0; i < local_enum; ++i) {
-      fid_t src_fid = vm.GetFidFromGid(src_list[i]);
-      fid_t dst_fid = vm.GetFidFromGid(dst_list[i]);
+      fid_t src_fid = id_parser.get_fragment_id(src_list[i]);
+      fid_t dst_fid = id_parser.get_fragment_id(dst_list[i]);
       edges_to_frag[src_fid].Emplace(src_list[i], dst_list[i], edata_list[i]);
       if (src_fid != dst_fid) {
         edges_to_frag[dst_fid].Emplace(src_list[i], dst_list[i], edata_list[i]);
@@ -342,8 +344,8 @@ class EVFragmentRebalanceLoader {
     if (!std::is_same<vdata_t, EmptyType>::value) {
       for (size_t i = 0; i < vertex_num; ++i) {
         vid_t gid;
-        CHECK(vm.GetGid(id_list[i], gid));
-        fid_t fid = vm.GetFidFromGid(gid);
+        CHECK(vm_ptr->GetGid(id_list[i], gid));
+        fid_t fid = id_parser.get_fragment_id(gid);
         if (fid == comm_spec_.fid()) {
           processed_vertices.emplace_back(gid, vdata_list[i]);
         }
@@ -351,7 +353,7 @@ class EVFragmentRebalanceLoader {
     }
 
     fragment = std::shared_ptr<fragment_t>(new fragment_t());
-    fragment->Init(comm_spec_.fid(), spec.directed, std::move(vm),
+    fragment->Init(comm_spec_.fid(), spec.directed, std::move(vm_ptr),
                    processed_vertices, processed_edges);
 
     if (!std::is_same<vdata_t, EmptyType>::value) {

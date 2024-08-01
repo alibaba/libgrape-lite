@@ -147,11 +147,14 @@ class MutableEdgecutFragment
     }
 
     ret += ">";
+    return ret;
   }
 
-  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+            std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid, directed);
+    init(fid, directed, std::move(vm_ptr));
 
     ovnum_ = 0;
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
@@ -232,7 +235,7 @@ class MutableEdgecutFragment
   using base_t::Gid2Lid;
   using base_t::ie_;
   using base_t::oe_;
-  using base_t::vm_;
+  using base_t::vm_ptr_;
   void Mutate(Mutation<vid_t, vdata_t, edata_t>& mutation) {
     vertex_t v;
     if (!mutation.vertices_to_remove.empty() &&
@@ -351,7 +354,7 @@ class MutableEdgecutFragment
       } else {
         LOG(FATAL) << "Invalid load strategy";
       }
-      vid_t new_ivnum = vm_.GetInnerVertexSize(fid_);
+      vid_t new_ivnum = vm_ptr_->GetInnerVertexSize(fid_);
       vid_t new_ovnum = ovgid_.size();
       this->inner_vertices_.SetRange(0, new_ivnum);
       this->outer_vertices_.SetRange(id_parser_.max_local_id() - new_ovnum,
@@ -430,7 +433,9 @@ class MutableEdgecutFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const std::string& prefix, const fid_t fid) {
+  void Deserialize(std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string& prefix, const fid_t fid) {
+    vm_ptr_ = std::move(vm_ptr);
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), kSerializationFilenameFormat, prefix.c_str(),
              fid);

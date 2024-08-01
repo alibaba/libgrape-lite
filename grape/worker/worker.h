@@ -23,6 +23,7 @@ limitations under the License.
 #include <type_traits>
 #include <utility>
 
+#include "grape/app/mutation_context.h"
 #include "grape/communication/communicator.h"
 #include "grape/config.h"
 #include "grape/parallel/auto_parallel_message_manager.h"
@@ -86,8 +87,6 @@ class Worker {
   template <class... Args>
   void Query(Args&&... args) {
     double t = GetCurrentTime();
-
-    // MPI_Barrier(comm_spec_.comm());
 
     context_->Init(messages_, std::forward<Args>(args)...);
     processMutation();
@@ -173,7 +172,18 @@ class Worker {
     app_->IncEval(graph, *context_, messages_);
   }
 
-  void processMutation() {}
+  template <typename T = context_t>
+  typename std::enable_if<
+      std::is_base_of<MutationContext<fragment_t>, T>::value>::type
+  processMutation() {
+    context_->apply_mutation(fragment_, comm_spec_);
+    fragment_->PrepareToRunApp(comm_spec_, prepare_conf_);
+  }
+
+  template <typename T = context_t>
+  typename std::enable_if<
+      !std::is_base_of<MutationContext<fragment_t>, T>::value>::type
+  processMutation() {}
 
   std::shared_ptr<APP_T> app_;
   std::shared_ptr<context_t> context_;

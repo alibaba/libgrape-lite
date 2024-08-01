@@ -57,17 +57,18 @@ class FragmentBase {
       typename TRAITS_T::fragment_const_adj_list_t;
 
   FragmentBase() : vm_ptr_(nullptr) {}
+  virtual ~FragmentBase() {}
 
   VertexMap<OID_T, VID_T>& GetVertexMap() { return *vm_ptr_; }
   const VertexMap<OID_T, VID_T>& GetVertexMap() const { return *vm_ptr_; }
 
  protected:
-  void init(fid_t fid, bool directed, VertexMap<OID_T, VID_T>&& vm) {
+  void init(fid_t fid, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr) {
     fid_ = fid;
     directed_ = directed;
-    fnum_ = vm.GetFragmentNum();
-    vm_ptr_ = std::make_shared<VertexMap<OID_T, VID_T>>();
-    *vm_ptr_ = std::move(vm);
+    fnum_ = vm_ptr->GetFragmentNum();
+    vm_ptr_ = std::move(vm_ptr);
     id_parser_.init(fnum_);
     ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
   }
@@ -80,7 +81,8 @@ class FragmentBase {
    * @param vertices A set of vertices.
    * @param edges A set of edges.
    */
-  virtual void Init(fid_t fid, bool directed, VertexMap<OID_T, VID_T>&& vm,
+  virtual void Init(fid_t fid, bool directed,
+                    std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
                     std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
                     std::vector<Edge<VID_T, EDATA_T>>& edges) = 0;
 
@@ -307,7 +309,7 @@ class FragmentBase {
   template <typename IOADAPTOR_T>
   void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
     InArchive arc;
-    arc << fid_ << directed_ << ivnum_ << vertices_;
+    arc << fid_ << fnum_ << directed_ << ivnum_ << vertices_;
     CHECK(writer->WriteArchive(arc));
   }
 
@@ -315,7 +317,8 @@ class FragmentBase {
   void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));
-    arc >> fid_ >> directed_ >> ivnum_ >> vertices_;
+    arc >> fid_ >> fnum_ >> directed_ >> ivnum_ >> vertices_;
+    id_parser_.init(fnum_);
   }
 
   fid_t fid_, fnum_;
@@ -323,7 +326,7 @@ class FragmentBase {
   VID_T ivnum_;
 
   vertices_t vertices_;
-  std::shared_ptr<VertexMap<OID_T, VID_T>> vm_ptr_;
+  std::unique_ptr<VertexMap<OID_T, VID_T>> vm_ptr_;
 
   IdParser<VID_T> id_parser_;
 };
