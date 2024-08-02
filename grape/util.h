@@ -23,7 +23,10 @@ limitations under the License.
 #endif
 
 #include <limits.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <openssl/md5.h>
+#pragma GCC diagnostic pop
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/time.h>
