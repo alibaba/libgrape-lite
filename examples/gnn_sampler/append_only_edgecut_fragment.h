@@ -325,7 +325,7 @@ class AppendOnlyEdgecutFragment
   /** Constructor.
    * @param vm_ptr the vertex map.
    */
-  explicit AppendOnlyEdgecutFragment()
+  AppendOnlyEdgecutFragment()
       : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
 
   virtual ~AppendOnlyEdgecutFragment() {}

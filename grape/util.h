@@ -176,7 +176,7 @@ inline std::string compute_md5(const std::vector<std::string>& inputs) {
 
 inline bool create_directories(const std::string& path) {
   char temp_path[256];
-  std::strcpy(temp_path, path.c_str());
+  snprintf(temp_path, sizeof(temp_path), "%s", path.c_str());
 
   for (char* p = temp_path + 1; *p; ++p) {
     if (*p == '/') {
