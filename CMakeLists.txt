@@ -268,6 +268,16 @@ if (NOT GFLAGS_FOUND)
 elseif (NOT RDKAFKA_FOUND)
   message(WARNING "Disable gnn_sampler because rdkafka not found")
 else ()
+  add_executable(gnn_sampler examples/gnn_sampler/run_sampler.cc)
+  set_target_properties(gnn_sampler PROPERTIES OUTPUT_NAME run_sampler)
+  target_include_directories(gnn_sampler PRIVATE
+                            examples/gnn_sampler
+                            examples/gnn_sampler/thirdparty
+                            ${RDKAFKA_INCLUDE_DIR})
+  target_link_libraries(gnn_sampler grape-lite ${MPI_CXX_LIBRARIES}
+                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} 
+                        ${RDKAFKA_LIBRARIES} OpenSSL::SSL OpenSSL::Crypto)
+  install_libgrapelite_target(gnn_sampler)
 endif ()
 
 set(EXAMPLES_DIR ${PROJECT_SOURCE_DIR}/examples)

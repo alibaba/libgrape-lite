@@ -66,59 +66,15 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
   graph_spec.global_vertex_map = true;
-  if (FLAGS_segmented_partition) {
-    graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
-    using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
-                                            EmptyType, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    bool push;
-    if (fragment->fnum() >= 8) {
-      uint64_t local_ivnum = fragment->GetInnerVerticesNum();
-      uint64_t local_ovnum = fragment->GetOuterVerticesNum();
-      uint64_t total_ivnum, total_ovnum;
-      MPI_Allreduce(&local_ivnum, &total_ivnum, 1, MPI_UINT64_T, MPI_SUM,
-                    comm_spec.comm());
-      MPI_Allreduce(&local_ovnum, &total_ovnum, 1, MPI_UINT64_T, MPI_SUM,
-                    comm_spec.comm());
+  graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
 
-      double avg_degree = static_cast<double>(FLAGS_edge_num) /
-                          static_cast<double>(FLAGS_vertex_num);
-      double rate =
-          static_cast<double>(total_ovnum) / static_cast<double>(total_ivnum);
+  using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
+                                          EmptyType, load_strategy>;
+  std::shared_ptr<FRAG_T> fragment =
+      LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
 
-      if (rate < 0.5) {
-        // not to many outer vertices
-        push = true;
-      } else if (avg_degree > 60) {
-        // dense
-        push = true;
-      } else {
-        push = false;
-      }
-    } else {
-      push = true;
-    }
-
-    if (!push) {
-      using AppType = PageRankOpt<FRAG_T>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
-                                            out_prefix, delta, mr);
-    } else {
-      using AppType = PageRankPushOpt<FRAG_T>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
-                                            out_prefix, delta, mr);
-    }
-  } else {
-    graph_spec.set_rebalance(false, 0);
-    graph_spec.partitioner_type = PartitionerType::kHashPartitioner;
-    using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
-                                            EmptyType, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-
+  bool push;
+  if (fragment->fnum() >= 8) {
     uint64_t local_ivnum = fragment->GetInnerVerticesNum();
     uint64_t local_ovnum = fragment->GetOuterVerticesNum();
     uint64_t total_ivnum, total_ovnum;
@@ -127,18 +83,34 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
     MPI_Allreduce(&local_ovnum, &total_ovnum, 1, MPI_UINT64_T, MPI_SUM,
                   comm_spec.comm());
 
-    if (static_cast<double>(total_ovnum) >
-        static_cast<double>(total_ivnum) * 3.2) {
-      using AppType = PageRank<FRAG_T>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
-                                            out_prefix, delta, mr);
+    double avg_degree = static_cast<double>(FLAGS_edge_num) /
+                        static_cast<double>(FLAGS_vertex_num);
+    double rate =
+        static_cast<double>(total_ovnum) / static_cast<double>(total_ivnum);
+
+    if (rate < 0.5) {
+      // not to many outer vertices
+      push = true;
+    } else if (avg_degree > 60) {
+      // dense
+      push = true;
     } else {
-      using AppType = PageRankPushOpt<FRAG_T>;
-      auto app = std::make_shared<AppType>();
-      DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
-                                            out_prefix, delta, mr);
+      push = false;
     }
+  } else {
+    push = true;
+  }
+
+  if (!push) {
+    using AppType = PageRankOpt<FRAG_T>;
+    auto app = std::make_shared<AppType>();
+    DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
+                                          out_prefix, delta, mr);
+  } else {
+    using AppType = PageRankPushOpt<FRAG_T>;
+    auto app = std::make_shared<AppType>();
+    DoQuery<FRAG_T, AppType, double, int>(fragment, app, comm_spec, spec,
+                                          out_prefix, delta, mr);
   }
 }
 
@@ -289,26 +261,18 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
   }
   if (FLAGS_segmented_partition) {
     graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
-    using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType,
-                                            EDATA_T, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using AppType = APP_T<FRAG_T>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                      out_prefix, args...);
   } else {
     graph_spec.partitioner_type = PartitionerType::kHashPartitioner;
     graph_spec.set_rebalance(false, 0);
-    using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType,
-                                            EDATA_T, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using AppType = APP_T<FRAG_T>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                      out_prefix, args...);
   }
+  using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType,
+                                          EDATA_T, load_strategy>;
+  std::shared_ptr<FRAG_T> fragment =
+      LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
+  using AppType = APP_T<FRAG_T>;
+  auto app = std::make_shared<AppType>();
+  DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec, out_prefix,
+                                    args...);
 }
 
 void RunOpt() {
