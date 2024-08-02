@@ -189,8 +189,8 @@ class BasicFragmentMutator {
     std::vector<oid_t> local_vertices_to_add;
 
     for (auto& buffers : got_vertices_to_add_) {
-      foreach(buffers, [this, &local_vertices_to_add](const internal_oid_t& id,
-                                                      const vdata_t& data) {
+      foreach(buffers, [&local_vertices_to_add](const internal_oid_t& id,
+                                                const vdata_t& data) {
         local_vertices_to_add.emplace_back(oid_t(id));
       });
     }

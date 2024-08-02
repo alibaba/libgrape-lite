@@ -42,7 +42,7 @@ class LockFreeQueue {
     for (size_t i = _head; i != _tail; ++i)
       (&_queue[i & _capacityMask].data)->~T();
 
-    delete[] reintrepret_cast<char*>(_queue);
+    delete[] (reinterpret_cast<char*>(_queue));
   }
 
   size_t capacity() const { return _capacity; }
