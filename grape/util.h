@@ -23,10 +23,7 @@ limitations under the License.
 #endif
 
 #include <limits.h>
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#include <openssl/md5.h>
-#pragma GCC diagnostic pop
+#include <openssl/sha.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -161,17 +158,17 @@ inline std::string get_absolute_path(const std::string& path) {
 }
 
 inline std::string compute_md5(const std::vector<std::string>& inputs) {
-  MD5_CTX ctx;
-  MD5_Init(&ctx);
+  SHA256_CTX ctx;
+  SHA256_Init(&ctx);
   for (const auto& input : inputs) {
-    MD5_Update(&ctx, input.c_str(), input.size());
+    SHA256_Update(&ctx, input.c_str(), input.size());
   }
-  unsigned char md[MD5_DIGEST_LENGTH];
-  MD5_Final(md, &ctx);
+  unsigned char md[SHA256_DIGEST_LENGTH];
+  SHA256_Final(md, &ctx);
 
   std::stringstream ss;
   ss << std::hex << std::setfill('0');
-  for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
+  for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
     ss << std::setw(2) << static_cast<int>(md[i]);
   }
   return ss.str();
