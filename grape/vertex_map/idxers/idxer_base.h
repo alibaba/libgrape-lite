@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_VERTEX_MAP_IDXRES_IDXER_BASE_H_
-#define GRAPE_VERTEX_MAP_IDXRES_IDXER_BASE_H_
+#ifndef GRAPE_VERTEX_MAP_IDXERS_IDXER_BASE_H_
+#define GRAPE_VERTEX_MAP_IDXERS_IDXER_BASE_H_
 
 #include "grape/worker/comm_spec.h"
 
@@ -72,4 +72,4 @@ void serialize_idxer(std::unique_ptr<IOAdaptorBase>& writer,
 
 }  // namespace grape
 
-#endif  // GRAPE_VERTEX_MAP_IDXRES_IDXER_BASE_H_
+#endif  // GRAPE_VERTEX_MAP_IDXERS_IDXER_BASE_H_
