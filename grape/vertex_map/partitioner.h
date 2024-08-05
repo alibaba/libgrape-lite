@@ -37,9 +37,9 @@ class IPartitioner {
 
   virtual void SetPartitionId(const internal_oid_t& oid, fid_t fid) = 0;
 
-  virtual void serialize(IOAdaptorBase* writer) = 0;
+  virtual void serialize(std::unique_ptr<IOAdaptorBase>& writer) = 0;
 
-  virtual void deserialize(IOAdaptorBase* reader) = 0;
+  virtual void deserialize(std::unique_ptr<IOAdaptorBase>& reader) = 0;
 
   virtual PartitionerType type() const = 0;
 };
@@ -62,11 +62,11 @@ class HashPartitionerBeta : public IPartitioner<OID_T> {
     }
   }
 
-  void serialize(IOAdaptorBase* writer) override {
+  void serialize(std::unique_ptr<IOAdaptorBase>& writer) override {
     CHECK(writer->Write(&fnum_, sizeof(fid_t)));
   }
 
-  void deserialize(IOAdaptorBase* reader) override {
+  void deserialize(std::unique_ptr<IOAdaptorBase>& reader) override {
     CHECK(reader->Read(&fnum_, sizeof(fid_t)));
   }
 
@@ -123,13 +123,13 @@ class MapPartitioner : public IPartitioner<OID_T> {
     o2f_[OID_T(oid)] = fid;
   }
 
-  void serialize(IOAdaptorBase* writer) override {
+  void serialize(std::unique_ptr<IOAdaptorBase>& writer) override {
     InArchive arc;
     arc << o2f_;
     CHECK(writer->WriteArchive(arc));
   }
 
-  void deserialize(IOAdaptorBase* reader) override {
+  void deserialize(std::unique_ptr<IOAdaptorBase>& reader) override {
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));
     arc >> o2f_;
@@ -144,7 +144,7 @@ class MapPartitioner : public IPartitioner<OID_T> {
 };
 
 template <typename OID_T>
-void serialize_partitioner(IOAdaptorBase* writer,
+void serialize_partitioner(std::unique_ptr<IOAdaptorBase>& writer,
                            std::unique_ptr<IPartitioner<OID_T>>& partitioner) {
   int type = static_cast<int>(partitioner->type());
   writer->Write(&type, sizeof(type));
@@ -153,7 +153,7 @@ void serialize_partitioner(IOAdaptorBase* writer,
 
 template <typename OID_T>
 std::unique_ptr<IPartitioner<OID_T>> deserialize_partitioner(
-    IOAdaptorBase* reader) {
+    std::unique_ptr<IOAdaptorBase>& reader) {
   int type;
   reader->Read(&type, sizeof(type));
   std::unique_ptr<IPartitioner<OID_T>> partitioner(nullptr);

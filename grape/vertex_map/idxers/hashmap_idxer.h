@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef GRAPE_VERTEX_MAP_IDXERS_HASHMAP_IDXER_H_
 #define GRAPE_VERTEX_MAP_IDXERS_HASHMAP_IDXER_H_
 
+#include "grape/graph/id_indexer.h"
 #include "grape/vertex_map/idxers/idxer_base.h"
 
 namespace grape {
@@ -39,14 +40,40 @@ class HashMapIdxer : public IdxerBase<OID_T, VID_T> {
 
   IdxerType type() const override { return IdxerType::kHashMapIdxer; }
 
-  void serialize(IOAdaptorBase* writer) override { indexer_.Serialize(writer); }
-  void deserialize(IOAdaptorBase* reader) override {
+  void serialize(std::unique_ptr<IOAdaptorBase>& writer) override {
+    indexer_.Serialize(writer);
+  }
+  void deserialize(std::unique_ptr<IOAdaptorBase>& reader) override {
     indexer_.Deserialize(reader);
   }
 
   size_t size() const override { return indexer_.size(); }
 
   void add(const internal_oid_t& oid) { indexer_._add(oid); }
+
+ private:
+  IdIndexer<internal_oid_t, VID_T> indexer_;
+};
+
+template <typename OID_T, typename VID_T>
+class HashMapIdxerDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
+ public:
+  using internal_oid_t = typename InternalOID<OID_T>::type;
+  void add(const internal_oid_t& oid) override {}
+
+  IdxerBase<OID_T, VID_T>* finish() override {
+    return new HashMapIdxer<OID_T, VID_T>(std::move(indexer_));
+  }
+
+  void sync_request(const CommSpec& comm_spec, int target, int tag) override {
+    int req_type = 0;
+    sync_comm::Send(req_type, target, tag, comm_spec.comm());
+    sync_comm::Recv(indexer_, target, tag + 1, comm_spec.comm());
+  }
+  void sync_response(const CommSpec& comm_spec, int source, int tag) override {
+    LOG(ERROR)
+        << "HashMapIdxerDummyBuilder should not be used to sync response";
+  }
 
  private:
   IdIndexer<internal_oid_t, VID_T> indexer_;
@@ -77,9 +104,10 @@ class HashMapIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
       typename IdIndexer<OID_T, VID_T>::key_buffer_t keys;
       sync_comm::Recv(keys, source, tag, comm_spec.comm());
       std::vector<VID_T> response;
-      for (auto& key : keys) {
+      size_t keys_num = keys.size();
+      for (size_t i = 0; i < keys_num; ++i) {
         VID_T vid;
-        if (indexer_.get_index(key, vid)) {
+        if (indexer_.get_index(keys.get(i), vid)) {
           response.push_back(vid);
         } else {
           response.push_back(std::numeric_limits<VID_T>::max());

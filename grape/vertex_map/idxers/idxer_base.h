@@ -16,14 +16,15 @@ limitations under the License.
 #ifndef GRAPE_VERTEX_MAP_IDXRES_IDXER_BASE_H_
 #define GRAPE_VERTEX_MAP_IDXRES_IDXER_BASE_H_
 
+#include "grape/worker/comm_spec.h"
+
 namespace grape {
 
 enum class IdxerType {
   kHashMapIdxer,
   kLocalIdxer,
-  kPerfectHashIdxer,
+  kPTHashIdxer,
   kHashMapIdxerView,
-  kPerfectHashIdxerView,
 };
 
 template <typename OID_T, typename VID_T>
@@ -41,8 +42,8 @@ class IdxerBase {
 
   virtual size_t size() const = 0;
 
-  virtual void serialize(IOAdaptorBase* writer) = 0;
-  virtual void deserialize(IOAdaptorBase* reader) = 0;
+  virtual void serialize(std::unique_ptr<IOAdaptorBase>& writer) = 0;
+  virtual void deserialize(std::unique_ptr<IOAdaptorBase>& reader) = 0;
 };
 
 template <typename OID_T, typename VID_T>
@@ -60,6 +61,14 @@ class IdxerBuilderBase {
   virtual void sync_response(const CommSpec& comm_spec, int source,
                              int tag) = 0;
 };
+
+template <typename OID_T, typename VID_T>
+void serialize_idxer(std::unique_ptr<IOAdaptorBase>& writer,
+                     IdxerBase<OID_T, VID_T>* idxer) {
+  int type = static_cast<int>(idxer->type());
+  writer->Write(&type, sizeof(type));
+  idxer->serialize(writer);
+}
 
 }  // namespace grape
 

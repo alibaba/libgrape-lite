@@ -20,7 +20,7 @@ limitations under the License.
 
 #include "grape/fragment/id_parser.h"
 #include "grape/util.h"
-#include "grape/vertex_map/idxer.h"
+#include "grape/vertex_map/idxers/idxers.h"
 #include "grape/vertex_map/partitioner.h"
 
 namespace grape {
@@ -264,7 +264,7 @@ class VertexMap {
  private:
   template <typename IOADAPTOR>
   void serialize_impl(const std::string& path) {
-    auto io_adaptor = new IOADAPTOR(path);
+    auto io_adaptor = std::unique_ptr<IOAdaptorBase>(new IOADAPTOR(path));
     io_adaptor->Open("wb");
     InArchive arc;
     arc << fnum_ << total_vertex_size_ << inner_vertex_size_;
@@ -273,12 +273,11 @@ class VertexMap {
       serialize_idxer<OID_T, VID_T>(io_adaptor, idxers_[fid]);
     }
     serialize_partitioner<OID_T>(io_adaptor, partitioner_);
-    delete io_adaptor;
   }
 
   template <typename IOADAPTOR>
   void deserialize_impl(const std::string& path) {
-    auto io_adaptor = new IOADAPTOR(path);
+    auto io_adaptor = std::unique_ptr<IOAdaptorBase>(new IOADAPTOR(path));
     io_adaptor->Open();
     OutArchive arc;
     io_adaptor->ReadArchive(arc);
@@ -288,8 +287,6 @@ class VertexMap {
       idxers_[fid] = deserialize_idxer<OID_T, VID_T>(io_adaptor);
     }
     partitioner_ = deserialize_partitioner<OID_T>(io_adaptor);
-
-    delete io_adaptor;
   }
 
   template <typename _OID_T, typename _VID_T>
@@ -313,21 +310,25 @@ class VertexMapBuilder {
  public:
   VertexMapBuilder(fid_t fid, fid_t fnum,
                    std::unique_ptr<IPartitioner<OID_T>>&& partitioner,
-                   bool is_global = true)
+                   bool is_global = true, bool use_pthash = false)
       : fid_(fid), is_global_(is_global), partitioner_(std::move(partitioner)) {
     idxer_builders_.resize(fnum, nullptr);
-    if (!is_global_) {
-      for (fid_t i = 1; i < fnum; ++i) {
-        idxer_builders_[(i + fid_) % fnum] =
-            new LocalIdxerBuilder<OID_T, VID_T>();
+    if (!use_pthash) {
+      if (!is_global_) {
+        for (fid_t i = 1; i < fnum; ++i) {
+          idxer_builders_[(i + fid_) % fnum] =
+              new LocalIdxerBuilder<OID_T, VID_T>();
+        }
+      } else {
+        for (fid_t i = 1; i < fnum; ++i) {
+          idxer_builders_[(i + fid_) % fnum] =
+              new HashMapIdxerDummyBuilder<OID_T, VID_T>();
+        }
       }
+      idxer_builders_[fid_] = new HashMapIdxerBuilder<OID_T, VID_T>();
     } else {
-      for (fid_t i = 1; i < fnum; ++i) {
-        idxer_builders_[(i + fid_) % fnum] =
-            new DummyIdxerBuilder<OID_T, VID_T>();
-      }
+      idxer_builders_[fid_] = new PTHashIdxerBuilder<OID_T, VID_T>();
     }
-    idxer_builders_[fid_] = new HashMapIdxerBuilder<OID_T, VID_T>();
   }
 
   ~VertexMapBuilder() {
