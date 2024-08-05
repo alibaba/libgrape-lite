@@ -121,16 +121,18 @@ class EVFragmentLoader {
     }
 
     fid_t fnum = comm_spec_.fnum();
-    IPartitioner<oid_t>* partitioner = nullptr;
+    std::unique_ptr<IPartitioner<oid_t>> partitioner(nullptr);
     if (spec.partitioner_type == PartitionerType::kHashPartitioner) {
-      partitioner = new HashPartitionerBeta<oid_t>(fnum);
+      partitioner = std::unique_ptr<IPartitioner<oid_t>>(
+          new HashPartitionerBeta<oid_t>(fnum));
     } else if (spec.partitioner_type == PartitionerType::kMapPartitioner) {
-      partitioner = new MapPartitioner<oid_t>(fnum, id_list);
+      partitioner = std::unique_ptr<IPartitioner<oid_t>>(
+          new MapPartitioner<oid_t>(fnum, id_list));
     } else {
       LOG(FATAL) << "Unsupported partitioner type.";
     }
 
-    basic_fragment_loader_.SetPartitioner(partitioner);
+    basic_fragment_loader_.SetPartitioner(std::move(partitioner));
 
     basic_fragment_loader_.Start();
 

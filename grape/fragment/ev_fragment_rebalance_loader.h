@@ -122,11 +122,13 @@ class EVFragmentRebalanceLoader {
     }
 
     fid_t fnum = comm_spec_.fnum();
-    IPartitioner<oid_t>* partitioner = nullptr;
+    std::unique_ptr<IPartitioner<oid_t>> partitioner(nullptr);
     if (spec.partitioner_type == PartitionerType::kHashPartitioner) {
-      partitioner = new HashPartitionerBeta<oid_t>(fnum);
+      partitioner = std::unique_ptr<IPartitioner<oid_t>>(
+          new HashPartitionerBeta<oid_t>(fnum));
     } else if (spec.partitioner_type == PartitionerType::kMapPartitioner) {
-      partitioner = new MapPartitioner<oid_t>(fnum, id_list);
+      partitioner = std::unique_ptr<IPartitioner<oid_t>>(
+          new MapPartitioner<oid_t>(fnum, id_list));
     } else {
       LOG(FATAL) << "Unsupported partitioner type.";
     }
@@ -134,9 +136,9 @@ class EVFragmentRebalanceLoader {
     std::unique_ptr<VertexMap<oid_t, vid_t>> vm_ptr(
         new VertexMap<oid_t, vid_t>);
     {
-      VertexMapBuilder<oid_t, vid_t> builder(comm_spec_.fid(),
-                                             comm_spec_.fnum(), partitioner,
-                                             spec.global_vertex_map);
+      VertexMapBuilder<oid_t, vid_t> builder(
+          comm_spec_.fid(), comm_spec_.fnum(), std::move(partitioner),
+          spec.global_vertex_map);
       for (auto id : id_list) {
         internal_oid_t oid(id);
         builder.add_vertex(oid);

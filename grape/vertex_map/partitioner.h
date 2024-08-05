@@ -145,28 +145,33 @@ class MapPartitioner : public IPartitioner<OID_T> {
 
 template <typename OID_T>
 void serialize_partitioner(IOAdaptorBase* writer,
-                           IPartitioner<OID_T>* partitioner) {
+                           std::unique_ptr<IPartitioner<OID_T>>& partitioner) {
   int type = static_cast<int>(partitioner->type());
   writer->Write(&type, sizeof(type));
   partitioner->serialize(writer);
 }
 
 template <typename OID_T>
-IPartitioner<OID_T>* deserialize_partitioner(IOAdaptorBase* reader) {
+std::unique_ptr<IPartitioner<OID_T>> deserialize_partitioner(
+    IOAdaptorBase* reader) {
   int type;
   reader->Read(&type, sizeof(type));
-  IPartitioner<OID_T>* partitioner = nullptr;
+  std::unique_ptr<IPartitioner<OID_T>> partitioner(nullptr);
   switch (static_cast<PartitionerType>(type)) {
   case PartitionerType::kHashPartitioner:
-    partitioner = new HashPartitionerBeta<OID_T>();
+    partitioner =
+        std::unique_ptr<IPartitioner<OID_T>>(new HashPartitionerBeta<OID_T>());
     break;
   case PartitionerType::kMapPartitioner:
-    partitioner = new MapPartitioner<OID_T>();
+    partitioner =
+        std::unique_ptr<IPartitioner<OID_T>>(new MapPartitioner<OID_T>());
     break;
   default:
     LOG(FATAL) << "Unknown partitioner type";
   }
-  partitioner->deserialize(reader);
+  if (partitioner) {
+    partitioner->deserialize(reader);
+  }
   return partitioner;
 }
 

@@ -258,7 +258,8 @@ else ()
     target_include_directories(gpu_analytical_apps SYSTEM BEFORE PRIVATE thirdparty/cub thirdparty/thrust thirdparty/moderngpu/src)
     target_include_directories(gpu_analytical_apps PRIVATE examples/analytical_apps)
     set_target_properties(gpu_analytical_apps PROPERTIES OUTPUT_NAME run_cuda_app)
-    target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})
+    target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS}
+                          OpenSSL::SSL OpenSSL::Crypto)
     install_libgrapelite_target(gpu_analytical_apps)
   endif ()
 endif ()
@@ -271,12 +272,12 @@ else ()
   add_executable(gnn_sampler examples/gnn_sampler/run_sampler.cc)
   set_target_properties(gnn_sampler PROPERTIES OUTPUT_NAME run_sampler)
   target_include_directories(gnn_sampler PRIVATE
-                            examples/gnn_sampler
-                            examples/gnn_sampler/thirdparty
-                            ${RDKAFKA_INCLUDE_DIR})
+                             examples/gnn_sampler
+                             examples/gnn_sampler/thirdparty
+                             ${RDKAFKA_INCLUDE_DIR})
   target_link_libraries(gnn_sampler grape-lite ${MPI_CXX_LIBRARIES}
-                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} 
-                        ${RDKAFKA_LIBRARIES} OpenSSL::SSL OpenSSL::Crypto)
+                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES} 
+                        OpenSSL::SSL OpenSSL::Crypto)
   install_libgrapelite_target(gnn_sampler)
 endif ()
 

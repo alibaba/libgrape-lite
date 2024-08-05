@@ -36,13 +36,10 @@ class VertexMap {
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
   VertexMap(const VertexMap&) = delete;
-  VertexMap() : partitioner_(NULL) {}
+  VertexMap() : partitioner_(nullptr) {}
   ~VertexMap() {
     for (auto idxer : idxers_) {
       delete idxer;
-    }
-    if (partitioner_) {
-      delete partitioner_;
     }
   }
 
@@ -120,6 +117,32 @@ class VertexMap {
     int worker_num = comm_spec.worker_num();
     if (is_global_) {
       DistinctSort(local_vertices_to_add);
+      bool unpartitioned_id = false;
+      for (size_t i = 0; i < local_vertices_to_add.size();) {
+        fid_t fid = partitioner_->GetPartitionId(local_vertices_to_add[i]);
+        if (fid == static_cast<fid_t>(-1)) {
+          unpartitioned_id = true;
+        } else if (comm_spec.FragToWorker(fid) != worker_id) {
+          LOG(ERROR) << "Partition id is not consistent for vertex - "
+                     << local_vertices_to_add[i] << ", discarded...";
+          std::swap(local_vertices_to_add[i], local_vertices_to_add.back());
+          local_vertices_to_add.pop_back();
+          continue;
+        }
+        ++i;
+      }
+      int state = 0;
+      if (unpartitioned_id) {
+        state = 1;
+      }
+      std::vector<int> states(worker_num, 0);
+      states[worker_id] = state;
+      sync_comm::AllGather(states, comm_spec.comm());
+      int global_state = *std::max_element(states.begin(), states.end());
+      if (global_state == 1) {
+        // need to update partitioner with new vertices
+        CHECK(partitioner_->type() == PartitionerType::kMapPartitioner);
+      }
       std::thread send_thread([&]() {
         int dst_worker_id = (worker_id + 1) % worker_num;
         while (dst_worker_id != worker_id) {
@@ -143,9 +166,24 @@ class VertexMap {
             std::vector<OID_T> remote_vertices;
             sync_comm::Recv(remote_vertices, src_worker_id, 0,
                             comm_spec.comm());
+            if (states[src_worker_id] == 1) {
+              for (auto& v : remote_vertices) {
+                partitioner_->SetPartitionId(v, fid);
+              }
+            }
             idxers_[fid] = extend_indexer(idxers_[fid], remote_vertices);
           }
           src_worker_id = (src_worker_id + worker_num - 1) % worker_num;
+        }
+        for (fid_t fid = 0; fid < fnum_; ++fid) {
+          if (comm_spec.FragToWorker(fid) == worker_id) {
+            if (states[worker_id] == 1) {
+              for (auto& v : local_vertices_to_add) {
+                partitioner_->SetPartitionId(v, fid);
+              }
+            }
+            idxers_[fid] = extend_indexer(idxers_[fid], local_vertices_to_add);
+          }
         }
       });
       recv_thread.join();
@@ -213,11 +251,10 @@ class VertexMap {
     this->inner_vertex_size_ = std::move(other.inner_vertex_size_);
 
     this->idxers_ = std::move(other.idxers_);
-    this->partitioner_ = other.partitioner_;
+    this->partitioner_ = std::move(other.partitioner_);
     this->id_parser_.init(fnum_);
 
     other.idxers_.clear();
-    other.partitioner_ = nullptr;
     other.total_vertex_size_ = 0;
     other.inner_vertex_size_.clear();
 
@@ -265,7 +302,7 @@ class VertexMap {
   std::vector<size_t> inner_vertex_size_;
 
   std::vector<IdxerBase<OID_T, VID_T>*> idxers_;
-  IPartitioner<OID_T>* partitioner_;
+  std::unique_ptr<IPartitioner<OID_T>> partitioner_;
   IdParser<VID_T> id_parser_;
 };
 
@@ -274,9 +311,10 @@ class VertexMapBuilder {
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
  public:
-  VertexMapBuilder(fid_t fid, fid_t fnum, IPartitioner<OID_T>* partitioner,
+  VertexMapBuilder(fid_t fid, fid_t fnum,
+                   std::unique_ptr<IPartitioner<OID_T>>&& partitioner,
                    bool is_global = true)
-      : fid_(fid), is_global_(is_global), partitioner_(partitioner) {
+      : fid_(fid), is_global_(is_global), partitioner_(std::move(partitioner)) {
     idxer_builders_.resize(fnum, nullptr);
     if (!is_global_) {
       for (fid_t i = 1; i < fnum; ++i) {
@@ -293,9 +331,6 @@ class VertexMapBuilder {
   }
 
   ~VertexMapBuilder() {
-    if (partitioner_) {
-      delete partitioner_;
-    }
     for (auto idxer_builder : idxer_builders_) {
       if (idxer_builder) {
         delete idxer_builder;
@@ -346,8 +381,7 @@ class VertexMapBuilder {
     vertex_map.reset();
     vertex_map.fnum_ = fnum;
     vertex_map.is_global_ = is_global_;
-    vertex_map.partitioner_ = partitioner_;
-    this->partitioner_ = nullptr;
+    vertex_map.partitioner_ = std::move(partitioner_);
     vertex_map.idxers_.resize(fnum, nullptr);
     for (fid_t fid = 0; fid < fnum; ++fid) {
       vertex_map.idxers_[fid] = idxer_builders_[fid]->finish();
@@ -372,7 +406,7 @@ class VertexMapBuilder {
  private:
   fid_t fid_;
   bool is_global_;
-  IPartitioner<OID_T>* partitioner_;
+  std::unique_ptr<IPartitioner<OID_T>> partitioner_;
   std::vector<IdxerBuilderBase<OID_T, VID_T>*> idxer_builders_;
 };
 
@@ -459,11 +493,12 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
   }
   LOG(INFO) << "after update oid lists";
 
-  MapPartitioner<OID_T>* new_partitioner = new MapPartitioner<OID_T>();
+  std::unique_ptr<MapPartitioner<OID_T>> new_partitioner(
+      new MapPartitioner<OID_T>());
   new_partitioner->Init(oid_lists);
 
   VertexMapBuilder<OID_T, VID_T> builder(comm_spec.fid(), comm_spec.fnum(),
-                                         new_partitioner, true);
+                                         std::move(new_partitioner), true);
   for (auto& oid : oid_lists[comm_spec.fid()]) {
     internal_oid_t internal_oid(oid);
     builder.add_vertex(internal_oid);

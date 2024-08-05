@@ -26,6 +26,7 @@ namespace grape {
 enum class IdxerType {
   kHashMapIdxer,
   kLocalIdxer,
+  kPerfectHashIdxer,
 };
 
 template <typename OID_T, typename VID_T>
@@ -77,7 +78,6 @@ class HashMapIdxer : public IdxerBase<OID_T, VID_T> {
   }
 
   bool get_index(const internal_oid_t& oid, VID_T& vid) const override {
-    // LOG(INFO) << "oid: " << oid;
     return indexer_.get_index(oid, vid);
   }
 
@@ -241,6 +241,53 @@ class DummyIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
 
  private:
   IdIndexer<internal_oid_t, VID_T> indexer_;
+};
+
+template <typename OID_T, typename VID_T>
+class PerfectHashIdxer : public IdxerBase<OID_T, VID_T> {
+  using internal_oid_t = typename InternalOID<OID_T>::type;
+
+ public:
+  PerfectHashIdxer() {}
+  PerfectHashIdxer(IdIndexer<internal_oid_t, VID_T>&& oid_indexer,
+                   IdIndexer<VID_T, VID_T>&& lid_indexer)
+      : oid_indexer_(std::move(oid_indexer)),
+        lid_indexer_(std::move(lid_indexer)) {}
+
+  bool get_key(VID_T vid, internal_oid_t& oid) const override {
+    VID_T idx;
+    if (lid_indexer_.get_index(vid, idx)) {
+      return oid_indexer_.get_key(idx, oid);
+    } else {
+      return false;
+    }
+  }
+
+  bool get_index(const internal_oid_t& oid, VID_T& vid) const override {
+    VID_T idx;
+    if (oid_indexer_.get_index(oid, idx)) {
+      return lid_indexer_.get_key(idx, vid);
+    } else {
+      return false;
+    }
+  }
+
+  IdxerType type() const override { return IdxerType::kPerfectHashIdxer; }
+
+  void serialize(IOAdaptorBase* writer) override {
+    oid_indexer_.Serialize(writer);
+    lid_indexer_.Serialize(writer);
+  }
+  void deserialize(IOAdaptorBase* reader) override {
+    oid_indexer_.Deserialize(reader);
+    lid_indexer_.Deserialize(reader);
+  }
+
+  size_t size() const override { return oid_indexer_.size(); }
+
+ private:
+  IdIndexer<internal_oid_t, VID_T> oid_indexer_;  // oid -> idx
+  IdIndexer<VID_T, VID_T> lid_indexer_;           // lid -> idx
 };
 
 template <typename OID_T, typename VID_T>

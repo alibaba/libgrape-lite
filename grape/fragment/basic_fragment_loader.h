@@ -233,8 +233,8 @@ class BasicFragmentLoader {
 
   ~BasicFragmentLoader() { Stop(); }
 
-  void SetPartitioner(IPartitioner<oid_t>* partitioner) {
-    partitioner_ = partitioner;
+  void SetPartitioner(std::unique_ptr<IPartitioner<oid_t>>&& partitioner) {
+    partitioner_ = std::move(partitioner);
   }
 
   void Start() {
@@ -300,7 +300,7 @@ class BasicFragmentLoader {
         new VertexMap<oid_t, vid_t>());
     {
       VertexMapBuilder<oid_t, vid_t> builder(
-          comm_spec_.fid(), comm_spec_.fnum(), partitioner_, true);
+          comm_spec_.fid(), comm_spec_.fnum(), std::move(partitioner_), true);
       for (auto& buffers : got_vertices_) {
         foreach_helper(
             buffers,
@@ -425,7 +425,7 @@ class BasicFragmentLoader {
 
  private:
   CommSpec comm_spec_;
-  IPartitioner<oid_t>* partitioner_;
+  std::unique_ptr<IPartitioner<oid_t>> partitioner_;
 
   std::vector<ShuffleOut<internal_oid_t, vdata_t>> vertices_to_frag_;
   std::vector<ShuffleOut<internal_oid_t, internal_oid_t, edata_t>>
