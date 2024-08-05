@@ -111,7 +111,7 @@ std::pair<std::string, std::string> generate_signature(
     const LoadGraphSpec& spec) {
   std::string spec_info = spec.to_string();
   std::string frag_type_name = FRAG_T::type_info();
-  std::string md5 = compute_md5({efile, vfile, spec_info, frag_type_name});
+  std::string md5 = compute_hash({efile, vfile, spec_info, frag_type_name});
   std::string desc = "efile: " + efile + "\n";
   desc += "vfile: " + vfile + "\n";
   desc += "spec: " + spec_info + "\n";

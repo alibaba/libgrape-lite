@@ -23,7 +23,8 @@ limitations under the License.
 #endif
 
 #include <limits.h>
-#include <openssl/sha.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -157,18 +158,23 @@ inline std::string get_absolute_path(const std::string& path) {
   return std::string(abs_path);
 }
 
-inline std::string compute_md5(const std::vector<std::string>& inputs) {
-  SHA256_CTX ctx;
-  SHA256_Init(&ctx);
+inline std::string compute_hash(const std::vector<std::string>& inputs) {
+  EVP_MD_CTX* mdctx;
+  mdctx = EVP_MD_CTX_new();
+  EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
   for (const auto& input : inputs) {
-    SHA256_Update(&ctx, input.c_str(), input.size());
+    EVP_DigestUpdate(mdctx, input.c_str(), input.size());
   }
-  unsigned char md[SHA256_DIGEST_LENGTH];
-  SHA256_Final(md, &ctx);
+
+  unsigned char md[EVP_MAX_MD_SIZE];
+  uint32_t md_len;
+  EVP_DigestFinal_ex(mdctx, md, &md_len);
+
+  EVP_MD_CTX_free(mdctx);
 
   std::stringstream ss;
   ss << std::hex << std::setfill('0');
-  for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
+  for (uint32_t i = 0; i < md_len; ++i) {
     ss << std::setw(2) << static_cast<int>(md[i]);
   }
   return ss.str();
