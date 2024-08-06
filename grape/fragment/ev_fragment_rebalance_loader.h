@@ -138,7 +138,7 @@ class EVFragmentRebalanceLoader {
     {
       VertexMapBuilder<oid_t, vid_t> builder(
           comm_spec_.fid(), comm_spec_.fnum(), std::move(partitioner),
-          spec.global_vertex_map);
+          spec.global_vertex_map, !spec.mutable_vertex_map);
       for (auto id : id_list) {
         internal_oid_t oid(id);
         builder.add_vertex(oid);

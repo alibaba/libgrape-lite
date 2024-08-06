@@ -100,6 +100,7 @@ class PTHashIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
     if (build_phf_) {
       return;
     }
+    DistinctSort(keys_);
     SinglePHFView<murmurhasher>::build(keys_.begin(), keys_.size(), phf_, 1);
     std::vector<OID_T> ordered_keys(keys_.size());
     for (auto& key : keys_) {

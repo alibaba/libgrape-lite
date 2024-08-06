@@ -131,6 +131,7 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
     } else {
       graph_spec.global_vertex_map = false;
     }
+    graph_spec.mutable_vertex_map = true;
     using FRAG_T = grape::MutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                                  load_strategy>;
     std::shared_ptr<FRAG_T> fragment = grape::LoadGraphAndMutate<FRAG_T>(

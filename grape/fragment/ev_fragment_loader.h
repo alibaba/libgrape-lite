@@ -178,7 +178,8 @@ class EVFragmentLoader {
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "] finished add vertices and edges";
 
-    basic_fragment_loader_.ConstructFragment(fragment, spec.directed);
+    basic_fragment_loader_.ConstructFragment(fragment, spec.directed,
+                                             spec.mutable_vertex_map);
 
     if (spec.serialize) {
       bool serialized = SerializeFragment<fragment_t, IOADAPTOR_T>(

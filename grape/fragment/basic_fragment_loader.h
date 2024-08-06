@@ -56,6 +56,7 @@ struct LoadGraphSpec {
 
   PartitionerType partitioner_type;
   bool global_vertex_map;
+  bool mutable_vertex_map;
 
   void set_directed(bool val = true) { directed = val; }
   void set_rebalance(bool flag, int weight) {
@@ -88,7 +89,9 @@ struct LoadGraphSpec {
     } else {
       LOG(FATAL) << "Unknown partitioner type";
     }
-    ret += (global_vertex_map ? "global-vertex-map" : "local-vertex-map");
+    ret += (global_vertex_map ? "global-" : "local-");
+    ret +=
+        (mutable_vertex_map ? "-mutable-vertex-map" : "-immutable-vertex-map");
     return ret;
   }
 };
@@ -102,6 +105,7 @@ inline LoadGraphSpec DefaultLoadGraphSpec() {
   spec.deserialize = false;
   spec.partitioner_type = PartitionerType::kHashPartitioner;
   spec.global_vertex_map = true;
+  spec.mutable_vertex_map = false;
   return spec;
 }
 
@@ -276,7 +280,8 @@ class BasicFragmentLoader {
     }
   }
 
-  void ConstructFragment(std::shared_ptr<fragment_t>& fragment, bool directed) {
+  void ConstructFragment(std::shared_ptr<fragment_t>& fragment, bool directed,
+                         bool mutable_vertex_map) {
     for (auto& va : vertices_to_frag_) {
       va.Flush();
     }
@@ -300,7 +305,8 @@ class BasicFragmentLoader {
         new VertexMap<oid_t, vid_t>());
     {
       VertexMapBuilder<oid_t, vid_t> builder(
-          comm_spec_.fid(), comm_spec_.fnum(), std::move(partitioner_), true);
+          comm_spec_.fid(), comm_spec_.fnum(), std::move(partitioner_), true,
+          !mutable_vertex_map);
       for (auto& buffers : got_vertices_) {
         foreach_helper(
             buffers,

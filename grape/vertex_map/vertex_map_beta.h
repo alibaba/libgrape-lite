@@ -310,7 +310,7 @@ class VertexMapBuilder {
  public:
   VertexMapBuilder(fid_t fid, fid_t fnum,
                    std::unique_ptr<IPartitioner<OID_T>>&& partitioner,
-                   bool is_global = true, bool use_pthash = false)
+                   bool is_global, bool use_pthash)
       : fid_(fid), is_global_(is_global), partitioner_(std::move(partitioner)) {
     idxer_builders_.resize(fnum, nullptr);
     if (!use_pthash) {
@@ -327,6 +327,10 @@ class VertexMapBuilder {
       }
       idxer_builders_[fid_] = new HashMapIdxerBuilder<OID_T, VID_T>();
     } else {
+      for (fid_t i = 1; i < fnum; ++i) {
+        idxer_builders_[(i + fid_) % fnum] =
+            new PTHashIdxerDummyBuilder<OID_T, VID_T>();
+      }
       idxer_builders_[fid_] = new PTHashIdxerBuilder<OID_T, VID_T>();
     }
   }
@@ -498,8 +502,9 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
       new MapPartitioner<OID_T>());
   new_partitioner->Init(oid_lists);
 
-  VertexMapBuilder<OID_T, VID_T> builder(comm_spec.fid(), comm_spec.fnum(),
-                                         std::move(new_partitioner), true);
+  VertexMapBuilder<OID_T, VID_T> builder(
+      comm_spec.fid(), comm_spec.fnum(), std::move(new_partitioner), true,
+      idxers_[0]->type() == IdxerType::kPTHashIdxer);
   for (auto& oid : oid_lists[comm_spec.fid()]) {
     internal_oid_t internal_oid(oid);
     builder.add_vertex(internal_oid);
