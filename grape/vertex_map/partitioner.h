@@ -85,7 +85,7 @@ class MapPartitioner : public IPartitioner<OID_T> {
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
   MapPartitioner() : fnum_(0) {}
-  MapPartitioner(fid_t fnum) : fnum_(fnum) {}
+  explicit MapPartitioner(fid_t fnum) : fnum_(fnum) {}
   MapPartitioner(fid_t fnum, const std::vector<OID_T>& oid_list) {
     fnum_ = fnum;
     Init(fnum, oid_list);
