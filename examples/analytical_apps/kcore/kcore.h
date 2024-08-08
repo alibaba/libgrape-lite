@@ -89,20 +89,19 @@ class KCore : public ParallelAppBase<FRAG_T, KCoreContext<FRAG_T>,
         });
 
     ctx.next_inner_updated.ParallelClear(GetThreadPool());
-    ForEach(ctx.curr_inner_updated,
-            [&frag, &ctx, &channels](int tid, vertex_t v) {
-              if (ctx.partial_result[v] >= ctx.k) {
-                ctx.partial_result[v] -= ctx.reduced_degrees[v];
-                ctx.reduced_degrees[v] = 0;
+    ForEach(ctx.curr_inner_updated, [&ctx](int tid, vertex_t v) {
+      if (ctx.partial_result[v] >= ctx.k) {
+        ctx.partial_result[v] -= ctx.reduced_degrees[v];
+        ctx.reduced_degrees[v] = 0;
 
-                if (ctx.partial_result[v] < ctx.k) {
-                  ctx.next_inner_updated.Insert(v);
-                }
-              } else {
-                ctx.partial_result[v] -= ctx.reduced_degrees[v];
-                ctx.reduced_degrees[v] = 0;
-              }
-            });
+        if (ctx.partial_result[v] < ctx.k) {
+          ctx.next_inner_updated.Insert(v);
+        }
+      } else {
+        ctx.partial_result[v] -= ctx.reduced_degrees[v];
+        ctx.reduced_degrees[v] = 0;
+      }
+    });
 
     ctx.curr_inner_updated.ParallelClear(GetThreadPool());
     ForEach(ctx.next_inner_updated, [&frag, &ctx](int tid, vertex_t v) {

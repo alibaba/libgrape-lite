@@ -138,6 +138,14 @@ struct InternalOID<std::string> {
   static std::string FromInternal(const type& val) { return std::string(val); }
 };
 
+#ifdef __cpp_lib_is_invocable
+template <class T, typename... Args>
+using result_of_t = std::invoke_result_t<T, Args...>;
+#else
+template <class T, typename... Args>
+using result_of_t = typename std::result_of<T(Args...)>::type;
+#endif
+
 }  // namespace grape
 
 #endif  // GRAPE_TYPES_H_

@@ -65,7 +65,7 @@ class ThreadLocalMessageBufferOpt {
     to_send_.resize(fnum_);
 
     for (auto& arc : to_send_) {
-      arc.init(std::move(pool_->take_default()));
+      arc.init(pool_->take_default());
     }
 
     sent_size_ = 0;

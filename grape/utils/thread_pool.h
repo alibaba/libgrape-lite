@@ -41,6 +41,7 @@
 #include <glog/logging.h>
 
 #include "grape/parallel/parallel_engine_spec.h"
+#include "grape/types.h"
 
 #if __linux__
 #ifndef _GNU_SOURCE
@@ -58,7 +59,7 @@ class ThreadPool {
 
   template <class F, class... Args>
   auto enqueue(F&& f, Args&&... args)
-      -> std::future<typename std::result_of<F(Args...)>::type>;
+      -> std::future<grape::result_of_t<F, Args...>>;
   inline int GetThreadNum() { return thread_num_; }
   void WaitEnd(std::vector<std::future<void>>& results);
   ~ThreadPool();

@@ -75,7 +75,7 @@ class CoreDecomposition
           });
           ctx.curr_inner_updated.ParallelClear(GetThreadPool());
 
-          ForEach(ctx.next_inner_updated, [&frag, &ctx](int tid, vertex_t v) {
+          ForEach(ctx.next_inner_updated, [&ctx](int tid, vertex_t v) {
             if (ctx.partial_result[v] > ctx.level) {
               int new_core = ctx.partial_result[v] - ctx.reduced_degrees[v];
               ctx.reduced_degrees[v] = 0;
@@ -115,7 +115,7 @@ class CoreDecomposition
         });
         ctx.curr_inner_updated.ParallelClear(GetThreadPool());
 
-        ForEach(ctx.next_inner_updated, [&frag, &ctx](int tid, vertex_t v) {
+        ForEach(ctx.next_inner_updated, [&ctx](int tid, vertex_t v) {
           if (ctx.partial_result[v] > ctx.level) {
             int new_core = ctx.partial_result[v] - ctx.reduced_degrees[v];
             ctx.reduced_degrees[v] = 0;
@@ -149,7 +149,7 @@ class CoreDecomposition
           ctx.next_inner_updated.Insert(v);
         });
 
-    ForEach(ctx.next_inner_updated, [&frag, &ctx](int tid, vertex_t v) {
+    ForEach(ctx.next_inner_updated, [&ctx](int tid, vertex_t v) {
       if (ctx.partial_result[v] > ctx.level) {
         int new_core = ctx.partial_result[v] - ctx.reduced_degrees[v];
         ctx.reduced_degrees[v] = 0;
@@ -219,7 +219,7 @@ class CoreDecomposition
       });
       ctx.curr_inner_updated.ParallelClear(GetThreadPool());
 
-      ForEach(ctx.next_inner_updated, [&frag, &ctx](int tid, vertex_t v) {
+      ForEach(ctx.next_inner_updated, [&ctx](int tid, vertex_t v) {
         if (ctx.partial_result[v] > ctx.level) {
           int new_core = ctx.partial_result[v] - ctx.reduced_degrees[v];
           ctx.reduced_degrees[v] = 0;
