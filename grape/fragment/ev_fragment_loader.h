@@ -73,7 +73,6 @@ class EVFragmentLoader {
                                            const std::string& vfile,
                                            const LoadGraphSpec& spec) {
     std::shared_ptr<fragment_t> fragment(nullptr);
-    CHECK(!spec.rebalance);
     if (spec.deserialize) {
       bool deserialized = DeserializeFragment<fragment_t, IOADAPTOR_T>(
           fragment, comm_spec_, efile, vfile, spec);

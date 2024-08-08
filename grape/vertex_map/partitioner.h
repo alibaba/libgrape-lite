@@ -84,13 +84,17 @@ class MapPartitioner : public IPartitioner<OID_T> {
  public:
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
-  MapPartitioner() = default;
-  MapPartitioner(size_t fnum, const std::vector<OID_T>& oid_list) {
+  MapPartitioner() : fnum_(0) {}
+  MapPartitioner(fid_t fnum) : fnum_(fnum) {}
+  MapPartitioner(fid_t fnum, const std::vector<OID_T>& oid_list) {
+    fnum_ = fnum;
     Init(fnum, oid_list);
   }
   ~MapPartitioner() = default;
 
-  void Init(size_t frag_num, const std::vector<OID_T>& oid_list) {
+  void Init(fid_t fnum, const std::vector<OID_T>& oid_list) {
+    fnum_ = fnum;
+    size_t frag_num = fnum;
     size_t vnum = oid_list.size();
     size_t frag_vnum = (vnum + frag_num - 1) / frag_num;
     o2f_.clear();
@@ -103,6 +107,7 @@ class MapPartitioner : public IPartitioner<OID_T> {
 
   void Init(const std::vector<std::vector<OID_T>>& oid_lists) {
     size_t frag_num = oid_lists.size();
+    fnum_ = frag_num;
     o2f_.clear();
     for (size_t i = 0; i < frag_num; ++i) {
       for (const auto& oid : oid_lists[i]) {
@@ -114,7 +119,7 @@ class MapPartitioner : public IPartitioner<OID_T> {
   fid_t GetPartitionId(const internal_oid_t& oid) const override {
     auto iter = o2f_.find(OID_T(oid));
     if (iter == o2f_.end()) {
-      return -1;
+      return fnum_;
     }
     return iter->second;
   }
@@ -125,14 +130,14 @@ class MapPartitioner : public IPartitioner<OID_T> {
 
   void serialize(std::unique_ptr<IOAdaptorBase>& writer) override {
     InArchive arc;
-    arc << o2f_;
+    arc << fnum_ << o2f_;
     CHECK(writer->WriteArchive(arc));
   }
 
   void deserialize(std::unique_ptr<IOAdaptorBase>& reader) override {
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));
-    arc >> o2f_;
+    arc >> fnum_ >> o2f_;
   }
 
   PartitionerType type() const override {
@@ -140,6 +145,7 @@ class MapPartitioner : public IPartitioner<OID_T> {
   }
 
  private:
+  fid_t fnum_;
   ska::flat_hash_map<OID_T, fid_t> o2f_;
 };
 

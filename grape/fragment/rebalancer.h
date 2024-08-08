@@ -49,7 +49,8 @@ class Rebalancer {
     }
   }
 
-  std::unique_ptr<VertexMap<OID_T, VID_T>> finish(const CommSpec& comm_spec) {
+  void finish(const CommSpec& comm_spec,
+              VertexMap<OID_T, VID_T>& new_vertex_map) {
     for (auto& deg : degree_) {
       MPI_Allreduce(MPI_IN_PLACE, deg.data(), deg.size(), MPI_INT, MPI_SUM,
                     comm_spec.comm());
@@ -72,7 +73,7 @@ class Rebalancer {
     size_t cur_score = 0;
     std::vector<OID_T> native_oids;
     std::unique_ptr<MapPartitioner<OID_T>> new_partitioner(
-        new MapPartitioner<OID_T>());
+        new MapPartitioner<OID_T>(fnum));
     for (fid_t i = 0; i < fnum; ++i) {
       vid_t vnum = vertex_map_->GetInnerVertexSize(i);
       for (vid_t j = 0; j < vnum; ++j) {
@@ -98,10 +99,7 @@ class Rebalancer {
     for (auto& oid : native_oids) {
       builder.add_vertex(oid);
     }
-    std::unique_ptr<VertexMap<OID_T, VID_T>> new_vertex_map(
-        new VertexMap<OID_T, VID_T>());
-    builder.finish(comm_spec, *new_vertex_map);
-    return new_vertex_map;
+    builder.finish(comm_spec, new_vertex_map);
   }
 
  private:

@@ -104,7 +104,9 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
         }
       }
 
-      vertex_map_ = rebalancer.finish(comm_spec_);
+      vertex_map_ = std::unique_ptr<VertexMap<oid_t, vid_t>>(
+          new VertexMap<oid_t, vid_t>());
+      rebalancer.finish(comm_spec_, *vertex_map_);
     }
 
     fid_t fnum = comm_spec_.fnum();

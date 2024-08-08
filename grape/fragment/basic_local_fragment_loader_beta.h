@@ -90,7 +90,11 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
   void AddVertex(const oid_t& id, const vdata_t& data) override {
     internal_oid_t internal_id(id);
     fid_t fid = partitioner_->GetPartitionId(internal_id);
-    vertices_to_frag_[fid].Emplace(internal_id, data);
+    if (fid == comm_spec_.fnum()) {
+      LOG(ERROR) << "Unknown partition id for vertex " << id;
+    } else {
+      vertices_to_frag_[fid].Emplace(internal_id, data);
+    }
   }
 
   void ConstructVertices() override {
@@ -115,9 +119,13 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     internal_oid_t internal_dst(dst);
     fid_t src_fid = partitioner_->GetPartitionId(internal_src);
     fid_t dst_fid = partitioner_->GetPartitionId(internal_dst);
-    edges_to_frag_[src_fid].Emplace(internal_src, internal_dst, data);
-    if (src_fid != dst_fid) {
-      edges_to_frag_[dst_fid].Emplace(internal_src, internal_dst, data);
+    if (src_fid == comm_spec_.fnum() || dst_fid == comm_spec_.fnum()) {
+      LOG(ERROR) << "Unknown partition id for edge " << src << " -> " << dst;
+    } else {
+      edges_to_frag_[src_fid].Emplace(internal_src, internal_dst, data);
+      if (src_fid != dst_fid) {
+        edges_to_frag_[dst_fid].Emplace(internal_src, internal_dst, data);
+      }
     }
   }
 

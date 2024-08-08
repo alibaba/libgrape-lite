@@ -66,20 +66,29 @@ class MutationContext : public ContextBase {
 
   void add_vertex(const oid_t& id, const vdata_t& data) {
     fid_t fid = partitioner_.GetPartitionId(id);
-    id_to_add_[fid].push_back(id);
-    vdata_to_add_[fid].push_back(data);
+    if (fid == fragment_.fnum()) {
+      LOG(ERROR) << "add vertex - " << id << " failed, unknwon partition id";
+    } else {
+      id_to_add_[fid].push_back(id);
+      vdata_to_add_[fid].push_back(data);
+    }
   }
 
   void add_edge(const oid_t& src, const oid_t& dst, const edata_t& data) {
     fid_t src_fid = partitioner_.GetPartitionId(src);
     fid_t dst_fid = partitioner_.GetPartitionId(dst);
-    esrc_to_add_[src_fid].push_back(src);
-    edst_to_add_[src_fid].push_back(dst);
-    edata_to_add_[src_fid].push_back(data);
-    if (src_fid != dst_fid) {
-      esrc_to_add_[dst_fid].push_back(src);
-      edst_to_add_[dst_fid].push_back(dst);
-      edata_to_add_[dst_fid].push_back(data);
+    if (src_fid == fragment_.fnum() || dst_fid == fragment_.fnum()) {
+      LOG(ERROR) << "add edge - " << src << " -> " << dst
+                 << " failed, unknwon partition id";
+    } else {
+      esrc_to_add_[src_fid].push_back(src);
+      edst_to_add_[src_fid].push_back(dst);
+      edata_to_add_[src_fid].push_back(data);
+      if (src_fid != dst_fid) {
+        esrc_to_add_[dst_fid].push_back(src);
+        edst_to_add_[dst_fid].push_back(dst);
+        edata_to_add_[dst_fid].push_back(data);
+      }
     }
   }
 
@@ -95,8 +104,13 @@ class MutationContext : public ContextBase {
       parsed_vertices_to_update_.emplace_back(gid, data);
     } else {
       fid_t fid = partitioner_.GetPartitionId(id);
-      id_to_update_[fid].push_back(id);
-      vdata_to_update_[fid].push_back(data);
+      if (fid == fragment_.fnum()) {
+        LOG(ERROR) << "update vertex - " << id
+                   << " failed, unknwon partition id";
+      } else {
+        id_to_update_[fid].push_back(id);
+        vdata_to_update_[fid].push_back(data);
+      }
     }
   }
 
@@ -107,13 +121,18 @@ class MutationContext : public ContextBase {
   void update_edge(const oid_t& src, const oid_t& dst, const edata_t& data) {
     fid_t src_fid = partitioner_.GetPartitionId(src);
     fid_t dst_fid = partitioner_.GetPartitionId(dst);
-    esrc_to_update_[src_fid].push_back(src);
-    edst_to_update_[src_fid].push_back(dst);
-    edata_to_update_[src_fid].push_back(data);
-    if (src_fid != dst_fid) {
-      esrc_to_update_[dst_fid].push_back(src);
-      edst_to_update_[dst_fid].push_back(dst);
-      edata_to_update_[dst_fid].push_back(data);
+    if (src_fid == fragment_.fnum() || dst_fid == fragment_.fnum()) {
+      LOG(ERROR) << "update edge - " << src << " -> " << dst
+                 << " failed, unknwon partition id";
+    } else {
+      esrc_to_update_[src_fid].push_back(src);
+      edst_to_update_[src_fid].push_back(dst);
+      edata_to_update_[src_fid].push_back(data);
+      if (src_fid != dst_fid) {
+        esrc_to_update_[dst_fid].push_back(src);
+        edst_to_update_[dst_fid].push_back(dst);
+        edata_to_update_[dst_fid].push_back(data);
+      }
     }
   }
 
@@ -130,7 +149,12 @@ class MutationContext : public ContextBase {
       parsed_vid_to_remove_.push_back(gid);
     } else {
       fid_t fid = partitioner_.GetPartitionId(id);
-      id_to_remove_[fid].push_back(id);
+      if (fid == fragment_.fnum()) {
+        LOG(ERROR) << "remove vertex - " << id
+                   << " failed, unknwon partition id";
+      } else {
+        id_to_remove_[fid].push_back(id);
+      }
     }
   }
 
@@ -141,11 +165,16 @@ class MutationContext : public ContextBase {
   void remove_edge(const oid_t& src, const oid_t& dst) {
     fid_t src_fid = partitioner_.GetPartitionId(src);
     fid_t dst_fid = partitioner_.GetPartitionId(dst);
-    esrc_to_remove_[src_fid].push_back(src);
-    edst_to_remove_[src_fid].push_back(dst);
-    if (src_fid != dst_fid) {
-      esrc_to_remove_[dst_fid].push_back(src);
-      edst_to_remove_[dst_fid].push_back(dst);
+    if (src_fid == fragment_.fnum() || dst_fid == fragment_.fnum()) {
+      LOG(ERROR) << "remove edge - " << src << " -> " << dst
+                 << " failed, unknwon partition id";
+    } else {
+      esrc_to_remove_[src_fid].push_back(src);
+      edst_to_remove_[src_fid].push_back(dst);
+      if (src_fid != dst_fid) {
+        esrc_to_remove_[dst_fid].push_back(src);
+        edst_to_remove_[dst_fid].push_back(dst);
+      }
     }
   }
 

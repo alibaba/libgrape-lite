@@ -87,17 +87,16 @@ class BasicFragmentLoaderBase {
     fid_t fnum = comm_spec_.fnum();
     fid_t fid = comm_spec_.fid();
     std::vector<std::vector<oid_t>> partitioned_vertices_out(fnum);
-    std::vector<std::vector<vdata_t>> partitioned_vdata_out(fnum);
     size_t added_vertices = added_vertices_id.size();
     for (size_t i = 0; i < added_vertices; ++i) {
       fid_t dst_fid = partitioner.GetPartitionId(added_vertices_id[i]);
-      partitioned_vertices_out[dst_fid].emplace_back(
-          std::move(added_vertices_id[i]));
-    }
-
-    std::vector<int64_t> partitioned_vertices_size_out(fnum);
-    for (fid_t i = 0; i < fnum; ++i) {
-      partitioned_vertices_size_out[i] = partitioned_vertices_out[i].size();
+      if (dst_fid == fnum) {
+        LOG(ERROR) << "Unknown partition id for vertex "
+                   << added_vertices_id[i];
+      } else {
+        partitioned_vertices_out[dst_fid].emplace_back(
+            std::move(added_vertices_id[i]));
+      }
     }
 
     local_vertices_id.emplace_back(std::move(partitioned_vertices_out[fid]));
@@ -107,7 +106,7 @@ class BasicFragmentLoaderBase {
           (comm_spec_.worker_id() + 1) % comm_spec_.worker_num();
       while (dst_worker_id != comm_spec_.worker_id()) {
         for (fid_t fid = 0; fid < fnum; ++fid) {
-          if (comm_spec_.FragToWorker(fid) != comm_spec_.worker_id()) {
+          if (comm_spec_.FragToWorker(fid) != dst_worker_id) {
             continue;
           }
           sync_comm::Send(partitioned_vertices_out[fid], dst_worker_id,
@@ -122,7 +121,7 @@ class BasicFragmentLoaderBase {
           comm_spec_.worker_num();
       while (src_worker_id != comm_spec_.worker_id()) {
         for (fid_t fid = 0; fid < fnum; ++fid) {
-          if (comm_spec_.FragToWorker(fid) != src_worker_id) {
+          if (comm_spec_.FragToWorker(fid) != comm_spec_.worker_id()) {
             continue;
           }
           std::vector<oid_t> recv_vertices;
@@ -130,6 +129,8 @@ class BasicFragmentLoaderBase {
                           comm_spec_.comm());
           local_vertices_id.emplace_back(std::move(recv_vertices));
         }
+        src_worker_id = (src_worker_id + comm_spec_.worker_num() - 1) %
+                        comm_spec_.worker_num();
       }
     });
 
@@ -149,15 +150,15 @@ class BasicFragmentLoaderBase {
     size_t added_vertices = added_vertices_id.size();
     for (size_t i = 0; i < added_vertices; ++i) {
       fid_t dst_fid = partitioner.GetPartitionId(added_vertices_id[i]);
-      partitioned_vertices_out[dst_fid].emplace_back(
-          std::move(added_vertices_id[i]));
-      partitioned_vdata_out[dst_fid].emplace_back(
-          std::move(added_vertices_data[i]));
-    }
-
-    std::vector<int64_t> partitioned_vertices_size_out(fnum);
-    for (fid_t i = 0; i < fnum; ++i) {
-      partitioned_vertices_size_out[i] = partitioned_vertices_out[i].size();
+      if (dst_fid == fnum) {
+        LOG(ERROR) << "Unknown partition id for vertex "
+                   << added_vertices_id[i];
+      } else {
+        partitioned_vertices_out[dst_fid].emplace_back(
+            std::move(added_vertices_id[i]));
+        partitioned_vdata_out[dst_fid].emplace_back(
+            std::move(added_vertices_data[i]));
+      }
     }
 
     local_vertices_id.emplace_back(std::move(partitioned_vertices_out[fid]));

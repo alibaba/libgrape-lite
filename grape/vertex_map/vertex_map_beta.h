@@ -83,6 +83,9 @@ class VertexMap {
 
   bool GetOid(fid_t fid, const VID_T& lid, OID_T& oid) const {
     internal_oid_t internal_oid;
+    if (fid >= fnum_) {
+      return false;
+    }
     if (idxers_[fid]->get_key(lid, internal_oid)) {
       oid = InternalOID<OID_T>::FromInternal(internal_oid);
       return true;
@@ -92,6 +95,9 @@ class VertexMap {
 
   bool GetGid(fid_t fid, const OID_T& oid, VID_T& gid) const {
     internal_oid_t internal_oid(oid);
+    if (fid >= fnum_) {
+      return false;
+    }
     if (idxers_[fid]->get_index(internal_oid, gid)) {
       gid = Lid2Gid(fid, gid);
       return true;
@@ -101,6 +107,9 @@ class VertexMap {
 
   bool GetGid(const OID_T& oid, VID_T& gid) const {
     fid_t fid = partitioner_->GetPartitionId(oid);
+    if (fid == fnum_) {
+      return false;
+    }
     return GetGid(fid, oid, gid);
   }
 
@@ -120,7 +129,7 @@ class VertexMap {
     bool unpartitioned_id = false;
     for (size_t i = 0; i < local_vertices_to_add.size();) {
       fid_t fid = partitioner_->GetPartitionId(local_vertices_to_add[i]);
-      if (fid == static_cast<fid_t>(-1)) {
+      if (fid == fnum_) {
         unpartitioned_id = true;
       } else if (comm_spec.FragToWorker(fid) != worker_id) {
         LOG(ERROR) << "Partition id is not consistent for vertex - "
@@ -218,6 +227,7 @@ class VertexMap {
       return *this;
     }
 
+    this->fid_ = other.fid_;
     this->fnum_ = other.fnum_;
     this->is_global_ = other.is_global_;
     this->total_vertex_size_ = other.total_vertex_size_;
@@ -240,7 +250,7 @@ class VertexMap {
     auto io_adaptor = std::unique_ptr<IOAdaptorBase>(new IOADAPTOR(path));
     io_adaptor->Open("wb");
     InArchive arc;
-    arc << fnum_ << total_vertex_size_ << inner_vertex_size_;
+    arc << fid_ << fnum_ << total_vertex_size_ << inner_vertex_size_;
     io_adaptor->WriteArchive(arc);
     for (fid_t fid = 0; fid < fnum_; ++fid) {
       serialize_idxer<OID_T, VID_T>(io_adaptor, idxers_[fid]);
@@ -254,7 +264,7 @@ class VertexMap {
     io_adaptor->Open();
     OutArchive arc;
     io_adaptor->ReadArchive(arc);
-    arc >> fnum_ >> total_vertex_size_ >> inner_vertex_size_;
+    arc >> fid_ >> fnum_ >> total_vertex_size_ >> inner_vertex_size_;
     idxers_.resize(fnum_);
     for (fid_t fid = 0; fid < fnum_; ++fid) {
       idxers_[fid] = deserialize_idxer<OID_T, VID_T>(io_adaptor);
@@ -265,6 +275,7 @@ class VertexMap {
   template <typename _OID_T, typename _VID_T>
   friend class VertexMapBuilder;
 
+  fid_t fid_;
   fid_t fnum_;
   bool is_global_;
 
@@ -284,7 +295,10 @@ class VertexMapBuilder {
   VertexMapBuilder(fid_t fid, fid_t fnum,
                    std::unique_ptr<IPartitioner<OID_T>>&& partitioner,
                    bool is_global, bool use_pthash)
-      : fid_(fid), is_global_(is_global), partitioner_(std::move(partitioner)) {
+      : fid_(fid),
+        fnum_(fnum),
+        is_global_(is_global),
+        partitioner_(std::move(partitioner)) {
     idxer_builders_.resize(fnum, nullptr);
     if (!use_pthash) {
       if (!is_global_) {
@@ -322,7 +336,11 @@ class VertexMapBuilder {
 
   void add_vertex(const internal_oid_t& id) {
     fid_t fid = partitioner_->GetPartitionId(id);
-    idxer_builders_[fid]->add(id);
+    if (fid < fnum_) {
+      idxer_builders_[fid]->add(id);
+    } else {
+      LOG(ERROR) << "add vertex - " << id << " failed, unknwon partition id";
+    }
   }
 
   void finish(const CommSpec& comm_spec, VertexMap<OID_T, VID_T>& vertex_map) {
@@ -361,6 +379,7 @@ class VertexMapBuilder {
     }
 
     vertex_map.reset();
+    vertex_map.fid_ = fid_;
     vertex_map.fnum_ = fnum;
     vertex_map.is_global_ = is_global_;
     vertex_map.partitioner_ = std::move(partitioner_);
@@ -387,6 +406,7 @@ class VertexMapBuilder {
 
  private:
   fid_t fid_;
+  fid_t fnum_;
   bool is_global_;
   std::unique_ptr<IPartitioner<OID_T>> partitioner_;
   std::vector<IdxerBuilderBase<OID_T, VID_T>*> idxer_builders_;
@@ -473,7 +493,7 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
   }
 
   std::unique_ptr<MapPartitioner<OID_T>> new_partitioner(
-      new MapPartitioner<OID_T>());
+      new MapPartitioner<OID_T>(fnum_));
   new_partitioner->Init(oid_lists);
 
   VertexMapBuilder<OID_T, VID_T> builder(
