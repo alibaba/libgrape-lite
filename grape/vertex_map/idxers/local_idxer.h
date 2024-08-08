@@ -62,6 +62,14 @@ class LocalIdxer : public IdxerBase<OID_T, VID_T> {
 
   size_t size() const override { return oid_indexer_.size(); }
 
+  void add(const internal_oid_t& oid, VID_T vid) {
+    size_t before = oid_indexer_.size();
+    oid_indexer_._add(oid);
+    if (oid_indexer_.size() > before) {
+      lid_indexer_._add(vid);
+    }
+  }
+
  private:
   IdIndexer<internal_oid_t, VID_T> oid_indexer_;  // oid -> idx
   IdIndexer<VID_T, VID_T> lid_indexer_;           // lid -> idx

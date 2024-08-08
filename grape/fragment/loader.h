@@ -48,19 +48,9 @@ static std::shared_ptr<FRAG_T> LoadGraph(
     const std::string& efile, const std::string& vfile,
     const CommSpec& comm_spec,
     const LoadGraphSpec& spec = DefaultLoadGraphSpec()) {
-  if (spec.rebalance) {
-    std::unique_ptr<
-        EVFragmentRebalanceLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>>
-        loader(
-            new EVFragmentRebalanceLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>(
-                comm_spec));
-    return loader->LoadFragment(efile, vfile, spec);
-  } else {
-    std::unique_ptr<EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>>
-        loader(new EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>(
-            comm_spec));
-    return loader->LoadFragment(efile, vfile, spec);
-  }
+  std::unique_ptr<EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>> loader(
+      new EVFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>(comm_spec));
+  return loader->LoadFragment(efile, vfile, spec);
 }
 
 template <typename FRAG_T, typename IOADAPTOR_T = LocalIOAdaptor,

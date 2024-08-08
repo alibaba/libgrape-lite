@@ -57,13 +57,19 @@ IdxerBase<OID_T, VID_T>* deserialize_idxer(
 
 template <typename OID_T, typename VID_T>
 IdxerBase<OID_T, VID_T>* extend_indexer(IdxerBase<OID_T, VID_T>* input,
-                                        const std::vector<OID_T>& id_list) {
+                                        const std::vector<OID_T>& id_list,
+                                        VID_T base) {
   if (input->type() == IdxerType::kHashMapIdxer) {
     auto casted = dynamic_cast<HashMapIdxer<OID_T, VID_T>*>(input);
     for (auto& id : id_list) {
       casted->add(id);
     }
     return input;
+  } else if (input->type() == IdxerType::kLocalIdxer) {
+    auto casted = dynamic_cast<LocalIdxer<OID_T, VID_T>*>(input);
+    for (auto& id : id_list) {
+      casted->add(id, base++);
+    }
   } else {
     LOG(FATAL) << "Only HashMapIdxer can be extended";
   }

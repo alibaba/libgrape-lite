@@ -172,6 +172,7 @@ void RunDirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
+  // graph_spec.mutable_vertex_map = true;
 
   using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
                                           EmptyType, LoadStrategy::kOnlyOut>;
@@ -336,8 +337,8 @@ void RunOpt() {
       RunDirectedCDLP(comm_spec, out_prefix, spec);
     } else {
       FLAGS_segmented_partition = true;
-      FLAGS_rebalance = true;
-      FLAGS_rebalance_vertex_factor = 0;
+      // FLAGS_rebalance = true;
+      // FLAGS_rebalance_vertex_factor = 0;
       RunUndirectedCDLP(comm_spec, out_prefix, spec);
     }
   } else if (name == "wcc") {

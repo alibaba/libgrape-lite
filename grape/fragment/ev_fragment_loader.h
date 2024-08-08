@@ -24,6 +24,9 @@ limitations under the License.
 #include <vector>
 
 #include "grape/fragment/basic_fragment_loader.h"
+#include "grape/fragment/basic_fragment_loader_beta.h"
+#include "grape/fragment/basic_local_fragment_loader_beta.h"
+#include "grape/fragment/basic_rb_fragment_loader_beta.h"
 #include "grape/fragment/partitioner.h"
 #include "grape/io/line_parser_base.h"
 #include "grape/io/local_io_adaptor.h"
@@ -62,7 +65,7 @@ class EVFragmentLoader {
 
  public:
   explicit EVFragmentLoader(const CommSpec& comm_spec)
-      : comm_spec_(comm_spec), basic_fragment_loader_(comm_spec) {}
+      : comm_spec_(comm_spec), basic_fragment_loader_(nullptr) {}
 
   ~EVFragmentLoader() = default;
 
@@ -91,10 +94,26 @@ class EVFragmentLoader {
       }
     }
 
-    std::vector<oid_t> id_list;
-    std::vector<vdata_t> vdata_list;
+    if (spec.global_vertex_map) {
+      if (spec.rebalance) {
+        basic_fragment_loader_ =
+            std::unique_ptr<BasicRbFragmentLoaderBeta<fragment_t>>(
+                new BasicRbFragmentLoaderBeta<fragment_t>(comm_spec_, spec));
+      } else {
+        basic_fragment_loader_ =
+            std::unique_ptr<BasicFragmentLoaderBeta<fragment_t>>(
+                new BasicFragmentLoaderBeta<fragment_t>(comm_spec_, spec));
+      }
+    } else {
+      basic_fragment_loader_ =
+          std::unique_ptr<BasicLocalFragmentLoaderBeta<fragment_t>>(
+              new BasicLocalFragmentLoaderBeta<fragment_t>(comm_spec_, spec));
+    }
+
     if (!vfile.empty()) {
       auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(vfile));
+      io_adaptor->SetPartialRead(comm_spec_.worker_id(),
+                                 comm_spec_.worker_num());
       io_adaptor->Open();
       std::string line;
       vdata_t v_data;
@@ -114,34 +133,12 @@ class EVFragmentLoader {
           VLOG(1) << e.what();
           continue;
         }
-        id_list.push_back(vertex_id);
-        vdata_list.push_back(v_data);
+        basic_fragment_loader_->AddVertex(vertex_id, v_data);
       }
       io_adaptor->Close();
     }
 
-    fid_t fnum = comm_spec_.fnum();
-    std::unique_ptr<IPartitioner<oid_t>> partitioner(nullptr);
-    if (spec.partitioner_type == PartitionerType::kHashPartitioner) {
-      partitioner = std::unique_ptr<IPartitioner<oid_t>>(
-          new HashPartitionerBeta<oid_t>(fnum));
-    } else if (spec.partitioner_type == PartitionerType::kMapPartitioner) {
-      partitioner = std::unique_ptr<IPartitioner<oid_t>>(
-          new MapPartitioner<oid_t>(fnum, id_list));
-    } else {
-      LOG(FATAL) << "Unsupported partitioner type.";
-    }
-
-    basic_fragment_loader_.SetPartitioner(std::move(partitioner));
-
-    basic_fragment_loader_.Start();
-
-    {
-      size_t vnum = id_list.size();
-      for (size_t i = 0; i < vnum; ++i) {
-        basic_fragment_loader_.AddVertex(id_list[i], vdata_list[i]);
-      }
-    }
+    basic_fragment_loader_->ConstructVertices();
 
     {
       auto io_adaptor =
@@ -170,7 +167,7 @@ class EVFragmentLoader {
           continue;
         }
 
-        basic_fragment_loader_.AddEdge(src, dst, e_data);
+        basic_fragment_loader_->AddEdge(src, dst, e_data);
       }
       io_adaptor->Close();
     }
@@ -178,8 +175,7 @@ class EVFragmentLoader {
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "] finished add vertices and edges";
 
-    basic_fragment_loader_.ConstructFragment(fragment, spec.directed,
-                                             spec.mutable_vertex_map);
+    basic_fragment_loader_->ConstructFragment(fragment);
 
     if (spec.serialize) {
       bool serialized = SerializeFragment<fragment_t, IOADAPTOR_T>(
@@ -196,7 +192,7 @@ class EVFragmentLoader {
  private:
   CommSpec comm_spec_;
 
-  BasicFragmentLoader<fragment_t, io_adaptor_t> basic_fragment_loader_;
+  std::unique_ptr<BasicFragmentLoaderBase<fragment_t>> basic_fragment_loader_;
   line_parser_t line_parser_;
 };
 

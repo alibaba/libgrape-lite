@@ -129,7 +129,10 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
     if (FLAGS_global_vertex_map) {
       graph_spec.global_vertex_map = true;
     } else {
+      graph_spec.set_rebalance(false, 0);
       graph_spec.global_vertex_map = false;
+      graph_spec.mutable_vertex_map = true;
+      graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
     }
     graph_spec.mutable_vertex_map = true;
     using FRAG_T = grape::MutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
@@ -151,7 +154,10 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
     if (FLAGS_global_vertex_map) {
       graph_spec.global_vertex_map = true;
     } else {
+      graph_spec.set_rebalance(false, 0);
       graph_spec.global_vertex_map = false;
+      graph_spec.mutable_vertex_map = true;
+      graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
     }
     using FRAG_T = grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
                                                    EDATA_T, load_strategy>;

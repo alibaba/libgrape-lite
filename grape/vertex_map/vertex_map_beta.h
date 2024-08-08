@@ -52,6 +52,8 @@ class VertexMap {
 
   const IdParser<VID_T>& GetIdParser() const { return id_parser_; }
 
+  const IPartitioner<OID_T>& GetPartitioner() const { return *partitioner_; }
+
   VID_T Lid2Gid(fid_t fid, const VID_T& lid) const {
     return id_parser_.generate_global_id(fid, lid);
   }
@@ -114,82 +116,53 @@ class VertexMap {
   void ExtendVertices(const CommSpec& comm_spec,
                       std::vector<OID_T>&& local_vertices_to_add) {
     int worker_id = comm_spec.worker_id();
-    int worker_num = comm_spec.worker_num();
-    if (is_global_) {
-      DistinctSort(local_vertices_to_add);
-      bool unpartitioned_id = false;
-      for (size_t i = 0; i < local_vertices_to_add.size();) {
-        fid_t fid = partitioner_->GetPartitionId(local_vertices_to_add[i]);
-        if (fid == static_cast<fid_t>(-1)) {
-          unpartitioned_id = true;
-        } else if (comm_spec.FragToWorker(fid) != worker_id) {
-          LOG(ERROR) << "Partition id is not consistent for vertex - "
-                     << local_vertices_to_add[i] << ", discarded...";
+    DistinctSort(local_vertices_to_add);
+    bool unpartitioned_id = false;
+    for (size_t i = 0; i < local_vertices_to_add.size();) {
+      fid_t fid = partitioner_->GetPartitionId(local_vertices_to_add[i]);
+      if (fid == static_cast<fid_t>(-1)) {
+        unpartitioned_id = true;
+      } else if (comm_spec.FragToWorker(fid) != worker_id) {
+        LOG(ERROR) << "Partition id is not consistent for vertex - "
+                   << local_vertices_to_add[i] << ", discarded...";
+        std::swap(local_vertices_to_add[i], local_vertices_to_add.back());
+        local_vertices_to_add.pop_back();
+        continue;
+      } else {
+        vid_t index;
+        if (idxers_[fid]->get_index(internal_oid_t(local_vertices_to_add[i]),
+                                    index)) {
+          LOG(ERROR) << "Vertex already exists - " << local_vertices_to_add[i];
           std::swap(local_vertices_to_add[i], local_vertices_to_add.back());
           local_vertices_to_add.pop_back();
           continue;
         }
-        ++i;
       }
-      int state = 0;
-      if (unpartitioned_id) {
-        state = 1;
-      }
-      std::vector<int> states(worker_num, 0);
-      states[worker_id] = state;
-      sync_comm::AllGather(states, comm_spec.comm());
-      int global_state = *std::max_element(states.begin(), states.end());
-      if (global_state == 1) {
-        // need to update partitioner with new vertices
+      ++i;
+    }
+    int state = 0;
+    if (unpartitioned_id) {
+      state = 1;
+    }
+    std::vector<int> states(comm_spec.fnum(), 0);
+    states[worker_id] = state;
+    sync_comm::AllGather(states, comm_spec.comm());
+    // need to update partitioner with new vertices
+    std::vector<std::vector<OID_T>> global_vertices_to_add(comm_spec.fnum());
+    global_vertices_to_add[comm_spec.fid()] = std::move(local_vertices_to_add);
+    sync_comm::AllGather(global_vertices_to_add, comm_spec.comm());
+    for (fid_t fid = 0; fid < fnum_; ++fid) {
+      if (states[fid] == 1) {
         CHECK(partitioner_->type() == PartitionerType::kMapPartitioner);
+        for (auto& v : global_vertices_to_add[fid]) {
+          partitioner_->SetPartitionId(v, fid);
+        }
       }
-      std::thread send_thread([&]() {
-        int dst_worker_id = (worker_id + 1) % worker_num;
-        while (dst_worker_id != worker_id) {
-          for (fid_t fid = 0; fid < fnum_; ++fid) {
-            if (comm_spec.FragToWorker(fid) != worker_id) {
-              continue;
-            }
-            sync_comm::Send(local_vertices_to_add, dst_worker_id, 0,
-                            comm_spec.comm());
-          }
-          dst_worker_id = (dst_worker_id + 1) % worker_num;
-        }
-      });
-      std::thread recv_thread([&]() {
-        int src_worker_id = (worker_id + worker_num - 1) % worker_num;
-        while (src_worker_id != worker_id) {
-          for (fid_t fid = 0; fid < fnum_; ++fid) {
-            if (comm_spec.FragToWorker(fid) != src_worker_id) {
-              continue;
-            }
-            std::vector<OID_T> remote_vertices;
-            sync_comm::Recv(remote_vertices, src_worker_id, 0,
-                            comm_spec.comm());
-            if (states[src_worker_id] == 1) {
-              for (auto& v : remote_vertices) {
-                partitioner_->SetPartitionId(v, fid);
-              }
-            }
-            idxers_[fid] = extend_indexer(idxers_[fid], remote_vertices);
-          }
-          src_worker_id = (src_worker_id + worker_num - 1) % worker_num;
-        }
-        for (fid_t fid = 0; fid < fnum_; ++fid) {
-          if (comm_spec.FragToWorker(fid) == worker_id) {
-            if (states[worker_id] == 1) {
-              for (auto& v : local_vertices_to_add) {
-                partitioner_->SetPartitionId(v, fid);
-              }
-            }
-            idxers_[fid] = extend_indexer(idxers_[fid], local_vertices_to_add);
-          }
-        }
-      });
-      recv_thread.join();
-      send_thread.join();
-    } else {
-      LOG(FATAL) << "Cannot extend vertices in local mode.";
+      idxers_[fid] =
+          extend_indexer(idxers_[fid], global_vertices_to_add[fid],
+                         static_cast<vid_t>(inner_vertex_size_[fid]));
+      inner_vertex_size_[fid] += global_vertices_to_add[fid].size();
+      total_vertex_size_ += global_vertices_to_add[fid].size();
     }
   }
 
@@ -343,6 +316,10 @@ class VertexMapBuilder {
     }
   }
 
+  fid_t get_fragment_id(const internal_oid_t& oid) const {
+    return partitioner_->GetPartitionId(oid);
+  }
+
   void add_vertex(const internal_oid_t& id) {
     fid_t fid = partitioner_->GetPartitionId(id);
     idxer_builders_[fid]->add(id);
@@ -443,7 +420,6 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
       }
     }
   }
-  LOG(INFO) << "after init oid lists";
   {
     std::thread request_thread = std::thread([&]() {
       int src_worker_id = (comm_spec.worker_id() + 1) % comm_spec.worker_num();
@@ -488,7 +464,6 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
     request_thread.join();
     MPI_Barrier(comm_spec.comm());
   }
-  LOG(INFO) << "after resolved oids";
   for (fid_t fid = 0; fid < fnum; ++fid) {
     for (size_t i = 0; i < unresolved_lids[fid].size(); ++i) {
       OID_T oid = unresolved_oids[fid][i];
@@ -496,7 +471,6 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
       oid_lists[pair.first][pair.second] = oid;
     }
   }
-  LOG(INFO) << "after update oid lists";
 
   std::unique_ptr<MapPartitioner<OID_T>> new_partitioner(
       new MapPartitioner<OID_T>());
@@ -509,10 +483,8 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
     internal_oid_t internal_oid(oid);
     builder.add_vertex(internal_oid);
   }
-  LOG(INFO) << "after add vertices";
 
   builder.finish(comm_spec, *this);
-  LOG(INFO) << "after finish";
 }
 
 }  // namespace grape

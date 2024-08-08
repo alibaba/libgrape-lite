@@ -101,7 +101,7 @@ class HashMapIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
       sync_comm::Send(indexer_, source, tag + 1, comm_spec.comm());
     } else if (req_type == 1) {
       // request partial
-      typename IdIndexer<OID_T, VID_T>::key_buffer_t keys;
+      typename IdIndexer<internal_oid_t, VID_T>::key_buffer_t keys;
       sync_comm::Recv(keys, source, tag, comm_spec.comm());
       std::vector<VID_T> response;
       size_t keys_num = keys.size();
