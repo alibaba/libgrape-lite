@@ -377,12 +377,12 @@ class AppendOnlyEdgecutFragment
     }
     tvnum_ = ivnum_ + ovnum_;
     max_old_ilid_ = ivnum_;
-    min_old_olid_ = id_parser_.max_local_id() - ovnum_;
+    min_old_olid_ = id_parser_.max_local_id() - ovnum_ + 1;
     this->inner_vertices_.SetRange(0, ivnum_);
-    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
-                                   id_parser_.max_local_id());
-    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
-                             id_parser_.max_local_id());
+    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_ + 1,
+                                   id_parser_.max_local_id() + 1);
+    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_ + 1,
+                             id_parser_.max_local_id() + 1);
 
     {
       std::vector<int> odegree(ivnum_, 0);
@@ -590,10 +590,11 @@ class AppendOnlyEdgecutFragment
         }
       }
       this->inner_vertices_.SetRange(0, ivnum_);
-      this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
-                                     id_parser_.max_local_id());
-      this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
-                               id_parser_.max_local_id());
+      this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_ + 1,
+                                     id_parser_.max_local_id() + 1);
+      this->vertices_.SetRange(0, ivnum_,
+                               id_parser_.max_local_id() - ovnum_ + 1,
+                               id_parser_.max_local_id() + 1);
       tvnum_ = ivnum_ + ovnum_;
       ovgid_.resize(ovnum_);
       memcpy(&ovgid_[old_ovnum], &ov_to_extend[0],
@@ -622,7 +623,7 @@ class AppendOnlyEdgecutFragment
     InArchive ia;
 
     vid_t xivnum = max_old_ilid_;
-    vid_t xovnum = id_parser_.max_local_id() - min_old_olid_;
+    vid_t xovnum = id_parser_.max_local_id() - min_old_olid_ + 1;
 
     ia << xivnum << xovnum << oenum_;
     io_adaptor->WriteArchive(ia);
@@ -719,15 +720,15 @@ class AppendOnlyEdgecutFragment
     io_adaptor->Close();
 
     max_old_ilid_ = ivnum_;
-    min_old_olid_ = id_parser_.max_local_id() - ovnum_;
+    min_old_olid_ = id_parser_.max_local_id() - ovnum_ + 1;
     extra_oenum_ = 0;
     extra_oe_.clear();
     extra_oe_.resize(ivnum_, -1);
     this->inner_vertices_.SetRange(0, ivnum_);
-    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
-                                   id_parser_.max_local_id());
-    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
-                             id_parser_.max_local_id());
+    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_ + 1,
+                                   id_parser_.max_local_id() + 1);
+    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_ + 1,
+                             id_parser_.max_local_id() + 1);
 
     initOuterVerticesOfFragment();
   }
