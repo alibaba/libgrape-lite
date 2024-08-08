@@ -105,7 +105,7 @@ inline LoadGraphSpec DefaultLoadGraphSpec() {
   spec.deserialize = false;
   spec.partitioner_type = PartitionerType::kHashPartitioner;
   spec.global_vertex_map = true;
-  spec.mutable_vertex_map = false;
+  spec.mutable_vertex_map = true;
   return spec;
 }
 
