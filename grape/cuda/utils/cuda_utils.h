@@ -170,7 +170,7 @@ size_t get_rss(bool include_shared_memory) {
   if (include_shared_memory) {
     return (size_t) rss * (size_t) sysconf(_SC_PAGESIZE);
   } else {
-    return (size_t) (rss - shared_rss) * (size_t) sysconf(_SC_PAGESIZE);
+    return (size_t)(rss - shared_rss) * (size_t) sysconf(_SC_PAGESIZE);
   }
 #else
   /* Unknown OS ----------------------------------------------- */

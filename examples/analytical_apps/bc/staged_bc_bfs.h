@@ -150,8 +150,8 @@ class StagedBCBFS : public ParallelAppBase<FRAG_T, BCContext<FRAG_T>,
         });
 
     // sync messages to other workers
-    ForEach(ctx.curr_inner_updated, [next_depth, &frag, &ctx, &channels](
-                                        int tid, vertex_t v) {
+    ForEach(ctx.curr_inner_updated, [next_depth, &frag, &ctx](int tid,
+                                                              vertex_t v) {
       auto oes = frag.GetOutgoingAdjList(v);
       double pn = ctx.path_num[v];
       for (auto& e : oes) {

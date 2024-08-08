@@ -41,7 +41,8 @@ class KCoreContext : public VertexDataContext<FRAG_T, int> {
       }
     }
 
-    LOG(INFO) << "[frag-" << frag.fid() << "] " << "KCore: " << num;
+    LOG(INFO) << "[frag-" << frag.fid() << "] "
+              << "KCore: " << num;
   }
 
   int k;
