@@ -79,8 +79,9 @@ class SortedArrayIdxerDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   using internal_oid_t = typename InternalOID<OID_T>::type;
   void add(const internal_oid_t& oid) override {}
 
-  IdxerBase<OID_T, VID_T>* finish() override {
-    return new SortedArrayIdxer<OID_T, VID_T>(std::move(id_list_));
+  std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() override {
+    return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new SortedArrayIdxer<OID_T, VID_T>(std::move(id_list_)));
   }
 
   void sync_request(const CommSpec& comm_spec, int target, int tag) override {
@@ -102,14 +103,15 @@ class SortedArrayIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   using internal_oid_t = typename InternalOID<OID_T>::type;
   void add(const internal_oid_t& oid) override { keys_.push_back(OID_T(oid)); }
 
-  IdxerBase<OID_T, VID_T>* finish() override {
+  std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() override {
     if (!sorted_) {
       DistinctSort(keys_);
       sorted_ = true;
     }
     Array<OID_T, Allocator<OID_T>> id_list(keys_.size());
     std::copy(keys_.begin(), keys_.end(), id_list.begin());
-    return new SortedArrayIdxer<OID_T, VID_T>(std::move(id_list));
+    return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new SortedArrayIdxer<OID_T, VID_T>(std::move(id_list)));
   }
 
   void sync_request(const CommSpec& comm_spec, int target, int tag) override {

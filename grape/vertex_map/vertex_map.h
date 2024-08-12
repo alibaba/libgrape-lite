@@ -37,11 +37,7 @@ class VertexMap {
 
   VertexMap(const VertexMap&) = delete;
   VertexMap() : partitioner_(nullptr) {}
-  ~VertexMap() {
-    for (auto idxer : idxers_) {
-      delete idxer;
-    }
-  }
+  ~VertexMap() {}
 
   fid_t GetFragmentNum() const { return fnum_; }
 
@@ -113,14 +109,7 @@ class VertexMap {
     return GetGid(fid, oid, gid);
   }
 
-  void reset() {
-    for (auto idxer : idxers_) {
-      if (idxer) {
-        delete idxer;
-      }
-    }
-    idxers_.clear();
-  }
+  void reset() { idxers_.clear(); }
 
   void ExtendVertices(const CommSpec& comm_spec,
                       std::vector<OID_T>&& local_vertices_to_add) {
@@ -168,7 +157,7 @@ class VertexMap {
         }
       }
       idxers_[fid] =
-          extend_indexer(idxers_[fid], global_vertices_to_add[fid],
+          extend_indexer(std::move(idxers_[fid]), global_vertices_to_add[fid],
                          static_cast<vid_t>(inner_vertex_size_[fid]));
       inner_vertex_size_[fid] += global_vertices_to_add[fid].size();
       total_vertex_size_ += global_vertices_to_add[fid].size();
@@ -270,9 +259,8 @@ class VertexMap {
     io_adaptor->ReadArchive(arc);
     arc >> fid_ >> fnum_ >> idxer_type_ >> total_vertex_size_ >>
         inner_vertex_size_;
-    idxers_.resize(fnum_);
     for (fid_t fid = 0; fid < fnum_; ++fid) {
-      idxers_[fid] = deserialize_idxer<OID_T, VID_T>(io_adaptor);
+      idxers_.emplace_back(deserialize_idxer<OID_T, VID_T>(io_adaptor));
     }
     partitioner_ = deserialize_partitioner<OID_T>(io_adaptor);
   }
@@ -288,8 +276,8 @@ class VertexMap {
   size_t total_vertex_size_;
   std::vector<size_t> inner_vertex_size_;
 
-  std::vector<IdxerBase<OID_T, VID_T>*> idxers_;
   std::unique_ptr<IPartitioner<OID_T>> partitioner_;
+  std::vector<std::unique_ptr<IdxerBase<OID_T, VID_T>>> idxers_;
   IdParser<VID_T> id_parser_;
 };
 
@@ -305,41 +293,46 @@ class VertexMapBuilder {
         fnum_(fnum),
         idxer_type_(idxer_type),
         partitioner_(std::move(partitioner)) {
-    idxer_builders_.resize(fnum_, nullptr);
     if (idxer_type_ == IdxerType::kSortedArrayIdxer) {
-      for (fid_t i = 1; i < fnum; ++i) {
-        idxer_builders_[(i + fid_) % fnum_] =
-            new SortedArrayIdxerDummyBuilder<OID_T, VID_T>();
+      for (fid_t i = 0; i < fnum; ++i) {
+        if (i != fid) {
+          idxer_builders_.emplace_back(
+              new SortedArrayIdxerDummyBuilder<OID_T, VID_T>());
+        } else {
+          idxer_builders_.emplace_back(
+              new SortedArrayIdxerBuilder<OID_T, VID_T>());
+        }
       }
-      idxer_builders_[fid_] = new SortedArrayIdxerBuilder<OID_T, VID_T>();
     } else if (idxer_type_ == IdxerType::kHashMapIdxer) {
-      for (fid_t i = 1; i < fnum; ++i) {
-        idxer_builders_[(i + fid_) % fnum_] =
-            new HashMapIdxerDummyBuilder<OID_T, VID_T>();
+      for (fid_t i = 0; i < fnum; ++i) {
+        if (i != fid) {
+          idxer_builders_.emplace_back(
+              new HashMapIdxerDummyBuilder<OID_T, VID_T>());
+        } else {
+          idxer_builders_.emplace_back(new HashMapIdxerBuilder<OID_T, VID_T>());
+        }
       }
-      idxer_builders_[fid_] = new HashMapIdxerBuilder<OID_T, VID_T>();
     } else if (idxer_type_ == IdxerType::kPTHashIdxer) {
-      for (fid_t i = 1; i < fnum; ++i) {
-        idxer_builders_[(i + fid_) % fnum_] =
-            new PTHashIdxerDummyBuilder<OID_T, VID_T>();
+      for (fid_t i = 0; i < fnum; ++i) {
+        if (i != fid) {
+          idxer_builders_.emplace_back(
+              new PTHashIdxerDummyBuilder<OID_T, VID_T>());
+        } else {
+          idxer_builders_.emplace_back(new PTHashIdxerBuilder<OID_T, VID_T>());
+        }
       }
-      idxer_builders_[fid_] = new PTHashIdxerBuilder<OID_T, VID_T>();
     } else if (idxer_type_ == IdxerType::kLocalIdxer) {
-      for (fid_t i = 1; i < fnum; ++i) {
-        idxer_builders_[(i + fid_) % fnum_] =
-            new LocalIdxerBuilder<OID_T, VID_T>();
+      for (fid_t i = 0; i < fnum; ++i) {
+        if (i != fid) {
+          idxer_builders_.emplace_back(new LocalIdxerBuilder<OID_T, VID_T>());
+        } else {
+          idxer_builders_.emplace_back(new HashMapIdxerBuilder<OID_T, VID_T>());
+        }
       }
-      idxer_builders_[fid_] = new HashMapIdxerBuilder<OID_T, VID_T>();
     }
   }
 
-  ~VertexMapBuilder() {
-    for (auto idxer_builder : idxer_builders_) {
-      if (idxer_builder) {
-        delete idxer_builder;
-      }
-    }
-  }
+  ~VertexMapBuilder() {}
 
   fid_t get_fragment_id(const internal_oid_t& oid) const {
     return partitioner_->GetPartitionId(oid);
@@ -394,11 +387,8 @@ class VertexMapBuilder {
     vertex_map.fnum_ = fnum;
     vertex_map.idxer_type_ = idxer_type_;
     vertex_map.partitioner_ = std::move(partitioner_);
-    vertex_map.idxers_.resize(fnum, nullptr);
     for (fid_t fid = 0; fid < fnum; ++fid) {
-      vertex_map.idxers_[fid] = idxer_builders_[fid]->finish();
-      delete idxer_builders_[fid];
-      idxer_builders_[fid] = nullptr;
+      vertex_map.idxers_.emplace_back(idxer_builders_[fid]->finish());
     }
     idxer_builders_.clear();
     vertex_map.id_parser_.init(fnum);
@@ -420,7 +410,7 @@ class VertexMapBuilder {
   fid_t fnum_;
   IdxerType idxer_type_;
   std::unique_ptr<IPartitioner<OID_T>> partitioner_;
-  std::vector<IdxerBuilderBase<OID_T, VID_T>*> idxer_builders_;
+  std::vector<std::unique_ptr<IdxerBuilderBase<OID_T, VID_T>>> idxer_builders_;
 };
 
 template <typename OID_T, typename VID_T>

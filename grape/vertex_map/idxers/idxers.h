@@ -25,34 +25,39 @@ limitations under the License.
 namespace grape {
 
 template <typename OID_T, typename VID_T>
-IdxerBase<OID_T, VID_T>* deserialize_idxer(
+std::unique_ptr<IdxerBase<OID_T, VID_T>> deserialize_idxer(
     std::unique_ptr<IOAdaptorBase>& reader) {
   int type;
   reader->Read(&type, sizeof(type));
   IdxerType idxer_type = static_cast<IdxerType>(type);
   switch (idxer_type) {
   case IdxerType::kHashMapIdxer: {
-    auto idxer = new HashMapIdxer<OID_T, VID_T>();
+    auto idxer = std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new HashMapIdxer<OID_T, VID_T>());
     idxer->deserialize(reader);
     return idxer;
   }
   case IdxerType::kLocalIdxer: {
-    auto idxer = new LocalIdxer<OID_T, VID_T>();
+    auto idxer = std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new LocalIdxer<OID_T, VID_T>());
     idxer->deserialize(reader);
     return idxer;
   }
   case IdxerType::kHashMapIdxerView: {
-    auto idxer = new HashMapIdxerView<OID_T, VID_T>();
+    auto idxer = std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new HashMapIdxerView<OID_T, VID_T>());
     idxer->deserialize(reader);
     return idxer;
   }
   case IdxerType::kPTHashIdxer: {
-    auto idxer = new PTHashIdxer<OID_T, VID_T>();
+    auto idxer = std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new PTHashIdxer<OID_T, VID_T>());
     idxer->deserialize(reader);
     return idxer;
   }
   case IdxerType::kSortedArrayIdxer: {
-    auto idxer = new SortedArrayIdxer<OID_T, VID_T>();
+    auto idxer = std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new SortedArrayIdxer<OID_T, VID_T>());
     idxer->deserialize(reader);
     return idxer;
   }
@@ -62,24 +67,27 @@ IdxerBase<OID_T, VID_T>* deserialize_idxer(
 }
 
 template <typename OID_T, typename VID_T>
-IdxerBase<OID_T, VID_T>* extend_indexer(IdxerBase<OID_T, VID_T>* input,
-                                        const std::vector<OID_T>& id_list,
-                                        VID_T base) {
+std::unique_ptr<IdxerBase<OID_T, VID_T>> extend_indexer(
+    std::unique_ptr<IdxerBase<OID_T, VID_T>>&& input,
+    const std::vector<OID_T>& id_list, VID_T base) {
   if (input->type() == IdxerType::kHashMapIdxer) {
-    auto casted = dynamic_cast<HashMapIdxer<OID_T, VID_T>*>(input);
+    auto casted = std::unique_ptr<HashMapIdxer<OID_T, VID_T>>(
+        dynamic_cast<HashMapIdxer<OID_T, VID_T>*>(input.release()));
     for (auto& id : id_list) {
       casted->add(id);
     }
-    return input;
+    return casted;
   } else if (input->type() == IdxerType::kLocalIdxer) {
-    auto casted = dynamic_cast<LocalIdxer<OID_T, VID_T>*>(input);
+    auto casted = std::unique_ptr<LocalIdxer<OID_T, VID_T>>(
+        dynamic_cast<LocalIdxer<OID_T, VID_T>*>(input.release()));
     for (auto& id : id_list) {
       casted->add(id, base++);
     }
+    return casted;
   } else {
-    LOG(FATAL) << "Only HashMapIdxer or LocalIdxer can be extended";
+    LOG(ERROR) << "Only HashMapIdxer or LocalIdxer can be extended";
+    return std::move(input);
   }
-  return nullptr;
 }
 
 inline IdxerType parse_idxer_type_name(const std::string& name) {

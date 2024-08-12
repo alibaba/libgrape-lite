@@ -82,8 +82,9 @@ class PTHashIdxerDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
     LOG(ERROR) << "PTHashIdxerDummyBuilder should not be used to sync response";
   }
 
-  IdxerBase<OID_T, VID_T>* finish() override {
-    return new PTHashIdxer<OID_T, VID_T>(std::move(buffer_));
+  std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() override {
+    return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new PTHashIdxer<OID_T, VID_T>(std::move(buffer_)));
   }
 
  private:
@@ -141,7 +142,7 @@ class PTHashIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
    * buffer(std::vector<char>). After add all keys, call finish to build the
    * perfect hash index and serialize it.
    */
-  IdxerBase<OID_T, VID_T>* finish() override {
+  std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() override {
     buildPhf();
     if (getSerializeSize() != buffer_.size()) {
       buffer_.resize(getSerializeSize());
@@ -149,8 +150,8 @@ class PTHashIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
       phf_.dump(dumper);
       key_buffer_.dump(dumper);
     }
-    auto idxer = new PTHashIdxer<OID_T, VID_T>(std::move(buffer_));
-    return idxer;
+    return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new PTHashIdxer<OID_T, VID_T>(std::move(buffer_)));
   }
 
   void sync_request(const CommSpec& comm_spec, int target, int tag) override {

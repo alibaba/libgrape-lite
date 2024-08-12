@@ -58,7 +58,7 @@ class IdxerBuilderBase {
 
   virtual void add(const internal_oid_t& oid) = 0;
 
-  virtual IdxerBase<OID_T, VID_T>* finish() = 0;
+  virtual std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() = 0;
 
   virtual void sync_request(const CommSpec& comm_spec, int target, int tag) = 0;
   virtual void sync_response(const CommSpec& comm_spec, int source,
@@ -67,7 +67,7 @@ class IdxerBuilderBase {
 
 template <typename OID_T, typename VID_T>
 void serialize_idxer(std::unique_ptr<IOAdaptorBase>& writer,
-                     IdxerBase<OID_T, VID_T>* idxer) {
+                     std::unique_ptr<IdxerBase<OID_T, VID_T>>& idxer) {
   int type = static_cast<int>(idxer->type());
   writer->Write(&type, sizeof(type));
   idxer->serialize(writer);

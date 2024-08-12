@@ -85,9 +85,10 @@ class LocalIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   using internal_oid_t = typename InternalOID<OID_T>::type;
   void add(const internal_oid_t& oid) override { oid_indexer_._add(oid); }
 
-  IdxerBase<OID_T, VID_T>* finish() override {
-    return new LocalIdxer<OID_T, VID_T>(std::move(oid_indexer_),
-                                        std::move(lid_indexer_));
+  std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() override {
+    return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new LocalIdxer<OID_T, VID_T>(std::move(oid_indexer_),
+                                     std::move(lid_indexer_)));
   }
 
   void sync_request(const CommSpec& comm_spec, int target, int tag) override {

@@ -76,8 +76,9 @@ class HashMapIdxerViewDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   using internal_oid_t = typename InternalOID<OID_T>::type;
   void add(const internal_oid_t& oid) override {}
 
-  IdxerBase<OID_T, VID_T>* finish() override {
-    return new HashMapIdxerView<OID_T, VID_T>(std::move(buffer_));
+  std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() override {
+    return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new HashMapIdxerView<OID_T, VID_T>(std::move(buffer_)));
   }
 
   void sync_request(const CommSpec& comm_spec, int target, int tag) override {
@@ -104,11 +105,12 @@ class HashMapIdxerViewBuilder : public IdxerBuilderBase<OID_T, VID_T> {
 
   void add(const internal_oid_t& oid) override { indexer_._add(oid); }
 
-  IdxerBase<OID_T, VID_T>* finish() override {
+  std::unique_ptr<IdxerBase<OID_T, VID_T>> finish() override {
     if (buffer_.empty() && indexer_.size() > 0) {
       indexer_.serialize_to_mem(buffer_);
     }
-    return new HashMapIdxerView<OID_T, VID_T>(std::move(buffer_));
+    return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
+        new HashMapIdxerView<OID_T, VID_T>(std::move(buffer_)));
   }
 
   void sync_request(const CommSpec& comm_spec, int target, int tag) override {
