@@ -163,8 +163,8 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
 
     std::vector<internal::Vertex<vid_t, vdata_t>> processed_vertices;
     for (auto& buffers : got_vertices_) {
-      foreach_rval(buffers, [this, &vm_ptr, &processed_vertices](
-                                internal_oid_t&& id, vdata_t&& data) {
+      foreach_rval(buffers, [&vm_ptr, &processed_vertices](internal_oid_t&& id,
+                                                           vdata_t&& data) {
         vid_t gid;
         CHECK(vm_ptr->GetGid(oid_t(id), gid));
         processed_vertices.emplace_back(gid, std::move(data));
@@ -173,9 +173,9 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
 
     std::vector<Edge<vid_t, edata_t>> processed_edges;
     for (auto& buffers : got_edges_) {
-      foreach_rval(buffers, [this, &vm_ptr, &processed_edges](
-                                internal_oid_t&& src, internal_oid_t&& dst,
-                                edata_t&& data) {
+      foreach_rval(buffers, [&vm_ptr, &processed_edges](internal_oid_t&& src,
+                                                        internal_oid_t&& dst,
+                                                        edata_t&& data) {
         vid_t src_gid, dst_gid;
         CHECK(vm_ptr->GetGid(oid_t(src), src_gid));
         CHECK(vm_ptr->GetGid(oid_t(dst), dst_gid));

@@ -162,8 +162,8 @@ class BasicFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
 
     std::vector<Edge<vid_t, edata_t>> processed_edges;
     for (auto& buffers : got_edges_) {
-      foreach_rval(buffers, [this, &processed_edges](vid_t&& src, vid_t&& dst,
-                                                     edata_t&& data) {
+      foreach_rval(buffers, [&processed_edges](vid_t&& src, vid_t&& dst,
+                                               edata_t&& data) {
         processed_edges.emplace_back(src, dst, std::move(data));
       });
     }

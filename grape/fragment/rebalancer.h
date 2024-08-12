@@ -115,11 +115,10 @@ class Rebalancer {
           CHECK(vertex_map_->GetOid(i, j, cur_oid));
           frag_vertices.emplace_back(cur_oid, j);
         }
-        std::sort(frag_vertices.begin(), frag_vertices.end(),
-                  [this](const std::pair<OID_T, vid_t>& a,
-                         const std::pair<OID_T, vid_t>& b) {
-                    return a.first < b.first;
-                  });
+        std::sort(
+            frag_vertices.begin(), frag_vertices.end(),
+            [](const std::pair<OID_T, vid_t>& a,
+               const std::pair<OID_T, vid_t>& b) { return a.first < b.first; });
 
         for (auto& pair : frag_vertices) {
           cur_score += (degree_[i][pair.second] + vertex_factor_);
