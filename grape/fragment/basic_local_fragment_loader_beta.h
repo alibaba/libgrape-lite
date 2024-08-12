@@ -69,13 +69,13 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
   }
 
   ~BasicLocalFragmentLoaderBeta() {
-    if (!vertex_recv_thread_running_) {
+    if (vertex_recv_thread_running_) {
       for (auto& va : vertices_to_frag_) {
         va.Flush();
       }
       vertex_recv_thread_.join();
     }
-    if (!edge_recv_thread_running_) {
+    if (edge_recv_thread_running_) {
       for (auto& ea : edges_to_frag_) {
         ea.Flush();
       }
