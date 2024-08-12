@@ -27,7 +27,8 @@ class HashMapIdxerView : public IdxerBase<OID_T, VID_T> {
 
  public:
   HashMapIdxerView() {}
-  explicit HashMapIdxerView(std::vector<char>&& buf) : buffer_(std::move(buf)) {
+  explicit HashMapIdxerView(Array<char, Allocator<char>>&& buf)
+      : buffer_(std::move(buf)) {
     indexer_.init(buffer_.data(), buffer_.size());
   }
   ~HashMapIdxerView() {}
@@ -62,9 +63,11 @@ class HashMapIdxerView : public IdxerBase<OID_T, VID_T> {
 
   size_t size() const override { return indexer_.size(); }
 
+  size_t memory_usage() const override { return buffer_.size(); }
+
  private:
   IdIndexerView<internal_oid_t, VID_T> indexer_;
-  std::vector<char> buffer_;
+  Array<char, Allocator<char>> buffer_;
 };
 
 template <typename OID_T, typename VID_T>
@@ -88,7 +91,7 @@ class HashMapIdxerViewDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   }
 
  private:
-  std::vector<char> buffer_;
+  Array<char, Allocator<char>> buffer_;
 };
 
 template <typename OID_T, typename VID_T>
@@ -141,7 +144,7 @@ class HashMapIdxerViewBuilder : public IdxerBuilderBase<OID_T, VID_T> {
 
  private:
   IdIndexer<internal_oid_t, VID_T> indexer_;
-  std::vector<char> buffer_;
+  Array<char, Allocator<char>> buffer_;
 };
 
 }  // namespace grape

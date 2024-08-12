@@ -93,7 +93,7 @@ struct KeyBuffer {
     dumper.dump_vec(inner_);
   }
 
-  size_t dump_size() { return vec_dump_bytes(inner_); }
+  size_t dump_size() const { return vec_dump_bytes(inner_); }
 
  private:
   std::vector<T, Allocator<T>> inner_;
@@ -143,7 +143,7 @@ struct KeyBuffer<nonstd::string_view> {
     dumper.dump_vec(inner_.offset_buffer());
   }
 
-  size_t dump_size() {
+  size_t dump_size() const {
     return vec_dump_bytes(inner_.content_buffer()) +
            vec_dump_bytes(inner_.offset_buffer());
   }
@@ -270,6 +270,13 @@ class IdIndexer {
   }
 
   size_t entry_num() const { return distances_.size(); }
+
+  size_t memory_usage() const {
+    size_t ret = keys_.dump_size();
+    ret += indices_.size() * sizeof(INDEX_T);
+    ret += distances_.size() * sizeof(int8_t);
+    return ret;
+  }
 
   bool add(const KEY_T& oid, INDEX_T& lid) {
     size_t index =

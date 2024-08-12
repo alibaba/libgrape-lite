@@ -177,7 +177,7 @@ class VertexMap {
 
   template <typename IOADAPTOR_T>
   void Serialize(const std::string& prefix, const CommSpec& comm_spec) {
-    if (is_global_) {
+    if (idxer_type_ != IdxerType::kLocalIdxer) {
       char fbuf[1024];
       snprintf(fbuf, sizeof(fbuf), "%s/%s", prefix.c_str(),
                kSerializationVertexMapFilename);
@@ -229,7 +229,7 @@ class VertexMap {
 
     this->fid_ = other.fid_;
     this->fnum_ = other.fnum_;
-    this->is_global_ = other.is_global_;
+    this->idxer_type_ = other.idxer_type_;
     this->total_vertex_size_ = other.total_vertex_size_;
     this->inner_vertex_size_ = std::move(other.inner_vertex_size_);
 
@@ -244,13 +244,17 @@ class VertexMap {
     return *this;
   }
 
+  PartitionerType partitioner_type() const { return partitioner_->type(); }
+  IdxerType idxer_type() const { return idxer_type_; }
+
  private:
   template <typename IOADAPTOR>
   void serialize_impl(const std::string& path) {
     auto io_adaptor = std::unique_ptr<IOAdaptorBase>(new IOADAPTOR(path));
     io_adaptor->Open("wb");
     InArchive arc;
-    arc << fid_ << fnum_ << total_vertex_size_ << inner_vertex_size_;
+    arc << fid_ << fnum_ << idxer_type_ << total_vertex_size_
+        << inner_vertex_size_;
     io_adaptor->WriteArchive(arc);
     for (fid_t fid = 0; fid < fnum_; ++fid) {
       serialize_idxer<OID_T, VID_T>(io_adaptor, idxers_[fid]);
@@ -264,7 +268,8 @@ class VertexMap {
     io_adaptor->Open();
     OutArchive arc;
     io_adaptor->ReadArchive(arc);
-    arc >> fid_ >> fnum_ >> total_vertex_size_ >> inner_vertex_size_;
+    arc >> fid_ >> fnum_ >> idxer_type_ >> total_vertex_size_ >>
+        inner_vertex_size_;
     idxers_.resize(fnum_);
     for (fid_t fid = 0; fid < fnum_; ++fid) {
       idxers_[fid] = deserialize_idxer<OID_T, VID_T>(io_adaptor);
@@ -277,7 +282,8 @@ class VertexMap {
 
   fid_t fid_;
   fid_t fnum_;
-  bool is_global_;
+
+  IdxerType idxer_type_;
 
   size_t total_vertex_size_;
   std::vector<size_t> inner_vertex_size_;
@@ -294,31 +300,36 @@ class VertexMapBuilder {
  public:
   VertexMapBuilder(fid_t fid, fid_t fnum,
                    std::unique_ptr<IPartitioner<OID_T>>&& partitioner,
-                   bool is_global, bool use_pthash)
+                   IdxerType idxer_type)
       : fid_(fid),
         fnum_(fnum),
-        is_global_(is_global),
+        idxer_type_(idxer_type),
         partitioner_(std::move(partitioner)) {
-    idxer_builders_.resize(fnum, nullptr);
-    if (!use_pthash) {
-      if (!is_global_) {
-        for (fid_t i = 1; i < fnum; ++i) {
-          idxer_builders_[(i + fid_) % fnum] =
-              new LocalIdxerBuilder<OID_T, VID_T>();
-        }
-      } else {
-        for (fid_t i = 1; i < fnum; ++i) {
-          idxer_builders_[(i + fid_) % fnum] =
-              new HashMapIdxerDummyBuilder<OID_T, VID_T>();
-        }
+    idxer_builders_.resize(fnum_, nullptr);
+    if (idxer_type_ == IdxerType::kSortedArrayIdxer) {
+      for (fid_t i = 1; i < fnum; ++i) {
+        idxer_builders_[(i + fid_) % fnum_] =
+            new SortedArrayIdxerDummyBuilder<OID_T, VID_T>();
+      }
+      idxer_builders_[fid_] = new SortedArrayIdxerBuilder<OID_T, VID_T>();
+    } else if (idxer_type_ == IdxerType::kHashMapIdxer) {
+      for (fid_t i = 1; i < fnum; ++i) {
+        idxer_builders_[(i + fid_) % fnum_] =
+            new HashMapIdxerDummyBuilder<OID_T, VID_T>();
       }
       idxer_builders_[fid_] = new HashMapIdxerBuilder<OID_T, VID_T>();
-    } else {
+    } else if (idxer_type_ == IdxerType::kPTHashIdxer) {
       for (fid_t i = 1; i < fnum; ++i) {
-        idxer_builders_[(i + fid_) % fnum] =
+        idxer_builders_[(i + fid_) % fnum_] =
             new PTHashIdxerDummyBuilder<OID_T, VID_T>();
       }
       idxer_builders_[fid_] = new PTHashIdxerBuilder<OID_T, VID_T>();
+    } else if (idxer_type_ == IdxerType::kLocalIdxer) {
+      for (fid_t i = 1; i < fnum; ++i) {
+        idxer_builders_[(i + fid_) % fnum_] =
+            new LocalIdxerBuilder<OID_T, VID_T>();
+      }
+      idxer_builders_[fid_] = new HashMapIdxerBuilder<OID_T, VID_T>();
     }
   }
 
@@ -381,7 +392,7 @@ class VertexMapBuilder {
     vertex_map.reset();
     vertex_map.fid_ = fid_;
     vertex_map.fnum_ = fnum;
-    vertex_map.is_global_ = is_global_;
+    vertex_map.idxer_type_ = idxer_type_;
     vertex_map.partitioner_ = std::move(partitioner_);
     vertex_map.idxers_.resize(fnum, nullptr);
     for (fid_t fid = 0; fid < fnum; ++fid) {
@@ -407,7 +418,7 @@ class VertexMapBuilder {
  private:
   fid_t fid_;
   fid_t fnum_;
-  bool is_global_;
+  IdxerType idxer_type_;
   std::unique_ptr<IPartitioner<OID_T>> partitioner_;
   std::vector<IdxerBuilderBase<OID_T, VID_T>*> idxer_builders_;
 };

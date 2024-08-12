@@ -70,6 +70,10 @@ class LocalIdxer : public IdxerBase<OID_T, VID_T> {
     }
   }
 
+  size_t memory_usage() const override {
+    return oid_indexer_.memory_usage() + lid_indexer_.memory_usage();
+  }
+
  private:
   IdIndexer<internal_oid_t, VID_T> oid_indexer_;  // oid -> idx
   IdIndexer<VID_T, VID_T> lid_indexer_;           // lid -> idx

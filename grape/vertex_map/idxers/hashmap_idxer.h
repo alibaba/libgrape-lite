@@ -51,6 +51,8 @@ class HashMapIdxer : public IdxerBase<OID_T, VID_T> {
 
   void add(const internal_oid_t& oid) { indexer_._add(oid); }
 
+  size_t memory_usage() const override { return indexer_.memory_usage(); }
+
  private:
   IdIndexer<internal_oid_t, VID_T> indexer_;
 };

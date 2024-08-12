@@ -20,6 +20,7 @@ limitations under the License.
 #include "grape/vertex_map/idxers/hashmap_idxer_view.h"
 #include "grape/vertex_map/idxers/local_idxer.h"
 #include "grape/vertex_map/idxers/pthash_idxer.h"
+#include "grape/vertex_map/idxers/sorted_array_idxer.h"
 
 namespace grape {
 
@@ -50,6 +51,11 @@ IdxerBase<OID_T, VID_T>* deserialize_idxer(
     idxer->deserialize(reader);
     return idxer;
   }
+  case IdxerType::kSortedArrayIdxer: {
+    auto idxer = new SortedArrayIdxer<OID_T, VID_T>();
+    idxer->deserialize(reader);
+    return idxer;
+  }
   default:
     return nullptr;
   }
@@ -71,9 +77,28 @@ IdxerBase<OID_T, VID_T>* extend_indexer(IdxerBase<OID_T, VID_T>* input,
       casted->add(id, base++);
     }
   } else {
-    LOG(FATAL) << "Only HashMapIdxer can be extended";
+    LOG(FATAL) << "Only HashMapIdxer or LocalIdxer can be extended";
   }
   return nullptr;
+}
+
+inline IdxerType parse_idxer_type_name(const std::string& name) {
+  if (name == "hashmap") {
+    return IdxerType::kHashMapIdxer;
+  } else if (name == "local") {
+    return IdxerType::kLocalIdxer;
+  } else if (name == "pthash") {
+    return IdxerType::kPTHashIdxer;
+  } else if (name == "sorted_array") {
+    return IdxerType::kSortedArrayIdxer;
+  } else if (name == "hashmap_view") {
+    return IdxerType::kHashMapIdxerView;
+  } else {
+    LOG(INFO) << "unrecognized idxer type: " << name
+              << ", use hashmap idxer "
+                 "as default";
+    return IdxerType::kHashMapIdxer;
+  }
 }
 
 }  // namespace grape

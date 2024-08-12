@@ -33,9 +33,13 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
   explicit BasicRbFragmentLoaderBeta(const CommSpec& comm_spec,
                                      const LoadGraphSpec& spec)
       : BasicFragmentLoaderBase<FRAG_T>(comm_spec, spec) {
-    if (!spec_.global_vertex_map) {
+    if (spec_.idxer_type == IdxerType::kLocalIdxer) {
       LOG(ERROR) << "Global vertex map is required in BasicFragmentLoaderBeta";
-      spec_.global_vertex_map = true;
+      spec_.idxer_type = IdxerType::kHashMapIdxer;
+    }
+    if (spec_.partitioner_type == PartitionerType::kHashPartitioner) {
+      LOG(FATAL)
+          << "Hash partitioner is not supported in BasicFragmentLoaderBeta";
     }
   }
 
@@ -60,6 +64,14 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
 
       partitioner = std::unique_ptr<MapPartitioner<oid_t>>(
           new MapPartitioner<oid_t>(fnum, all_vertices));
+    } else if (spec_.partitioner_type ==
+               PartitionerType::kSegmentedPartitioner) {
+      std::vector<oid_t> all_vertices;
+      sync_comm::FlatAllGather(vertices_, all_vertices, comm_spec_.comm());
+      DistinctSort(all_vertices);
+
+      partitioner = std::unique_ptr<SegmentedPartitionerBeta<oid_t>>(
+          new SegmentedPartitionerBeta<oid_t>(fnum, all_vertices));
     } else {
       LOG(FATAL) << "Unsupported partitioner type";
     }
@@ -74,8 +86,7 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     std::sort(sorted_vertices.begin(), sorted_vertices.end());
 
     VertexMapBuilder<oid_t, vid_t> builder(fid, fnum, std::move(partitioner),
-                                           spec_.global_vertex_map,
-                                           !spec_.mutable_vertex_map);
+                                           spec_.idxer_type);
     for (auto& v : sorted_vertices) {
       builder.add_vertex(v);
     }

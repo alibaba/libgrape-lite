@@ -31,15 +31,10 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
   explicit BasicLocalFragmentLoaderBeta(const CommSpec& comm_spec,
                                         const LoadGraphSpec& spec)
       : BasicFragmentLoaderBase<FRAG_T>(comm_spec, spec) {
-    if (spec_.global_vertex_map) {
+    if (spec_.idxer_type != IdxerType::kLocalIdxer) {
       LOG(ERROR)
           << "Local vertex map is required in BasicLocalFragmentLoaderBeta";
-      spec_.global_vertex_map = false;
-    }
-    if (!spec_.mutable_vertex_map) {
-      LOG(ERROR)
-          << "Mutable vertex map is required in BasicLocalFragmentLoaderBeta";
-      spec_.mutable_vertex_map = true;
+      spec_.idxer_type = IdxerType::kLocalIdxer;
     }
     if (spec_.rebalance) {
       LOG(ERROR)
@@ -49,6 +44,7 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     if (spec_.partitioner_type != PartitionerType::kHashPartitioner) {
       LOG(ERROR) << "Only hash partitioner is supported in "
                     "BasicLocalFragmentLoaderBeta";
+      spec_.partitioner_type = PartitionerType::kHashPartitioner;
     }
     partitioner_ = std::unique_ptr<HashPartitionerBeta<oid_t>>(
         new HashPartitionerBeta<oid_t>(comm_spec_.fnum()));
@@ -146,7 +142,7 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     {
       VertexMapBuilder<oid_t, vid_t> builder(
           comm_spec_.fid(), comm_spec_.fnum(), std::move(partitioner_),
-          spec_.global_vertex_map, !spec_.mutable_vertex_map);
+          spec_.idxer_type);
       for (auto& buffers : got_vertices_) {
         foreach_helper(
             buffers,

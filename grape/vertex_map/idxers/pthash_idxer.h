@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef GRAPE_VERTEX_MAP_IDXERS_PTHASH_IDXER_H_
 #define GRAPE_VERTEX_MAP_IDXERS_PTHASH_IDXER_H_
 
+#include "grape/utils/gcontainer.h"
 #include "grape/utils/pthash_utils/ph_indexer_view.h"
 
 namespace grape {
@@ -26,7 +27,8 @@ class PTHashIdxer : public IdxerBase<OID_T, VID_T> {
 
  public:
   PTHashIdxer() {}
-  explicit PTHashIdxer(std::vector<char>&& buf) : buffer_(std::move(buf)) {
+  explicit PTHashIdxer(Array<char, Allocator<char>>&& buf)
+      : buffer_(std::move(buf)) {
     idxer_.init(buffer_.data(), buffer_.size());
   }
   ~PTHashIdxer() {}
@@ -59,8 +61,10 @@ class PTHashIdxer : public IdxerBase<OID_T, VID_T> {
 
   size_t size() const override { return idxer_.size(); }
 
+  size_t memory_usage() const override { return buffer_.size(); }
+
  private:
-  std::vector<char> buffer_;
+  Array<char, Allocator<char>> buffer_;
   PHIndexerView<internal_oid_t, VID_T> idxer_;
 };
 
@@ -83,7 +87,7 @@ class PTHashIdxerDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   }
 
  private:
-  std::vector<char> buffer_;
+  Array<char, Allocator<char>> buffer_;
 };
 
 template <typename OID_T, typename VID_T>
@@ -170,7 +174,7 @@ class PTHashIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   id_indexer_impl::KeyBuffer<internal_oid_t> key_buffer_;
   pthash::single_phf<murmurhasher, pthash::dictionary_dictionary, true> phf_;
 
-  std::vector<char> buffer_;
+  Array<char, Allocator<char>> buffer_;
   bool build_phf_ = false;
 };
 

@@ -25,6 +25,7 @@ enum class IdxerType {
   kLocalIdxer,
   kPTHashIdxer,
   kHashMapIdxerView,
+  kSortedArrayIdxer,
 };
 
 template <typename OID_T, typename VID_T>
@@ -41,6 +42,8 @@ class IdxerBase {
   virtual IdxerType type() const = 0;
 
   virtual size_t size() const = 0;
+
+  virtual size_t memory_usage() const = 0;
 
   virtual void serialize(std::unique_ptr<IOAdaptorBase>& writer) = 0;
   virtual void deserialize(std::unique_ptr<IOAdaptorBase>& reader) = 0;

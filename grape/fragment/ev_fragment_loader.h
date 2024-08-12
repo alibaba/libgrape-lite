@@ -93,7 +93,7 @@ class EVFragmentLoader {
       }
     }
 
-    if (spec.global_vertex_map) {
+    if (spec.idxer_type != IdxerType::kLocalIdxer) {
       if (spec.rebalance) {
         basic_fragment_loader_ =
             std::unique_ptr<BasicRbFragmentLoaderBeta<fragment_t>>(

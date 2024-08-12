@@ -24,7 +24,22 @@ namespace grape {
 enum class PartitionerType {
   kHashPartitioner,
   kMapPartitioner,
+  kSegmentedPartitioner,
 };
+
+inline PartitionerType parse_partitioner_type_name(const std::string& name) {
+  if (name == "hash") {
+    return PartitionerType::kHashPartitioner;
+  } else if (name == "map") {
+    return PartitionerType::kMapPartitioner;
+  } else if (name == "segment") {
+    return PartitionerType::kSegmentedPartitioner;
+  } else {
+    LOG(ERROR) << "unrecognized partitioner: " << name
+               << ", use map partitioner as default";
+    return PartitionerType::kMapPartitioner;
+  }
+}
 
 template <typename OID_T>
 class IPartitioner {
@@ -40,6 +55,8 @@ class IPartitioner {
   virtual void serialize(std::unique_ptr<IOAdaptorBase>& writer) = 0;
 
   virtual void deserialize(std::unique_ptr<IOAdaptorBase>& reader) = 0;
+
+  virtual size_t memory_usage() const = 0;
 
   virtual PartitionerType type() const = 0;
 };
@@ -73,6 +90,8 @@ class HashPartitionerBeta : public IPartitioner<OID_T> {
   PartitionerType type() const override {
     return PartitionerType::kHashPartitioner;
   }
+
+  size_t memory_usage() const override { return 0; }
 
  private:
   HASH_T hash_;
@@ -144,9 +163,70 @@ class MapPartitioner : public IPartitioner<OID_T> {
     return PartitionerType::kMapPartitioner;
   }
 
+  size_t memory_usage() const override { return o2f_.memory_usage(); }
+
  private:
   fid_t fnum_;
   ska::flat_hash_map<OID_T, fid_t> o2f_;
+};
+
+template <typename OID_T>
+class SegmentedPartitionerBeta : public IPartitioner<OID_T> {
+  using internal_oid_t = typename InternalOID<OID_T>::type;
+
+ public:
+  SegmentedPartitionerBeta() : fnum_(0) {}
+  SegmentedPartitionerBeta(fid_t fnum,
+                           const std::vector<OID_T>& sorted_oid_list) {
+    fnum_ = fnum;
+    size_t part_size = (sorted_oid_list.size() + fnum - 1) / fnum;
+    for (size_t i = 1; i < fnum; ++i) {
+      boundaries_.emplace_back(sorted_oid_list[i * part_size]);
+    }
+  }
+  SegmentedPartitionerBeta(const std::vector<OID_T>& boundaries)
+      : fnum_(boundaries.size() + 1), boundaries_(boundaries) {}
+  ~SegmentedPartitionerBeta() = default;
+
+  void Init(fid_t fnum, const std::vector<OID_T>& boundaries) {
+    fnum_ = fnum;
+    boundaries_ = boundaries;
+    CHECK_EQ(fnum_, boundaries_.size() + 1);
+  }
+
+  fid_t GetPartitionId(const internal_oid_t& oid) const override {
+    auto iter =
+        std::upper_bound(boundaries_.begin(), boundaries_.end(), OID_T(oid));
+    return static_cast<fid_t>(iter - boundaries_.begin());
+  }
+
+  void SetPartitionId(const internal_oid_t& oid, fid_t fid) override {
+    LOG(FATAL) << "SegmentedPartitioner cannot set partition id";
+  }
+
+  PartitionerType type() const override {
+    return PartitionerType::kSegmentedPartitioner;
+  }
+
+  void serialize(std::unique_ptr<IOAdaptorBase>& writer) override {
+    InArchive arc;
+    arc << fnum_ << boundaries_;
+    CHECK(writer->WriteArchive(arc));
+  }
+
+  void deserialize(std::unique_ptr<IOAdaptorBase>& reader) override {
+    OutArchive arc;
+    CHECK(reader->ReadArchive(arc));
+    arc >> fnum_ >> boundaries_;
+  }
+
+  size_t memory_usage() const override {
+    return boundaries_.size() * sizeof(OID_T);
+  }
+
+ private:
+  fid_t fnum_;
+  std::vector<OID_T> boundaries_;
 };
 
 template <typename OID_T>
@@ -171,6 +251,10 @@ std::unique_ptr<IPartitioner<OID_T>> deserialize_partitioner(
   case PartitionerType::kMapPartitioner:
     partitioner =
         std::unique_ptr<IPartitioner<OID_T>>(new MapPartitioner<OID_T>());
+    break;
+  case PartitionerType::kSegmentedPartitioner:
+    partitioner = std::unique_ptr<IPartitioner<OID_T>>(
+        new SegmentedPartitionerBeta<OID_T>());
     break;
   default:
     LOG(FATAL) << "Unknown partitioner type";
