@@ -37,6 +37,8 @@ DECLARE_int32(cdlp_mr);
 DECLARE_int32(degree_threshold);
 
 DECLARE_bool(opt);
+DECLARE_string(partitioner_type);
+DECLARE_string(idxer_type);
 
 DECLARE_bool(segmented_partition);
 DECLARE_bool(rebalance);

@@ -65,8 +65,9 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
   if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
-  graph_spec.global_vertex_map = true;
-  graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
+  graph_spec.partitioner_type =
+      parse_partitioner_type_name(FLAGS_partitioner_type);
+  graph_spec.idxer_type = parse_idxer_type_name(FLAGS_idxer_type);
 
   using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
                                           EmptyType, load_strategy>;
@@ -172,7 +173,9 @@ void RunDirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
-  // graph_spec.mutable_vertex_map = true;
+  graph_spec.partitioner_type =
+      parse_partitioner_type_name(FLAGS_partitioner_type);
+  graph_spec.idxer_type = parse_idxer_type_name(FLAGS_idxer_type);
 
   using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
                                           EmptyType, LoadStrategy::kOnlyOut>;
@@ -207,8 +210,10 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
+  graph_spec.partitioner_type =
+      parse_partitioner_type_name(FLAGS_partitioner_type);
+  graph_spec.idxer_type = parse_idxer_type_name(FLAGS_idxer_type);
 
-  graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
   using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, EmptyType,
                                           EmptyType, LoadStrategy::kOnlyOut>;
 
@@ -260,12 +265,10 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
   if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
-  if (FLAGS_segmented_partition) {
-    graph_spec.partitioner_type = PartitionerType::kMapPartitioner;
-  } else {
-    graph_spec.partitioner_type = PartitionerType::kHashPartitioner;
-    graph_spec.set_rebalance(false, 0);
-  }
+  graph_spec.partitioner_type =
+      parse_partitioner_type_name(FLAGS_partitioner_type);
+  graph_spec.idxer_type = parse_idxer_type_name(FLAGS_idxer_type);
+
   using FRAG_T = ImmutableEdgecutFragment<int64_t, uint32_t, grape::EmptyType,
                                           EDATA_T, load_strategy>;
   std::shared_ptr<FRAG_T> fragment =
@@ -301,55 +304,93 @@ void RunOpt() {
   }
   std::string name = FLAGS_application;
   if (name == "sssp") {
-    FLAGS_segmented_partition = true;
     FLAGS_rebalance = false;
+    if (FLAGS_partitioner_type == "default") {
+      FLAGS_partitioner_type = "segment";
+    }
+    if (FLAGS_idxer_type == "default") {
+      FLAGS_idxer_type = "sorted_array";
+    }
     CreateAndQueryOpt<double, LoadStrategy::kOnlyOut, SSSPOpt, int64_t>(
         comm_spec, out_prefix, spec, FLAGS_sssp_source);
   } else if (name == "bfs") {
+    FLAGS_rebalance = false;
+    if (FLAGS_partitioner_type == "default") {
+      FLAGS_partitioner_type = "segment";
+    }
+    if (FLAGS_idxer_type == "default") {
+      FLAGS_idxer_type = "sorted_array";
+    }
     if (FLAGS_directed) {
-      FLAGS_segmented_partition = true;
-      FLAGS_rebalance = false;
       CreateAndQueryOpt<EmptyType, LoadStrategy::kBothOutIn, BFSOpt, int64_t>(
           comm_spec, out_prefix, spec, FLAGS_bfs_source);
     } else {
-      FLAGS_segmented_partition = true;
-      FLAGS_rebalance = false;
       CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, BFSOpt, int64_t>(
           comm_spec, out_prefix, spec, FLAGS_bfs_source);
     }
   } else if (name == "pagerank") {
     if (FLAGS_directed) {
-      FLAGS_segmented_partition = false;
+      if (FLAGS_partitioner_type == "default") {
+        FLAGS_partitioner_type = "hash";
+      }
+      if (FLAGS_idxer_type == "default") {
+        FLAGS_idxer_type = "pthash";
+      }
       CreateAndQueryOpt<EmptyType, LoadStrategy::kBothOutIn, PageRankDirected,
                         double, int>(comm_spec, out_prefix, spec, FLAGS_pr_d,
                                      FLAGS_pr_mr);
     } else {
-      FLAGS_segmented_partition = true;
       FLAGS_rebalance = true;
       FLAGS_rebalance_vertex_factor = 0;
+      if (FLAGS_partitioner_type == "default") {
+        FLAGS_partitioner_type = "segment";
+      }
+      if (FLAGS_idxer_type == "default") {
+        FLAGS_idxer_type = "sorted_array";
+      }
       RunUndirectedPageRankOpt<LoadStrategy::kOnlyOut>(
           comm_spec, out_prefix, spec, FLAGS_pr_d, FLAGS_pr_mr);
     }
   } else if (name == "cdlp") {
     if (FLAGS_directed) {
       FLAGS_directed = false;
-      FLAGS_segmented_partition = false;
+      if (FLAGS_partitioner_type == "default") {
+        FLAGS_partitioner_type = "hash";
+      }
+      if (FLAGS_idxer_type == "default") {
+        FLAGS_idxer_type = "pthash";
+      }
       RunDirectedCDLP(comm_spec, out_prefix, spec);
     } else {
-      FLAGS_segmented_partition = true;
-      // FLAGS_rebalance = true;
-      // FLAGS_rebalance_vertex_factor = 0;
+      FLAGS_rebalance = true;
+      FLAGS_rebalance_vertex_factor = 0;
+      if (FLAGS_partitioner_type == "default") {
+        FLAGS_partitioner_type = "segment";
+      }
+      if (FLAGS_idxer_type == "default") {
+        FLAGS_idxer_type = "sorted_array";
+      }
       RunUndirectedCDLP(comm_spec, out_prefix, spec);
     }
   } else if (name == "wcc") {
     FLAGS_directed = false;
-    FLAGS_segmented_partition = true;
     FLAGS_rebalance = false;
+    if (FLAGS_partitioner_type == "default") {
+      FLAGS_partitioner_type = "segment";
+    }
+    if (FLAGS_idxer_type == "default") {
+      FLAGS_idxer_type = "sorted_array";
+    }
     CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, WCCOpt>(
         comm_spec, out_prefix, spec);
   } else if (name == "lcc") {
     if (FLAGS_directed) {
-      FLAGS_segmented_partition = false;
+      if (FLAGS_partitioner_type == "default") {
+        FLAGS_partitioner_type = "hash";
+      }
+      if (FLAGS_idxer_type == "default") {
+        FLAGS_idxer_type = "pthash";
+      }
       if (FLAGS_edge_num >
           static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) {
         CreateAndQueryOpt<EmptyType, LoadStrategy::kBothOutIn, LCCDirected64>(
@@ -359,9 +400,14 @@ void RunOpt() {
             comm_spec, out_prefix, spec);
       }
     } else {
-      FLAGS_segmented_partition = true;
       FLAGS_rebalance = true;
       FLAGS_rebalance_vertex_factor = 0;
+      if (FLAGS_partitioner_type == "default") {
+        FLAGS_partitioner_type = "segment";
+      }
+      if (FLAGS_idxer_type == "default") {
+        FLAGS_idxer_type = "sorted_array";
+      }
       if (FLAGS_edge_num >
           static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) * 2) {
         CreateAndQueryOpt<EmptyType, LoadStrategy::kOnlyOut, LCC64>(

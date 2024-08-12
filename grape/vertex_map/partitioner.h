@@ -184,7 +184,7 @@ class SegmentedPartitionerBeta : public IPartitioner<OID_T> {
       boundaries_.emplace_back(sorted_oid_list[i * part_size]);
     }
   }
-  SegmentedPartitionerBeta(const std::vector<OID_T>& boundaries)
+  explicit SegmentedPartitionerBeta(const std::vector<OID_T>& boundaries)
       : fnum_(boundaries.size() + 1), boundaries_(boundaries) {}
   ~SegmentedPartitionerBeta() = default;
 

@@ -40,6 +40,14 @@ DEFINE_int32(degree_threshold, std::numeric_limits<int>::max(),
              "Filtering threshold for some algorithms");
 
 DEFINE_bool(opt, false, "whether to use optimization.");
+DEFINE_string(partitioner_type,
+              "partitioner type, these options can be used: "
+              "hash, map, segment",
+              "map");
+DEFINE_string(idxer_type,
+              "idxer type, these options can be used: "
+              "sorted_array, hashmap, pthash, local",
+              "hashmap");
 
 DEFINE_bool(segmented_partition, true,
             "whether to use segmented partitioning.");

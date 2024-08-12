@@ -913,6 +913,11 @@ public:
         deallocate_data(entries, num_slots_minus_one, max_lookups);
     }
 
+    size_t memory_usage() const 
+    {
+        return (num_slots_minus_one + max_lookups + 1) * sizeof(Entry);
+    }
+
     const allocator_type & get_allocator() const
     {
         return static_cast<const allocator_type &>(*this);
