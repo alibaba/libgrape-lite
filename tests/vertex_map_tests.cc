@@ -127,14 +127,13 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
   if (!FLAGS_delta_efile.empty() || !FLAGS_delta_vfile.empty()) {
     graph_spec.set_rebalance(false, 0);
     if (FLAGS_global_vertex_map) {
-      graph_spec.global_vertex_map = true;
+      graph_spec.partitioner_type = grape::PartitionerType::kMapPartitioner;
+      graph_spec.idxer_type = grape::IdxerType::kHashMapIdxer;
     } else {
       graph_spec.set_rebalance(false, 0);
-      graph_spec.global_vertex_map = false;
-      graph_spec.mutable_vertex_map = true;
       graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
+      graph_spec.idxer_type = grape::IdxerType::kLocalIdxer;
     }
-    graph_spec.mutable_vertex_map = true;
     using FRAG_T = grape::MutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
                                                  load_strategy>;
     std::shared_ptr<FRAG_T> fragment = grape::LoadGraphAndMutate<FRAG_T>(
@@ -152,11 +151,10 @@ void CreateAndQuery(const grape::CommSpec& comm_spec,
       graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
     }
     if (FLAGS_global_vertex_map) {
-      graph_spec.global_vertex_map = true;
+      graph_spec.idxer_type = grape::IdxerType::kHashMapIdxer;
     } else {
       graph_spec.set_rebalance(false, 0);
-      graph_spec.global_vertex_map = false;
-      graph_spec.mutable_vertex_map = true;
+      graph_spec.idxer_type = grape::IdxerType::kLocalIdxer;
       graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
     }
     using FRAG_T = grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
