@@ -26,7 +26,6 @@ limitations under the License.
 #include <grape/fragment/mutable_edgecut_fragment.h>
 #include <grape/grape.h>
 #include <grape/util.h>
-#include <grape/vertex_map/global_vertex_map.h>
 
 #include "bfs/bfs.h"
 #include "bfs/bfs_auto.h"

@@ -62,12 +62,12 @@ class IPartitioner {
 };
 
 template <typename OID_T, typename HASH_T = std::hash<OID_T>>
-class HashPartitionerBeta : public IPartitioner<OID_T> {
+class HashPartitioner : public IPartitioner<OID_T> {
  public:
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
-  HashPartitionerBeta() : hash_(), fnum_(1) {}
-  explicit HashPartitionerBeta(size_t frag_num) : hash_(), fnum_(frag_num) {}
+  HashPartitioner() : hash_(), fnum_(1) {}
+  explicit HashPartitioner(size_t frag_num) : hash_(), fnum_(frag_num) {}
 
   fid_t GetPartitionId(const internal_oid_t& oid) const override {
     return static_cast<fid_t>(hash_(OID_T(oid)) % fnum_);
@@ -171,22 +171,21 @@ class MapPartitioner : public IPartitioner<OID_T> {
 };
 
 template <typename OID_T>
-class SegmentedPartitionerBeta : public IPartitioner<OID_T> {
+class SegmentedPartitioner : public IPartitioner<OID_T> {
   using internal_oid_t = typename InternalOID<OID_T>::type;
 
  public:
-  SegmentedPartitionerBeta() : fnum_(0) {}
-  SegmentedPartitionerBeta(fid_t fnum,
-                           const std::vector<OID_T>& sorted_oid_list) {
+  SegmentedPartitioner() : fnum_(0) {}
+  SegmentedPartitioner(fid_t fnum, const std::vector<OID_T>& sorted_oid_list) {
     fnum_ = fnum;
     size_t part_size = (sorted_oid_list.size() + fnum - 1) / fnum;
     for (size_t i = 1; i < fnum; ++i) {
       boundaries_.emplace_back(sorted_oid_list[i * part_size]);
     }
   }
-  explicit SegmentedPartitionerBeta(const std::vector<OID_T>& boundaries)
+  explicit SegmentedPartitioner(const std::vector<OID_T>& boundaries)
       : fnum_(boundaries.size() + 1), boundaries_(boundaries) {}
-  ~SegmentedPartitionerBeta() = default;
+  ~SegmentedPartitioner() = default;
 
   void Init(fid_t fnum, const std::vector<OID_T>& boundaries) {
     fnum_ = fnum;
@@ -246,15 +245,15 @@ std::unique_ptr<IPartitioner<OID_T>> deserialize_partitioner(
   switch (static_cast<PartitionerType>(type)) {
   case PartitionerType::kHashPartitioner:
     partitioner =
-        std::unique_ptr<IPartitioner<OID_T>>(new HashPartitionerBeta<OID_T>());
+        std::unique_ptr<IPartitioner<OID_T>>(new HashPartitioner<OID_T>());
     break;
   case PartitionerType::kMapPartitioner:
     partitioner =
         std::unique_ptr<IPartitioner<OID_T>>(new MapPartitioner<OID_T>());
     break;
   case PartitionerType::kSegmentedPartitioner:
-    partitioner = std::unique_ptr<IPartitioner<OID_T>>(
-        new SegmentedPartitionerBeta<OID_T>());
+    partitioner =
+        std::unique_ptr<IPartitioner<OID_T>>(new SegmentedPartitioner<OID_T>());
     break;
   default:
     LOG(FATAL) << "Unknown partitioner type";

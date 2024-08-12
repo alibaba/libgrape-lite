@@ -21,8 +21,6 @@ limitations under the License.
 
 #include "grape/fragment/ev_fragment_loader.h"
 #include "grape/fragment/ev_fragment_mutator.h"
-#include "grape/fragment/ev_fragment_rebalance_loader.h"
-#include "grape/fragment/partitioner.h"
 #include "grape/io/local_io_adaptor.h"
 
 namespace grape {

@@ -22,7 +22,7 @@ limitations under the License.
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
-#include "grape/vertex_map/vertex_map_beta.h"
+#include "grape/vertex_map/vertex_map.h"
 #include "grape/worker/comm_spec.h"
 
 namespace grape {

@@ -19,7 +19,7 @@ limitations under the License.
 #include <memory>
 
 #include "grape/types.h"
-#include "grape/vertex_map/vertex_map_beta.h"
+#include "grape/vertex_map/vertex_map.h"
 
 namespace grape {
 
@@ -135,8 +135,8 @@ class Rebalancer {
         }
       }
       CHECK_EQ(boundaries.size(), fnum - 1);
-      new_partitioner = std::unique_ptr<SegmentedPartitionerBeta<OID_T>>(
-          new SegmentedPartitionerBeta<OID_T>(boundaries));
+      new_partitioner = std::unique_ptr<SegmentedPartitioner<OID_T>>(
+          new SegmentedPartitioner<OID_T>(boundaries));
     } else {
       LOG(FATAL) << "Unsupported partitioner type - "
                  << static_cast<int>(vertex_map_->GetPartitioner().type());

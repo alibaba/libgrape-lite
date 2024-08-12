@@ -26,10 +26,8 @@ limitations under the License.
 #include <vector>
 
 #include <grape/config.h>
-#include <grape/fragment/basic_fragment_loader.h>
 #include <grape/fragment/edgecut_fragment_base.h>
 #include <grape/fragment/fragment_base.h>
-#include <grape/fragment/partitioner.h>
 #include <grape/graph/adj_list.h>
 #include <grape/graph/edge.h>
 #include <grape/graph/vertex.h>
@@ -41,7 +39,7 @@ limitations under the License.
 #include <grape/utils/gcontainer.h>
 #include <grape/utils/iterator_pair.h>
 #include <grape/utils/vertex_array.h>
-#include <grape/vertex_map/vertex_map_beta.h>
+#include <grape/vertex_map/vertex_map.h>
 #include <grape/worker/comm_spec.h>
 
 #include "flat_hash_map/flat_hash_map.hpp"

@@ -13,13 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_FRAGMENT_BASIC_LOCAL_FRAGMENT_LOADER_BETA_H_
-#define GRAPE_FRAGMENT_BASIC_LOCAL_FRAGMENT_LOADER_BETA_H_
+#ifndef GRAPE_FRAGMENT_BASIC_LOCAL_FRAGMENT_LOADER_H_
+#define GRAPE_FRAGMENT_BASIC_LOCAL_FRAGMENT_LOADER_H_
 
 namespace grape {
 
 template <typename FRAG_T>
-class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
+class BasicLocalFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
   using fragment_t = FRAG_T;
   using oid_t = typename fragment_t::oid_t;
   using internal_oid_t = typename InternalOID<oid_t>::type;
@@ -28,26 +28,24 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
   using edata_t = typename fragment_t::edata_t;
 
  public:
-  explicit BasicLocalFragmentLoaderBeta(const CommSpec& comm_spec,
-                                        const LoadGraphSpec& spec)
+  explicit BasicLocalFragmentLoader(const CommSpec& comm_spec,
+                                    const LoadGraphSpec& spec)
       : BasicFragmentLoaderBase<FRAG_T>(comm_spec, spec) {
     if (spec_.idxer_type != IdxerType::kLocalIdxer) {
-      LOG(ERROR)
-          << "Local vertex map is required in BasicLocalFragmentLoaderBeta";
+      LOG(ERROR) << "Local vertex map is required in BasicLocalFragmentLoader";
       spec_.idxer_type = IdxerType::kLocalIdxer;
     }
     if (spec_.rebalance) {
-      LOG(ERROR)
-          << "Rebalance is not supported in BasicLocalFragmentLoaderBeta";
+      LOG(ERROR) << "Rebalance is not supported in BasicLocalFragmentLoader";
       spec_.rebalance = false;
     }
     if (spec_.partitioner_type != PartitionerType::kHashPartitioner) {
       LOG(ERROR) << "Only hash partitioner is supported in "
-                    "BasicLocalFragmentLoaderBeta";
+                    "BasicLocalFragmentLoader";
       spec_.partitioner_type = PartitionerType::kHashPartitioner;
     }
-    partitioner_ = std::unique_ptr<HashPartitionerBeta<oid_t>>(
-        new HashPartitionerBeta<oid_t>(comm_spec_.fnum()));
+    partitioner_ = std::unique_ptr<HashPartitioner<oid_t>>(
+        new HashPartitioner<oid_t>(comm_spec_.fnum()));
 
     vertices_to_frag_.resize(comm_spec_.fnum());
     edges_to_frag_.resize(comm_spec_.fnum());
@@ -64,11 +62,11 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     }
 
     vertex_recv_thread_ =
-        std::thread(&BasicLocalFragmentLoaderBeta::vertexRecvRoutine, this);
+        std::thread(&BasicLocalFragmentLoader::vertexRecvRoutine, this);
     vertex_recv_thread_running_ = true;
   }
 
-  ~BasicLocalFragmentLoaderBeta() {
+  ~BasicLocalFragmentLoader() {
     if (vertex_recv_thread_running_) {
       for (auto& va : vertices_to_frag_) {
         va.Flush();
@@ -105,7 +103,7 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     vertices_to_frag_[comm_spec_.fid()].Clear();
 
     edge_recv_thread_ =
-        std::thread(&BasicLocalFragmentLoaderBeta::edgeRecvRoutine, this);
+        std::thread(&BasicLocalFragmentLoader::edgeRecvRoutine, this);
     edge_recv_thread_running_ = true;
   }
 
@@ -224,7 +222,7 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     }
   }
 
-  std::unique_ptr<HashPartitionerBeta<oid_t>> partitioner_;
+  std::unique_ptr<HashPartitioner<oid_t>> partitioner_;
 
   std::vector<ShuffleOut<internal_oid_t, vdata_t>> vertices_to_frag_;
   std::vector<ShuffleOut<internal_oid_t, internal_oid_t, edata_t>>
@@ -249,4 +247,4 @@ class BasicLocalFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
 
 }  // namespace grape
 
-#endif  // GRAPE_FRAGMENT_BASIC_LOCAL_FRAGMENT_LOADER_BETA_H_
+#endif  // GRAPE_FRAGMENT_BASIC_LOCAL_FRAGMENT_LOADER_H_

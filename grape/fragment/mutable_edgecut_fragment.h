@@ -25,7 +25,6 @@ limitations under the License.
 #include "grape/graph/vertex.h"
 #include "grape/types.h"
 #include "grape/util.h"
-#include "grape/vertex_map/global_vertex_map.h"
 
 namespace grape {
 

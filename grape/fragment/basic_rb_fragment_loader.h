@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_FRAGMENT_BASIC_RB_FRAGMENT_LOADER_BETA_H_
-#define GRAPE_FRAGMENT_BASIC_RB_FRAGMENT_LOADER_BETA_H_
+#ifndef GRAPE_FRAGMENT_BASIC_RB_FRAGMENT_LOADER_H_
+#define GRAPE_FRAGMENT_BASIC_RB_FRAGMENT_LOADER_H_
 
 #include "grape/fragment/basic_fragment_loader_base.h"
 
 namespace grape {
 
 template <typename FRAG_T>
-class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
+class BasicRbFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
   using fragment_t = FRAG_T;
   using oid_t = typename fragment_t::oid_t;
   using internal_oid_t = typename InternalOID<oid_t>::type;
@@ -30,20 +30,20 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
   using edata_t = typename fragment_t::edata_t;
 
  public:
-  explicit BasicRbFragmentLoaderBeta(const CommSpec& comm_spec,
-                                     const LoadGraphSpec& spec)
+  explicit BasicRbFragmentLoader(const CommSpec& comm_spec,
+                                 const LoadGraphSpec& spec)
       : BasicFragmentLoaderBase<FRAG_T>(comm_spec, spec) {
     if (spec_.idxer_type == IdxerType::kLocalIdxer) {
-      LOG(ERROR) << "Global vertex map is required in BasicFragmentLoaderBeta";
+      LOG(ERROR) << "Global vertex map is required in BasicRbFragmentLoader";
       spec_.idxer_type = IdxerType::kHashMapIdxer;
     }
     if (spec_.partitioner_type == PartitionerType::kHashPartitioner) {
       LOG(FATAL)
-          << "Hash partitioner is not supported in BasicFragmentLoaderBeta";
+          << "Hash partitioner is not supported in BasicRbFragmentLoader";
     }
   }
 
-  ~BasicRbFragmentLoaderBeta() {}
+  ~BasicRbFragmentLoader() {}
 
   void AddVertex(const oid_t& id, const vdata_t& data) override {
     vertices_.emplace_back(id);
@@ -55,8 +55,8 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
     fid_t fnum = comm_spec_.fnum();
     std::unique_ptr<IPartitioner<oid_t>> partitioner(nullptr);
     if (spec_.partitioner_type == PartitionerType::kHashPartitioner) {
-      partitioner = std::unique_ptr<HashPartitionerBeta<oid_t>>(
-          new HashPartitionerBeta<oid_t>(fnum));
+      partitioner = std::unique_ptr<HashPartitioner<oid_t>>(
+          new HashPartitioner<oid_t>(fnum));
     } else if (spec_.partitioner_type == PartitionerType::kMapPartitioner) {
       std::vector<oid_t> all_vertices;
       sync_comm::FlatAllGather(vertices_, all_vertices, comm_spec_.comm());
@@ -70,8 +70,8 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
       sync_comm::FlatAllGather(vertices_, all_vertices, comm_spec_.comm());
       DistinctSort(all_vertices);
 
-      partitioner = std::unique_ptr<SegmentedPartitionerBeta<oid_t>>(
-          new SegmentedPartitionerBeta<oid_t>(fnum, all_vertices));
+      partitioner = std::unique_ptr<SegmentedPartitioner<oid_t>>(
+          new SegmentedPartitioner<oid_t>(fnum, all_vertices));
     } else {
       LOG(FATAL) << "Unsupported partitioner type";
     }
@@ -224,4 +224,4 @@ class BasicRbFragmentLoaderBeta : public BasicFragmentLoaderBase<FRAG_T> {
 
 }  // namespace grape
 
-#endif  // GRAPE_FRAGMENT_BASIC_RB_FRAGMENT_LOADER_BETA_H_
+#endif  // GRAPE_FRAGMENT_BASIC_RB_FRAGMENT_LOADER_H_

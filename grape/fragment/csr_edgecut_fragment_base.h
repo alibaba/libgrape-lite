@@ -24,7 +24,6 @@ limitations under the License.
 #include "grape/graph/adj_list.h"
 #include "grape/graph/immutable_csr.h"
 #include "grape/util.h"
-#include "grape/vertex_map/global_vertex_map.h"
 
 namespace grape {
 

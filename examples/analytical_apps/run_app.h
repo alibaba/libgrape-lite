@@ -33,7 +33,6 @@ limitations under the License.
 #include <grape/fragment/loader.h>
 #include <grape/grape.h>
 #include <grape/util.h>
-#include <grape/vertex_map/global_vertex_map.h>
 
 #ifdef GRANULA
 #include "thirdparty/atlarge-research-granula/granula.hpp"

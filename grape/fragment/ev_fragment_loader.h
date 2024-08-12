@@ -24,10 +24,8 @@ limitations under the License.
 #include <vector>
 
 #include "grape/fragment/basic_fragment_loader.h"
-#include "grape/fragment/basic_fragment_loader_beta.h"
-#include "grape/fragment/basic_local_fragment_loader_beta.h"
-#include "grape/fragment/basic_rb_fragment_loader_beta.h"
-#include "grape/fragment/partitioner.h"
+#include "grape/fragment/basic_local_fragment_loader.h"
+#include "grape/fragment/basic_rb_fragment_loader.h"
 #include "grape/io/line_parser_base.h"
 #include "grape/io/local_io_adaptor.h"
 #include "grape/io/tsv_line_parser.h"
@@ -96,17 +94,17 @@ class EVFragmentLoader {
     if (spec.idxer_type != IdxerType::kLocalIdxer) {
       if (spec.rebalance) {
         basic_fragment_loader_ =
-            std::unique_ptr<BasicRbFragmentLoaderBeta<fragment_t>>(
-                new BasicRbFragmentLoaderBeta<fragment_t>(comm_spec_, spec));
+            std::unique_ptr<BasicRbFragmentLoader<fragment_t>>(
+                new BasicRbFragmentLoader<fragment_t>(comm_spec_, spec));
       } else {
         basic_fragment_loader_ =
-            std::unique_ptr<BasicFragmentLoaderBeta<fragment_t>>(
-                new BasicFragmentLoaderBeta<fragment_t>(comm_spec_, spec));
+            std::unique_ptr<BasicFragmentLoader<fragment_t>>(
+                new BasicFragmentLoader<fragment_t>(comm_spec_, spec));
       }
     } else {
       basic_fragment_loader_ =
-          std::unique_ptr<BasicLocalFragmentLoaderBeta<fragment_t>>(
-              new BasicLocalFragmentLoaderBeta<fragment_t>(comm_spec_, spec));
+          std::unique_ptr<BasicLocalFragmentLoader<fragment_t>>(
+              new BasicLocalFragmentLoader<fragment_t>(comm_spec_, spec));
     }
 
     if (!vfile.empty()) {

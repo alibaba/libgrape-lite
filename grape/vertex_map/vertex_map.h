@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_VERTEX_MAP_VERTEX_MAP_BETA_H_
-#define GRAPE_VERTEX_MAP_VERTEX_MAP_BETA_H_
+#ifndef GRAPE_VERTEX_MAP_VERTEX_MAP_H_
+#define GRAPE_VERTEX_MAP_VERTEX_MAP_H_
 
 #include <thread>
 
@@ -520,4 +520,4 @@ void VertexMap<OID_T, VID_T>::UpdateToBalance(
 
 }  // namespace grape
 
-#endif  // GRAPE_VERTEX_MAP_VERTEX_MAP_BETA_H_
+#endif  // GRAPE_VERTEX_MAP_VERTEX_MAP_H_
