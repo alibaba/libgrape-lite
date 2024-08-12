@@ -33,6 +33,7 @@ class BasicFragmentLoaderBase {
     comm_spec_.Dup();
     id_parser_.init(comm_spec_.fnum());
   }
+  virtual ~BasicFragmentLoaderBase() {}
 
   virtual void AddVertex(const oid_t& id, const vdata_t& data) = 0;
   virtual void ConstructVertices() = 0;
