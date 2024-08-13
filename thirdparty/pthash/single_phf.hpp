@@ -61,7 +61,11 @@ struct single_phf {
     m_M = fastmod::computeM_u64(m_table_size);
     m_bucketer = builder.bucketer();
     m_pilots.encode(builder.pilots().data(), m_bucketer.num_buckets());
+#if __cplusplus >= 201703L
     if constexpr (Minimal) {
+#else
+    if (Minimal) {
+#endif
       m_free_slots.encode(builder.free_slots().data(),
                           m_table_size - m_num_keys);
     }
@@ -81,7 +85,11 @@ struct single_phf {
     uint64_t hashed_pilot = default_hash64(pilot, m_seed);
     uint64_t p =
         fastmod::fastmod_u64(hash.second() ^ hashed_pilot, m_M, m_table_size);
+#if __cplusplus >= 201703L
     if constexpr (Minimal) {
+#else
+    if (Minimal) {
+#endif
       if (PTHASH_LIKELY(p < num_keys()))
         return p;
       return m_free_slots.access(p - num_keys());

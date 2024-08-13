@@ -35,7 +35,11 @@ struct ef_sequence {
     if (n == 0)
       return;
     uint64_t u;
+#if __cplusplus >= 201703L
     if constexpr (encode_prefix_sum) {
+#else
+    if (encode_prefix_sum) {
+#endif
       u = std::accumulate(begin, begin + n, static_cast<uint64_t>(0));
       n = n + 1;  // because I will add a zero at the beginning
     } else {
@@ -49,7 +53,11 @@ struct ef_sequence {
     uint64_t low_mask = (uint64_t(1) << l) - 1;
     uint64_t last = 0;
     // I add a zero at the beginning
+#if __cplusplus >= 201703L
     if constexpr (encode_prefix_sum) {
+#else
+    if (encode_prefix_sum) {
+#endif
       if (l)
         cv_builder_low_bits.push_back(0);
       bvb_high_bits.set(0, 1);
@@ -57,7 +65,11 @@ struct ef_sequence {
     }
     for (size_t i = 0; i < n; ++i, ++begin) {
       auto v = *begin;
+#if __cplusplus >= 201703L
       if constexpr (encode_prefix_sum) {
+#else
+      if (encode_prefix_sum) {
+#endif
         v = v + last;               // prefix sum
       } else if (i and v < last) {  // check the order
         std::cerr << "error at " << i << "/" << n << ":\n";

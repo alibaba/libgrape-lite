@@ -74,9 +74,9 @@ compute_ranks_and_dictionary(Iterator begin, uint64_t n) {
 struct dictionary {
   template <typename Iterator>
   void encode(Iterator begin, uint64_t n) {
-    auto [ranks, dict] = compute_ranks_and_dictionary(begin, n);
-    m_ranks.build(ranks.begin(), ranks.size());
-    m_dict.build(dict.begin(), dict.size());
+    auto pair = compute_ranks_and_dictionary(begin, n);
+    m_ranks.build(pair.first.begin(), pair.first.size());
+    m_dict.build(pair.second.begin(), pair.second.size());
   }
 
   static std::string name() { return "dictionary"; }

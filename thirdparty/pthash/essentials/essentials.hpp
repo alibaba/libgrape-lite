@@ -228,7 +228,11 @@ struct loader {
 
   template <typename T>
   void visit(T& val) {
+#if __cplusplus >= 201703L
     if constexpr (std::is_pod<T>::value) {
+#else
+    if (std::is_pod<T>::value) {
+#endif
       load_pod(m_is, val);
       m_num_bytes_pods += pod_bytes(val);
     } else {
@@ -241,7 +245,11 @@ struct loader {
     size_t n;
     visit(n);
     vec.resize(n);
+#if __cplusplus >= 201703L
     if constexpr (std::is_pod<T>::value) {
+#else
+    if (std::is_pod<T>::value) {
+#endif
       m_is.read(reinterpret_cast<char*>(vec.data()),
                 static_cast<std::streamsize>(sizeof(T) * n));
       m_num_bytes_vecs_of_pods += n * sizeof(T);
@@ -276,7 +284,11 @@ struct saver {
 
   template <typename T>
   void visit(T& val) {
+#if __cplusplus >= 201703L
     if constexpr (std::is_pod<T>::value) {
+#else
+    if (std::is_pod<T>::value) {
+#endif
       save_pod(m_os, val);
     } else {
       val.visit(*this);
@@ -285,7 +297,11 @@ struct saver {
 
   template <typename T, typename Allocator>
   void visit(std::vector<T, Allocator>& vec) {
+#if __cplusplus >= 201703L
     if constexpr (std::is_pod<T>::value) {
+#else
+    if (std::is_pod<T>::value) {
+#endif
       save_vec(m_os, vec);
     } else {
       size_t n = vec.size();
@@ -326,7 +342,11 @@ struct sizer {
 
   template <typename T>
   void visit(T& val) {
+#if __cplusplus >= 201703L
     if constexpr (std::is_pod<T>::value) {
+#else
+    if (std::is_pod<T>::value) {
+#endif
       node n(pod_bytes(val), m_current->depth + 1, demangle(typeid(T).name()));
       m_current->children.push_back(n);
       m_current->bytes += n.bytes;
@@ -337,7 +357,11 @@ struct sizer {
 
   template <typename T, typename Allocator>
   void visit(std::vector<T, Allocator>& vec) {
+#if __cplusplus >= 201703L
     if constexpr (std::is_pod<T>::value) {
+#else
+    if (std::is_pod<T>::value) {
+#endif
       node n(vec_bytes(vec), m_current->depth + 1,
              demangle(typeid(std::vector<T>).name()));
       m_current->children.push_back(n);
@@ -423,7 +447,11 @@ struct contiguous_memory_allocator {
 
     template <typename T>
     void visit(T& val) {
+#if __cplusplus >= 201703L
       if constexpr (std::is_pod<T>::value) {
+#else
+      if (std::is_pod<T>::value) {
+#endif
         load_pod(m_is, val);
       } else {
         val.visit(*this);
@@ -432,7 +460,11 @@ struct contiguous_memory_allocator {
 
     template <typename T, typename Allocator>
     void visit(std::vector<T, Allocator>& vec) {
+#if __cplusplus >= 201703L
       if constexpr (std::is_pod<T>::value) {
+#else
+      if (std::is_pod<T>::value) {
+#endif
         vec = std::vector<T, Allocator>(make_allocator<T>());
         load_vec(m_is, vec);
         consume(vec.size() * sizeof(T));

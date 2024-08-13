@@ -31,7 +31,7 @@ class LockFreeQueue {
     _queue = reinterpret_cast<Node*>(new char[sizeof(Node) * _capacity]);
     for (size_t i = 0; i < _capacity; ++i) {
       _queue[i].tail.store(i, std::memory_order_relaxed);
-      _queue[i].head.store(-1, std::memory_order_relaxed);
+      _queue[i].head.store(static_cast<size_t>(-1), std::memory_order_relaxed);
     }
 
     _tail.store(0, std::memory_order_relaxed);
