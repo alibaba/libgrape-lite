@@ -160,7 +160,7 @@ size_t get_rss(bool include_shared_memory) {
   if (include_shared_memory) {
     return (size_t) rss * (size_t) sysconf(_SC_PAGESIZE);
   } else {
-    return (size_t)(rss - shared_rss) * (size_t) sysconf(_SC_PAGESIZE);
+    return (size_t) (rss - shared_rss) * (size_t) sysconf(_SC_PAGESIZE);
   }
 #else
   /* Unknown OS ----------------------------------------------- */
@@ -223,7 +223,8 @@ static cudaError_t PrefixSumKernel64(void* d_temp_storage,
 
   // use size_t for aggregated value.
 #if CUB_MAJOR_VERSION == 2
-  return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum, cub::detail::InputValue<size_t>,
+  return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum,
+                           cub::detail::InputValue<size_t>,
                            OffsetT>::Dispatch(d_temp_storage,
                                               temp_storage_bytes, d_in, d_out,
                                               cub::Sum(), 0, num_items, stream,

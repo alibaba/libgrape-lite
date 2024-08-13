@@ -432,7 +432,8 @@ class MutableEdgecutFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const CommSpec& comm_spec, std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+  void Deserialize(const CommSpec& comm_spec,
+                   std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
                    const std::string& prefix) {
     vm_ptr_ = std::move(vm_ptr);
     char fbuf[1024];

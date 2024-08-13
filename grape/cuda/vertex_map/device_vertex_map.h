@@ -99,7 +99,8 @@ class DeviceVertexMap {
  public:
   DeviceVertexMap() {}
 
-  void Init(const Stream& stream, const CommSpec& comm_spec, std::unique_ptr<HOST_VM_T>& vm_ptr) {
+  void Init(const Stream& stream, const CommSpec& comm_spec,
+            std::unique_ptr<HOST_VM_T>& vm_ptr) {
     fnum_ = comm_spec.fnum();
     int dev_id = comm_spec.local_id();
 

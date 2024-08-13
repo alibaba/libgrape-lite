@@ -65,12 +65,11 @@ inline void CalculateOffsetWithPrefixSum(const Stream& stream,
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut>
-class HostFragment
-    : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                      _load_strategy> {
+class HostFragment : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
+                                                     EDATA_T, _load_strategy> {
  public:
-  using base_t = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                          _load_strategy>;
+  using base_t =
+      ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy>;
   using internal_vertex_t = typename base_t::internal_vertex_t;
   using edge_t = typename base_t::edge_t;
   using nbr_t = typename base_t::nbr_t;
@@ -112,9 +111,11 @@ class HostFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const CommSpec& comm_spec, std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+  void Deserialize(const CommSpec& comm_spec,
+                   std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
                    const std::string& prefix) {
-    base_t::template Deserialize<IOADAPTOR_T>(comm_spec, std::move(vm_ptr), prefix);
+    base_t::template Deserialize<IOADAPTOR_T>(comm_spec, std::move(vm_ptr),
+                                              prefix);
     __allocate_device_fragment__(comm_spec.local_id());
   }
 

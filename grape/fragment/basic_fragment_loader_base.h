@@ -226,7 +226,8 @@ bool DeserializeFragment(std::shared_ptr<FRAG_T>& fragment,
         vm_ptr(new VertexMap<typename FRAG_T::oid_t, typename FRAG_T::vid_t>());
     vm_ptr->template Deserialize<IOADAPTOR_T>(typed_prefix, comm_spec);
     fragment = std::shared_ptr<FRAG_T>(new FRAG_T());
-    fragment->template Deserialize<IOADAPTOR_T>(comm_spec, std::move(vm_ptr), typed_prefix);
+    fragment->template Deserialize<IOADAPTOR_T>(comm_spec, std::move(vm_ptr),
+                                                typed_prefix);
     return true;
   } else {
     return false;
