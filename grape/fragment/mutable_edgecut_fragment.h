@@ -149,11 +149,11 @@ class MutableEdgecutFragment
     return ret;
   }
 
-  void Init(fid_t fid, bool directed,
+  void Init(const CommSpec& comm_spec, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
             std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid, directed, std::move(vm_ptr));
+    init(comm_spec.fid(), directed, std::move(vm_ptr));
 
     ovnum_ = 0;
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
@@ -432,12 +432,12 @@ class MutableEdgecutFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
-                   const std::string& prefix, const fid_t fid) {
+  void Deserialize(const CommSpec& comm_spec, std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string& prefix) {
     vm_ptr_ = std::move(vm_ptr);
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), kSerializationFilenameFormat, prefix.c_str(),
-             fid);
+             comm_spec.fid());
     auto io_adaptor =
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
     io_adaptor->Open();

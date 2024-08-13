@@ -182,7 +182,7 @@ class BasicLocalFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
     }
 
     fragment = std::shared_ptr<fragment_t>(new fragment_t());
-    fragment->Init(comm_spec_.fid(), spec_.directed, std::move(vm_ptr),
+    fragment->Init(comm_spec_, spec_.directed, std::move(vm_ptr),
                    processed_vertices, processed_edges);
 
     if (!std::is_same<vdata_t, EmptyType>::value) {

@@ -81,7 +81,7 @@ class FragmentBase {
    * @param vertices A set of vertices.
    * @param edges A set of edges.
    */
-  virtual void Init(fid_t fid, bool directed,
+  virtual void Init(const CommSpec& comm_spec, bool directed,
                     std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
                     std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
                     std::vector<Edge<VID_T, EDATA_T>>& edges) = 0;

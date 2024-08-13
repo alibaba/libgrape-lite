@@ -91,20 +91,26 @@ class EVFragmentLoader {
       }
     }
 
-    if (spec.idxer_type != IdxerType::kLocalIdxer) {
-      if (spec.rebalance) {
-        basic_fragment_loader_ =
-            std::unique_ptr<BasicRbFragmentLoader<fragment_t>>(
-                new BasicRbFragmentLoader<fragment_t>(comm_spec_, spec));
+    if (vfile.empty()) {
+      basic_fragment_loader_ =
+          std::unique_ptr<BasicFragmentLoader<fragment_t>>(
+              new BasicFragmentLoader<fragment_t>(comm_spec_, spec));
+    } else {
+      if (spec.idxer_type != IdxerType::kLocalIdxer) {
+        if (spec.rebalance) {
+          basic_fragment_loader_ =
+              std::unique_ptr<BasicRbFragmentLoader<fragment_t>>(
+                  new BasicRbFragmentLoader<fragment_t>(comm_spec_, spec));
+        } else {
+          basic_fragment_loader_ =
+              std::unique_ptr<BasicFragmentLoader<fragment_t>>(
+                  new BasicFragmentLoader<fragment_t>(comm_spec_, spec));
+        }
       } else {
         basic_fragment_loader_ =
-            std::unique_ptr<BasicFragmentLoader<fragment_t>>(
-                new BasicFragmentLoader<fragment_t>(comm_spec_, spec));
+            std::unique_ptr<BasicLocalFragmentLoader<fragment_t>>(
+                new BasicLocalFragmentLoader<fragment_t>(comm_spec_, spec));
       }
-    } else {
-      basic_fragment_loader_ =
-          std::unique_ptr<BasicLocalFragmentLoader<fragment_t>>(
-              new BasicLocalFragmentLoader<fragment_t>(comm_spec_, spec));
     }
 
     if (!vfile.empty()) {

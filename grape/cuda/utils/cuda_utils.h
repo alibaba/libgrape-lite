@@ -21,6 +21,7 @@ limitations under the License.
 #include <sys/time.h>
 
 #include "cub/cub.cuh"
+#include "cub/version.cuh"
 #include "grape/config.h"
 
 #if defined(__unix__) || defined(__unix) || defined(unix) || \
@@ -193,12 +194,22 @@ static cudaError_t SortKeys64(void* d_temp_storage, size_t& temp_storage_bytes,
   // Null value type
   cub::DoubleBuffer<cub::NullType> d_values;
 
+#if CUB_MAJOR_VERSION == 2
+  return cub::DispatchSegmentedRadixSort<
+      false, KeyT, cub::NullType, OffsetIteratorT, OffsetIteratorT,
+      OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values,
+                         num_items, num_segments, d_begin_offsets,
+                         d_end_offsets, begin_bit, end_bit, true, stream,
+                         debug_synchronous);
+#else
+  // CUB_MAJOR_VERSION == 1
   return cub::DispatchSegmentedRadixSort<
       false, KeyT, cub::NullType, OffsetIteratorT,
       OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values,
                          num_items, num_segments, d_begin_offsets,
                          d_end_offsets, begin_bit, end_bit, true, stream,
                          debug_synchronous);
+#endif
 }
 
 template <typename InputIteratorT, typename OutputIteratorT>
@@ -211,11 +222,20 @@ static cudaError_t PrefixSumKernel64(void* d_temp_storage,
   typedef int OffsetT;
 
   // use size_t for aggregated value.
+#if CUB_MAJOR_VERSION == 2
+  return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum, cub::detail::InputValue<size_t>,
+                           OffsetT>::Dispatch(d_temp_storage,
+                                              temp_storage_bytes, d_in, d_out,
+                                              cub::Sum(), 0, num_items, stream,
+                                              debug_synchronous);
+#else
+  // CUB_MAJOR_VERSION == 1
   return cub::DispatchScan<InputIteratorT, OutputIteratorT, cub::Sum, size_t,
                            OffsetT>::Dispatch(d_temp_storage,
                                               temp_storage_bytes, d_in, d_out,
                                               cub::Sum(), 0, num_items, stream,
                                               debug_synchronous);
+#endif
 }
 
 template <typename T>

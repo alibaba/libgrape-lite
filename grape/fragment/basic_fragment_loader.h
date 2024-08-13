@@ -170,7 +170,7 @@ class BasicFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
     }
 
     fragment = std::make_shared<fragment_t>();
-    fragment->Init(comm_spec_.fid(), spec_.directed, std::move(vertex_map_),
+    fragment->Init(comm_spec_, spec_.directed, std::move(vertex_map_),
                    processed_vertices_, processed_edges);
 
     this->InitOuterVertexData(fragment);

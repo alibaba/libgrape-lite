@@ -96,16 +96,14 @@ class HostFragment
 
   static constexpr grape::LoadStrategy load_strategy = _load_strategy;
 
-  HostFragment() = default;
-
   HostFragment() : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
 
-  void Init(fid_t fid, bool directed,
+  void Init(const CommSpec& comm_spec, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
             std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
-    base_t::Init(fid, directed, std::move(vm_ptr), vertices, edges);
-    __allocate_device_fragment__();
+    base_t::Init(comm_spec, directed, std::move(vm_ptr), vertices, edges);
+    __allocate_device_fragment__(comm_spec.local_id());
   }
 
   template <typename IOADAPTOR_T>
@@ -114,10 +112,10 @@ class HostFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
-                   const std::string& prefix, const fid_t fid) {
-    base_t::template Deserialize<IOADAPTOR_T>(std::move(vm_ptr), prefix, fid);
-    __allocate_device_fragment__();
+  void Deserialize(const CommSpec& comm_spec, std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string& prefix) {
+    base_t::template Deserialize<IOADAPTOR_T>(comm_spec, std::move(vm_ptr), prefix);
+    __allocate_device_fragment__(comm_spec.local_id());
   }
 
   void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) {
@@ -134,7 +132,6 @@ class HostFragment
     }
 
     if (conf.need_split_edges || conf.need_split_edges_by_fragment) {
-      auto& comm_spec = vm_ptr_->GetCommSpec();
       auto& ie = ie_.get_edges();
       auto& ieoffset = ie_.get_offsets();
       auto& oe = oe_.get_edges();
@@ -210,7 +207,7 @@ class HostFragment
     }
 
     if (conf.need_build_device_vm) {
-      d_vm_ptr_->Init(stream);
+      d_vm_ptr_->Init(stream, comm_spec, vm_ptr_);
     }
     stream.Sync();
   }
@@ -320,18 +317,17 @@ class HostFragment
     return dev_frag;
   }
 
-  void __allocate_device_fragment__() {
-    auto& comm_spec = vm_ptr_->GetCommSpec();
+  void __allocate_device_fragment__(int local_id) {
     auto& ie = ie_.get_edges();
     auto& ieoffset = ie_.get_offsets();
     auto& oe = oe_.get_edges();
     auto& oeoffset = oe_.get_offsets();
 
-    int dev_id = comm_spec.local_id();
+    int dev_id = local_id;
     CHECK_CUDA(cudaSetDevice(dev_id));
     Stream stream;
 
-    d_vm_ptr_ = std::make_shared<dev_vertex_map_t>(vm_ptr_);
+    d_vm_ptr_ = std::make_shared<dev_vertex_map_t>();
     auto offset_size = ivnum_ + ovnum_ + 1;
     auto compute_prefix_sum =
         [offset_size](
