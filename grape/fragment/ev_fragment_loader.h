@@ -23,6 +23,7 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
+#include "grape/fragment/basic_efile_fragment_loader.h"
 #include "grape/fragment/basic_fragment_loader.h"
 #include "grape/fragment/basic_local_fragment_loader.h"
 #include "grape/fragment/basic_rb_fragment_loader.h"
@@ -93,8 +94,8 @@ class EVFragmentLoader {
 
     if (vfile.empty()) {
       basic_fragment_loader_ =
-          std::unique_ptr<BasicFragmentLoader<fragment_t>>(
-              new BasicFragmentLoader<fragment_t>(comm_spec_, spec));
+          std::unique_ptr<BasicEFileFragmentLoader<fragment_t>>(
+              new BasicEFileFragmentLoader<fragment_t>(comm_spec_, spec));
     } else {
       if (spec.idxer_type != IdxerType::kLocalIdxer) {
         if (spec.rebalance) {
