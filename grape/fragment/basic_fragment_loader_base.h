@@ -101,35 +101,86 @@ inline LoadGraphSpec DefaultLoadGraphSpec() {
   return spec;
 }
 
+inline size_t hash_strings(const std::vector<std::string>& strs) {
+  std::hash<std::string> hash_fn;
+  size_t combinedHash = 0;
+  for (auto& str : strs) {
+    combinedHash ^=
+        hash_fn(str) + 0x9e3779b9 + (combinedHash << 6) + (combinedHash >> 2);
+  }
+  return combinedHash;
+}
+
+inline std::string to_hex_string(size_t hash) {
+  std::stringstream ss;
+  ss << std::hex << std::uppercase << hash;
+  return ss.str();
+}
+
 template <typename FRAG_T>
-std::pair<std::string, std::string> generate_signature(
-    const std::string& efile, const std::string& vfile,
-    const LoadGraphSpec& spec) {
+std::string sigfile_content(const std::string& efile, const std::string& vfile,
+                            const LoadGraphSpec& spec) {
   std::string spec_info = spec.to_string();
   std::string frag_type_name = FRAG_T::type_info();
-  std::string md5 = compute_hash({efile, vfile, spec_info, frag_type_name});
   std::string desc = "efile: " + efile + "\n";
   desc += "vfile: " + vfile + "\n";
   desc += "spec: " + spec_info + "\n";
   desc += "frag_type: " + frag_type_name + "\n";
-  return std::make_pair(md5, desc);
+  return desc;
+}
+
+template <typename FRAG_T>
+bool find_serialization(const std::string& efile, const std::string& vfile,
+                        const LoadGraphSpec& spec, fid_t fnum,
+                        std::string& prefix_out) {
+  std::string spec_info = spec.to_string();
+  std::string frag_type_name = FRAG_T::type_info();
+  size_t hash_value = hash_strings({efile, vfile, spec_info, frag_type_name});
+  std::string desc = sigfile_content<FRAG_T>(efile, vfile, spec);
+
+  while (true) {
+    std::string typed_prefix = spec.deserialization_prefix + "/" +
+                               to_hex_string(hash_value) + "/" + "part_" +
+                               std::to_string(fnum);
+    std::string sigfile_name = typed_prefix + "/sig";
+    if (exists_file(sigfile_name)) {
+      std::string sigfile_content;
+      std::ifstream sigfile(sigfile_name);
+      if (!sigfile.is_open()) {
+        LOG(ERROR) << "Failed to open signature file: " << sigfile_name;
+        return false;
+      }
+      std::string line;
+      while (std::getline(sigfile, line)) {
+        sigfile_content += (line + "\n");
+      }
+      if (sigfile_content == desc) {
+        prefix_out = typed_prefix;
+        return true;
+      }
+    } else {
+      prefix_out = typed_prefix;
+      return false;
+    }
+    ++hash_value;
+  }
 }
 
 template <typename FRAG_T, typename IOADAPTOR_T>
 bool SerializeFragment(std::shared_ptr<FRAG_T>& fragment,
                        const CommSpec& comm_spec, const std::string& efile,
                        const std::string& vfile, const LoadGraphSpec& spec) {
-  auto pair = generate_signature<FRAG_T>(efile, vfile, spec);
-  std::string typed_prefix = spec.serialization_prefix + "/" + pair.first +
-                             "/" + "part_" + std::to_string(comm_spec.fnum());
+  std::string typed_prefix;
+  bool exist = find_serialization<FRAG_T>(efile, vfile, spec, comm_spec.fnum(),
+                                          typed_prefix);
+  if (exist) {
+    LOG(ERROR) << "Serialization exists: " << typed_prefix;
+    return false;
+  }
+
   if (!create_directories(typed_prefix)) {
     LOG(ERROR) << "Failed to create directory: " << typed_prefix << ", "
                << std::strerror(errno);
-    return false;
-  }
-  std::string sigfile_name = typed_prefix + "/sig";
-  if (exists_file(sigfile_name)) {
-    LOG(ERROR) << "Signature file exists: " << sigfile_name;
     return false;
   }
 
@@ -142,12 +193,13 @@ bool SerializeFragment(std::shared_ptr<FRAG_T>& fragment,
 
   MPI_Barrier(comm_spec.comm());
   if (comm_spec.worker_id() == 0) {
+    std::string sigfile_name = typed_prefix + "/sig";
     std::ofstream sigfile(sigfile_name);
     if (!sigfile.is_open()) {
       LOG(ERROR) << "Failed to open signature file: " << sigfile_name;
       return false;
     }
-    sigfile << pair.second;
+    sigfile << sigfile_content<FRAG_T>(efile, vfile, spec);
   }
 
   return true;
@@ -157,27 +209,11 @@ template <typename FRAG_T, typename IOADAPTOR_T>
 bool DeserializeFragment(std::shared_ptr<FRAG_T>& fragment,
                          const CommSpec& comm_spec, const std::string& efile,
                          const std::string& vfile, const LoadGraphSpec& spec) {
-  auto pair = generate_signature<FRAG_T>(efile, vfile, spec);
-  std::string typed_prefix = spec.deserialization_prefix + "/" + pair.first +
-                             "/" + "part_" + std::to_string(comm_spec.fnum());
-  std::string sigfile_name = typed_prefix + "/sig";
-  if (!exists_file(sigfile_name)) {
-    LOG(ERROR) << "Signature file not exists: " << sigfile_name;
-    return false;
-  }
-  std::string sigfile_content;
-  std::ifstream sigfile(sigfile_name);
-  if (!sigfile.is_open()) {
-    LOG(ERROR) << "Failed to open signature file: " << sigfile_name;
-    return false;
-  }
-  std::string line;
-  while (std::getline(sigfile, line)) {
-    sigfile_content += line + "\n";
-  }
-  if (sigfile_content != pair.second) {
-    LOG(ERROR) << "Signature mismatch: " << sigfile_content
-               << ", expected: " << pair.second;
+  std::string typed_prefix;
+  bool exist = find_serialization<FRAG_T>(efile, vfile, spec, comm_spec.fnum(),
+                                          typed_prefix);
+  if (!exist) {
+    LOG(ERROR) << "Serialization not exists: " << typed_prefix;
     return false;
   }
 

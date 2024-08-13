@@ -198,9 +198,6 @@ if (NOT RDKAFKA_FOUND)
   message(STATUS "rdkafka not found, build without rdkafka")
 endif ()
 
-# find openssl---------------------------------------------------------------------
-find_package(OpenSSL REQUIRED)
-
 macro(install_libgrapelite_target target)
   # install
   install(TARGETS ${target}
@@ -235,7 +232,7 @@ else ()
                              examples/analytical_apps)
   set_target_properties(analytical_apps PROPERTIES OUTPUT_NAME run_app)
   target_link_libraries(analytical_apps grape-lite ${MPI_CXX_LIBRARIES}
-                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} OpenSSL::SSL OpenSSL::Crypto)
+                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
   install_libgrapelite_target(analytical_apps)
 
   file(GLOB TEST_FILES RELATIVE "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/*.cc")
@@ -250,7 +247,7 @@ else ()
     endif()
     target_include_directories(${T_NAME} PRIVATE examples/analytical_apps)
     target_link_libraries(${T_NAME} PRIVATE grape-lite ${MPI_CXX_LIBRARIES}
-                          ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} OpenSSL::SSL OpenSSL::Crypto)
+                          ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS})
   endforeach()
 
   if (WITH_CUDA)
@@ -258,8 +255,7 @@ else ()
     target_include_directories(gpu_analytical_apps SYSTEM BEFORE PRIVATE thirdparty/cub thirdparty/thrust thirdparty/moderngpu/src)
     target_include_directories(gpu_analytical_apps PRIVATE examples/analytical_apps)
     set_target_properties(gpu_analytical_apps PROPERTIES OUTPUT_NAME run_cuda_app)
-    target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS}
-                          OpenSSL::SSL OpenSSL::Crypto)
+    target_link_libraries(gpu_analytical_apps grape-lite ${GFLAGS_LIBRARIES} ${CUDA_LIBS} ${NCCL_LIBRARIES} ${CMAKE_DL_LIBS})
     install_libgrapelite_target(gpu_analytical_apps)
   endif ()
 endif ()
@@ -276,8 +272,7 @@ else ()
                              examples/gnn_sampler/thirdparty
                              ${RDKAFKA_INCLUDE_DIR})
   target_link_libraries(gnn_sampler grape-lite ${MPI_CXX_LIBRARIES}
-                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES} 
-                        OpenSSL::SSL OpenSSL::Crypto)
+                        ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${CMAKE_DL_LIBS} ${RDKAFKA_LIBRARIES})
   install_libgrapelite_target(gnn_sampler)
 endif ()
 
