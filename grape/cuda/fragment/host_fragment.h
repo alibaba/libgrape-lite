@@ -98,10 +98,9 @@ class HostFragment
 
   HostFragment() = default;
 
-  explicit HostFragment()
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
+  HostFragment() : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
 
-  void Init(fid_t fid, bool directed, 
+  void Init(fid_t fid, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
             std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
