@@ -40,14 +40,12 @@ DEFINE_int32(degree_threshold, std::numeric_limits<int>::max(),
              "Filtering threshold for some algorithms");
 
 DEFINE_bool(opt, false, "whether to use optimization.");
-DEFINE_string(partitioner_type,
+DEFINE_string(partitioner_type, "map",
               "partitioner type, these options can be used: "
-              "hash, map, segment",
-              "map");
-DEFINE_string(idxer_type,
+              "hash, map, segment");
+DEFINE_string(idxer_type, "hashmap",
               "idxer type, these options can be used: "
-              "sorted_array, hashmap, pthash, local",
-              "hashmap");
+              "sorted_array, hashmap, pthash, local");
 
 DEFINE_bool(rebalance, false, "whether to rebalance graph after loading.");
 DEFINE_int32(rebalance_vertex_factor, 0, "vertex factor of rebalancing.");
