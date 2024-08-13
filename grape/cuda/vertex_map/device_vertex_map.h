@@ -23,7 +23,6 @@ limitations under the License.
 #include "grape/cuda/utils/launcher.h"
 #include "grape/cuda/utils/stream.h"
 #include "grape/fragment/id_parser.h"
-#include "grape/vertex_map/global_vertex_map.h"
 
 namespace grape {
 namespace cuda {

@@ -49,8 +49,6 @@ DEFINE_string(idxer_type,
               "sorted_array, hashmap, pthash, local",
               "hashmap");
 
-DEFINE_bool(segmented_partition, true,
-            "whether to use segmented partitioning.");
 DEFINE_bool(rebalance, false, "whether to rebalance graph after loading.");
 DEFINE_int32(rebalance_vertex_factor, 0, "vertex factor of rebalancing.");
 

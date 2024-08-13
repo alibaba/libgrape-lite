@@ -43,7 +43,6 @@ limitations under the License.
 #include "grape/types.h"
 #include "grape/util.h"
 #include "grape/utils/vertex_array.h"
-#include "grape/vertex_map/global_vertex_map.h"
 
 namespace grape {
 namespace cuda {
@@ -65,14 +64,13 @@ inline void CalculateOffsetWithPrefixSum(const Stream& stream,
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut,
-          typename VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T>>
+          grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut>
 class HostFragment
     : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                      _load_strategy, VERTEX_MAP_T> {
+                                      _load_strategy> {
  public:
   using base_t = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                          _load_strategy, VERTEX_MAP_T>;
+                                          _load_strategy>;
   using internal_vertex_t = typename base_t::internal_vertex_t;
   using edge_t = typename base_t::edge_t;
   using nbr_t = typename base_t::nbr_t;
@@ -86,8 +84,7 @@ class HostFragment
   using edata_t = EDATA_T;
   using vertex_range_t = typename base_t::vertex_range_t;
 
-  using vertex_map_t = typename base_t::vertex_map_t;
-  using dev_vertex_map_t = cuda::DeviceVertexMap<vertex_map_t>;
+  using dev_vertex_map_t = cuda::DeviceVertexMap<VertexMap<OID_T, VID_T>>;
   using inner_vertices_t = typename base_t::inner_vertices_t;
   using outer_vertices_t = typename base_t::outer_vertices_t;
   using device_t =
@@ -101,12 +98,14 @@ class HostFragment
 
   HostFragment() = default;
 
-  explicit HostFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
+  explicit HostFragment()
+      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
 
-  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
+  void Init(fid_t fid, bool directed, 
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+            std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
-    base_t::Init(fid, directed, vertices, edges);
+    base_t::Init(fid, directed, std::move(vm_ptr), vertices, edges);
     __allocate_device_fragment__();
   }
 
@@ -116,8 +115,9 @@ class HostFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const std::string& prefix, const fid_t fid) {
-    base_t::template Deserialize<IOADAPTOR_T>(prefix, fid);
+  void Deserialize(std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string& prefix, const fid_t fid) {
+    base_t::template Deserialize<IOADAPTOR_T>(std::move(vm_ptr), prefix, fid);
     __allocate_device_fragment__();
   }
 

@@ -66,11 +66,8 @@ namespace grape {
 void Init() {
   if (FLAGS_deserialize && FLAGS_serialization_prefix.empty()) {
     LOG(FATAL) << "Please assign a serialization prefix.";
-  } else if (FLAGS_efile.empty()) {
-    LOG(FATAL) << "Please assign input edge files.";
-  } else if (FLAGS_vfile.empty() && FLAGS_segmented_partition) {
-    LOG(FATAL) << "EFragmentLoader dosen't support Segmented Partitioner. "
-                  "Please assign vertex files or use Hash Partitioner";
+  } else if (FLAGS_efile.empty() || FLAGS_vfile.empty()) {
+    LOG(FATAL) << "Please assign input vertex and edge files.";
   }
 
   if (!FLAGS_out_prefix.empty() && access(FLAGS_out_prefix.c_str(), 0) != 0) {
@@ -133,12 +130,10 @@ void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
 
-  if (FLAGS_segmented_partition) {
-    graph_spec.partitioner_type = grape::PartitionerType::kMapPartitioner;
-  } else {
-    graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
-    graph_spec.set_rebalance(false, 0);
-  }
+  graph_spec.partitioner_type =
+      grape::parse_partitioner_type_name(FLAGS_partitioner_type);
+  graph_spec.idxer_type = grape::parse_idxer_type_name(FLAGS_idxer_type);
+
   using FRAG_T =
       ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
   std::shared_ptr<FRAG_T> fragment =

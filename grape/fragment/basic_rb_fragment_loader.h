@@ -38,8 +38,9 @@ class BasicRbFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
       spec_.idxer_type = IdxerType::kHashMapIdxer;
     }
     if (spec_.partitioner_type == PartitionerType::kHashPartitioner) {
-      LOG(FATAL)
+      LOG(ERROR)
           << "Hash partitioner is not supported in BasicRbFragmentLoader";
+      spec_.partitioner_type = PartitionerType::kMapPartitioner;
     }
   }
 
