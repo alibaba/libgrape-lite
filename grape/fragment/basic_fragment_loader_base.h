@@ -131,6 +131,7 @@ std::string sigfile_content(const std::string& efile, const std::string& vfile,
 
 template <typename FRAG_T>
 bool find_serialization(const std::string& efile, const std::string& vfile,
+                        const std::string& serialization_prefix,
                         const LoadGraphSpec& spec, fid_t fnum,
                         std::string& prefix_out) {
   std::string spec_info = spec.to_string();
@@ -139,7 +140,7 @@ bool find_serialization(const std::string& efile, const std::string& vfile,
   std::string desc = sigfile_content<FRAG_T>(efile, vfile, spec);
 
   while (true) {
-    std::string typed_prefix = spec.deserialization_prefix + "/" +
+    std::string typed_prefix = serialization_prefix + "/" +
                                to_hex_string(hash_value) + "/" + "part_" +
                                std::to_string(fnum);
     std::string sigfile_name = typed_prefix + "/sig";
@@ -171,8 +172,9 @@ bool SerializeFragment(std::shared_ptr<FRAG_T>& fragment,
                        const CommSpec& comm_spec, const std::string& efile,
                        const std::string& vfile, const LoadGraphSpec& spec) {
   std::string typed_prefix;
-  bool exist = find_serialization<FRAG_T>(efile, vfile, spec, comm_spec.fnum(),
-                                          typed_prefix);
+  bool exist =
+      find_serialization<FRAG_T>(efile, vfile, spec.serialization_prefix, spec,
+                                 comm_spec.fnum(), typed_prefix);
   if (exist) {
     LOG(ERROR) << "Serialization exists: " << typed_prefix;
     return false;
@@ -210,8 +212,9 @@ bool DeserializeFragment(std::shared_ptr<FRAG_T>& fragment,
                          const CommSpec& comm_spec, const std::string& efile,
                          const std::string& vfile, const LoadGraphSpec& spec) {
   std::string typed_prefix;
-  bool exist = find_serialization<FRAG_T>(efile, vfile, spec, comm_spec.fnum(),
-                                          typed_prefix);
+  bool exist =
+      find_serialization<FRAG_T>(efile, vfile, spec.deserialization_prefix,
+                                 spec, comm_spec.fnum(), typed_prefix);
   if (!exist) {
     LOG(ERROR) << "Serialization not exists: " << typed_prefix;
     return false;
