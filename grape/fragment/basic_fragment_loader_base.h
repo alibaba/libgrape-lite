@@ -82,6 +82,8 @@ struct LoadGraphSpec {
       ret += "local-idxer";
     } else if (idxer_type == IdxerType::kPTHashIdxer) {
       ret += "pthash-idxer";
+    } else if (idxer_type == IdxerType::kHashMapIdxerView) {
+      ret += "hashmap-idxer-view";
     } else {
       LOG(FATAL) << "Unknown idxer type";
     }

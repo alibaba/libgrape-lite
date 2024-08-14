@@ -73,6 +73,68 @@ class SortedArrayIdxer : public IdxerBase<OID_T, VID_T> {
   Array<OID_T, Allocator<OID_T>> id_list_;
 };
 
+template <typename VID_T>
+class SortedArrayIdxer<std::string, VID_T>
+    : public IdxerBase<std::string, VID_T> {
+  using internal_oid_t = typename InternalOID<std::string>::type;
+
+ public:
+  SortedArrayIdxer() {}
+  explicit SortedArrayIdxer(
+      Array<std::string, Allocator<std::string>>&& id_list) {
+    for (auto& id : id_list) {
+      id_list_.emplace_back(id);
+    }
+  }
+  ~SortedArrayIdxer() {}
+
+  bool get_key(VID_T vid, internal_oid_t& oid) const override {
+    if (vid >= id_list_.size()) {
+      return false;
+    }
+    oid = internal_oid_t(id_list_[vid]);
+    return true;
+  }
+
+  bool get_index(const internal_oid_t& oid, VID_T& vid) const override {
+    size_t num = id_list_.size();
+    size_t low = 0, high = num - 1;
+    nonstd::string_view oid_view(oid);
+    while (low <= high) {
+      size_t mid = low + (high - low) / 2;
+      if (id_list_[mid] == oid_view) {
+        vid = mid;
+        return true;
+      } else if (id_list_[mid] < oid_view) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return false;
+  }
+
+  IdxerType type() const override { return IdxerType::kSortedArrayIdxer; }
+
+  void serialize(std::unique_ptr<IOAdaptorBase>& writer) override {
+    id_list_.serialize(writer);
+  }
+
+  void deserialize(std::unique_ptr<IOAdaptorBase>& reader) override {
+    id_list_.deserialize(reader);
+  }
+
+  size_t size() const override { return id_list_.size(); }
+
+  size_t memory_usage() const override {
+    return id_list_.content_buffer().size() +
+           id_list_.offset_buffer().size() * sizeof(size_t);
+  }
+
+ private:
+  StringViewVector id_list_;
+};
+
 template <typename OID_T, typename VID_T>
 class SortedArrayIdxerDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
  public:

@@ -29,7 +29,7 @@ class HashMapIdxerView : public IdxerBase<OID_T, VID_T> {
   HashMapIdxerView() {}
   explicit HashMapIdxerView(Array<char, Allocator<char>>&& buf)
       : buffer_(std::move(buf)) {
-    indexer_.init(buffer_.data(), buffer_.size());
+    indexer_.Init(buffer_.data(), buffer_.size());
   }
   ~HashMapIdxerView() {}
 
@@ -109,8 +109,11 @@ class HashMapIdxerViewBuilder : public IdxerBuilderBase<OID_T, VID_T> {
     if (buffer_.empty() && indexer_.size() > 0) {
       indexer_.serialize_to_mem(buffer_);
     }
+    Array<char, Allocator<char>> buffer;
+    buffer.resize(buffer_.size());
+    memcpy(buffer.data(), buffer_.data(), buffer_.size());
     return std::unique_ptr<IdxerBase<OID_T, VID_T>>(
-        new HashMapIdxerView<OID_T, VID_T>(std::move(buffer_)));
+        new HashMapIdxerView<OID_T, VID_T>(std::move(buffer)));
   }
 
   void sync_request(const CommSpec& comm_spec, int target, int tag) override {
@@ -146,7 +149,7 @@ class HashMapIdxerViewBuilder : public IdxerBuilderBase<OID_T, VID_T> {
 
  private:
   IdIndexer<internal_oid_t, VID_T> indexer_;
-  Array<char, Allocator<char>> buffer_;
+  std::vector<char> buffer_;
 };
 
 }  // namespace grape

@@ -329,6 +329,18 @@ class VertexMapBuilder {
           idxer_builders_.emplace_back(new HashMapIdxerBuilder<OID_T, VID_T>());
         }
       }
+    } else if (idxer_type == IdxerType::kHashMapIdxerView) {
+      for (fid_t i = 0; i < fnum; ++i) {
+        if (i != fid) {
+          idxer_builders_.emplace_back(
+              new HashMapIdxerViewDummyBuilder<OID_T, VID_T>());
+        } else {
+          idxer_builders_.emplace_back(
+              new HashMapIdxerViewBuilder<OID_T, VID_T>());
+        }
+      }
+    } else {
+      LOG(FATAL) << "Unknown idxer type";
     }
   }
 

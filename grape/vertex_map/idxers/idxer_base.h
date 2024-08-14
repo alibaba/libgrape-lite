@@ -75,4 +75,31 @@ void serialize_idxer(std::unique_ptr<IOAdaptorBase>& writer,
 
 }  // namespace grape
 
+namespace std {
+ostream& operator<<(ostream& os, const grape::IdxerType& type) {
+  switch (type) {
+  case grape::IdxerType::kHashMapIdxer:
+    os << "HashMapIdxer";
+    break;
+  case grape::IdxerType::kLocalIdxer:
+    os << "LocalIdxer";
+    break;
+  case grape::IdxerType::kPTHashIdxer:
+    os << "PTHashIdxer";
+    break;
+  case grape::IdxerType::kHashMapIdxerView:
+    os << "HashMapIdxerView";
+    break;
+  case grape::IdxerType::kSortedArrayIdxer:
+    os << "SortedArrayIdxer";
+    break;
+  default:
+    os << "Unknown";
+    break;
+  }
+  return os;
+}
+
+}  // namespace std
+
 #endif  // GRAPE_VERTEX_MAP_IDXERS_IDXER_BASE_H_

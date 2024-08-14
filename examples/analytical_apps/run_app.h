@@ -66,8 +66,8 @@ namespace grape {
 void Init() {
   if (FLAGS_deserialize && FLAGS_serialization_prefix.empty()) {
     LOG(FATAL) << "Please assign a serialization prefix.";
-  } else if (FLAGS_efile.empty() || FLAGS_vfile.empty()) {
-    LOG(FATAL) << "Please assign input vertex and edge files.";
+  } else if (FLAGS_efile.empty()) {
+    LOG(FATAL) << "Please assign input edge file.";
   }
 
   if (!FLAGS_out_prefix.empty() && access(FLAGS_out_prefix.c_str(), 0) != 0) {

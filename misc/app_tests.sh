@@ -163,10 +163,20 @@ function MutableFragmentTests() {
   WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 }
 
-function VertexMapTest() {
+function LoadTest() {
   NP=$1; shift
 
-  cmd="mpirun -n ${NP} ./vertex_map_tests --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --out_prefix ./extra_tests_output --sssp_source=6 $@"
+  cmd="mpirun -n ${NP} ./load_tests --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --out_prefix ./extra_tests_output --sssp_source=6 $@"
+
+  echo ${cmd}
+  eval ${cmd}
+}
+
+function VertexMapTest() {
+  NP=$1;
+
+  rm -rf ./vm_serial
+  cmd="mpirun -n ${NP} ./vertex_map_tests --vfile ${GRAPE_HOME}/dataset/${GRAPH}.v --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --mutable_efile_base ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_base --mutable_efile_delta ${GRAPE_HOME}/dataset/${GRAPH}.e.mutable_delta --serialization_prefix=./vm_serial/${GRAPH}"
 
   echo ${cmd}
   eval ${cmd}
@@ -181,38 +191,32 @@ function VertexMapTestOnMutableFragment() {
   eval ${cmd}
 }
 
+function LoadTests() {
+  np=$1; shift
+
+  LoadTest ${np} --loader_type basic
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+  LoadTest ${np} --loader_type rb
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+  LoadTest ${np} --loader_type efile 
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+  LoadTest ${np} --loader_type local 
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+
+  LoadTest ${np} --loader_type basic --string_id
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+  LoadTest ${np} --loader_type rb --string_id
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+  LoadTest ${np} --loader_type efile --string_id
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+  LoadTest ${np} --loader_type local --string_id
+  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+}
+
 function VertexMapTests() {
   np=$1; shift
 
-  VertexMapTest ${np} --string_id
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTest ${np} --nosegmented_partition
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTest ${np} --string_id --nosegmented_partition
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTest ${np} --noglobal_vertex_map
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTest ${np} --string_id --noglobal_vertex_map
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTest ${np} --nosegmented_partition --noglobal_vertex_map
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTest ${np} --string_id --nosegmented_partition --noglobal_vertex_map
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTestOnMutableFragment ${np} --string_id
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTestOnMutableFragment ${np} --nosegmented_partition
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
-
-  VertexMapTestOnMutableFragment ${np} --string_id --nosegmented_partition
-  ExactVerify ${GRAPE_HOME}/dataset/${GRAPH}-SSSP
+  VertexMapTest ${np}
 }
 
 pushd ${GRAPE_HOME}/build
@@ -230,6 +234,7 @@ for np in ${proc_list}; do
   BasicTests ${np}
   MutableFragmentTests ${np}
   VertexMapTests ${np}
+  LoadTests ${np}
 done
 
 popd

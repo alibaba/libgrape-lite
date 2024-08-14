@@ -31,35 +31,23 @@ limitations under the License.
 #include <grape/grape.h>
 #include <grape/util.h>
 
-#include "sssp/sssp.h"
-#include "timer.h"
-
 #ifndef __AFFINITY__
 #define __AFFINITY__ false
 #endif
 
 DEFINE_string(efile, "", "edge file");
 DEFINE_string(vfile, "", "vertex file");
-DEFINE_string(delta_efile, "", "delta edge file");
-DEFINE_string(delta_vfile, "", "delta vertex file");
-DEFINE_string(out_prefix, "", "output directory of results");
-DEFINE_int64(sssp_source, 0, "source vertex of sssp.");
-DEFINE_bool(string_id, false, "whether to use string as origin id");
-DEFINE_bool(segmented_partition, true,
-            "whether to use segmented partitioning.");
-DEFINE_bool(rebalance, false, "whether to rebalance graph after loading.");
-DEFINE_int32(rebalance_vertex_factor, 0, "vertex factor of rebalancing.");
-DEFINE_bool(global_vertex_map, true, "whether to use global vertex map.");
+DEFINE_string(mutable_efile_base, "", "base of mutable edge file");
+DEFINE_string(mutable_efile_delta, "", "delta of mutable edge file");
+DEFINE_string(serialization_prefix, "",
+              "directory to place serialization files");
 
 void Init() {
-  if (FLAGS_out_prefix.empty()) {
-    LOG(FATAL) << "Please assign an output prefix.";
-  }
   if (FLAGS_efile.empty()) {
     LOG(FATAL) << "Please assign input edge files.";
   }
-  if (access(FLAGS_out_prefix.c_str(), 0) != 0) {
-    mkdir(FLAGS_out_prefix.c_str(), 0777);
+  if (access(FLAGS_serialization_prefix.c_str(), 0) != 0) {
+    mkdir(FLAGS_serialization_prefix.c_str(), 0777);
   }
 
   grape::InitMPIComm();
@@ -75,134 +63,265 @@ void Finalize() {
   VLOG(1) << "Workers finalized.";
 }
 
-template <typename FRAG_T, typename APP_T, typename... Args>
-void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
-             const grape::CommSpec& comm_spec,
-             const grape::ParallelEngineSpec& spec,
-             const std::string& out_prefix, Args... args) {
-  timer_next("load application");
-  auto worker = APP_T::CreateWorker(app, fragment);
-  worker->Init(comm_spec, spec);
-  timer_next("run algorithm");
-  worker->Query(std::forward<Args>(args)...);
-  timer_next("print output");
+template <typename OID_T, typename VID_T>
+bool verify_vertex_map(const grape::CommSpec& comm_spec,
+                       const grape::VertexMap<OID_T, VID_T>& vertex_map) {
+  grape::fid_t fnum = comm_spec.fnum();
+  std::vector<std::vector<std::pair<VID_T, OID_T>>> all_maps_g2o(fnum);
+  std::vector<std::vector<std::pair<OID_T, VID_T>>> all_maps_o2g(fnum);
+  bool ret = true;
+  for (grape::fid_t fid = 0; fid != fnum; ++fid) {
+    VID_T frag_vnum = vertex_map.GetInnerVertexSize(fid);
+    for (VID_T lid = 0; lid < frag_vnum; ++lid) {
+      OID_T oid_a, oid_b;
+      if (vertex_map.GetOid(fid, lid, oid_a)) {
+        VID_T gid_a{}, gid_b{};
+        if (!vertex_map.GetGid(fid, oid_a, gid_a)) {
+          LOG(ERROR) << "Vertex " << oid_a << " not found by fid+oid in vertex "
+                     << "map.";
+          ret = false;
+          continue;
+        }
+        if (!vertex_map.GetGid(oid_a, gid_b)) {
+          LOG(ERROR) << "Vertex " << oid_a << " not found by oid in vertex "
+                     << "map.";
+          ret = false;
+          continue;
+        }
+        if (gid_a != gid_b) {
+          LOG(ERROR) << "Vertex " << oid_a << " gid not consistent.";
+          ret = false;
+          continue;
+        }
+        if (!vertex_map.GetOid(gid_a, oid_b)) {
+          LOG(ERROR) << "Vertex " << gid_a << " not found by gid in vertex "
+                     << "map.";
+          ret = false;
+          continue;
+        }
+        if (oid_a != oid_b) {
+          LOG(ERROR) << "Vertex " << gid_a << " oid not consistent.";
+          ret = false;
+          continue;
+        }
+        all_maps_g2o[gid_a % fnum].emplace_back(gid_a, oid_a);
+        all_maps_o2g[std::hash<OID_T>{}(oid_a) % fnum].emplace_back(oid_a,
+                                                                    gid_a);
+      }
+    }
+  }
 
-  std::ofstream ostream;
-  std::string output_path =
-      grape::GetResultFilename(out_prefix, fragment->fid());
-  ostream.open(output_path);
-  worker->Output(ostream);
-  ostream.close();
-  worker->Finalize();
-  timer_end();
-  VLOG(1) << "Worker-" << comm_spec.worker_id() << " finished: " << output_path;
+  {
+    std::vector<std::vector<std::pair<VID_T, OID_T>>> all_maps_g2o_in(fnum);
+    grape::sync_comm::AllToAll(all_maps_g2o, all_maps_g2o_in, comm_spec.comm());
+
+    std::vector<std::pair<VID_T, OID_T>> all_maps_merged;
+    for (auto& maps : all_maps_g2o_in) {
+      all_maps_merged.insert(all_maps_merged.end(), maps.begin(), maps.end());
+    }
+
+    std::sort(all_maps_merged.begin(), all_maps_merged.end());
+    for (size_t i = 1; i < all_maps_merged.size(); ++i) {
+      if (all_maps_merged[i].first == all_maps_merged[i - 1].first) {
+        if (all_maps_merged[i].second != all_maps_merged[i - 1].second) {
+          LOG(ERROR) << "Vertex " << all_maps_merged[i].first
+                     << " has different oid in different fragments.";
+          ret = false;
+        }
+      }
+    }
+  }
+
+  {
+    std::vector<std::vector<std::pair<OID_T, VID_T>>> all_maps_o2g_in(fnum);
+    grape::sync_comm::AllToAll(all_maps_o2g, all_maps_o2g_in, comm_spec.comm());
+
+    std::vector<std::pair<OID_T, VID_T>> all_maps_merged;
+    for (auto& maps : all_maps_o2g_in) {
+      all_maps_merged.insert(all_maps_merged.end(), maps.begin(), maps.end());
+    }
+
+    std::sort(all_maps_merged.begin(), all_maps_merged.end());
+    for (size_t i = 1; i < all_maps_merged.size(); ++i) {
+      if (all_maps_merged[i].first == all_maps_merged[i - 1].first) {
+        if (all_maps_merged[i].second != all_maps_merged[i - 1].second) {
+          LOG(ERROR) << "Vertex " << all_maps_merged[i].first
+                     << " has different gid in different fragments.";
+          ret = false;
+        }
+      }
+    }
+  }
+
+  return ret;
 }
 
-template <typename T>
-struct ParamConverter {};
-
-template <>
-struct ParamConverter<int64_t> {
-  static int64_t FromInt64(int64_t val) { return val; }
-};
-
-template <>
-struct ParamConverter<std::string> {
-  static std::string FromInt64(int64_t val) { return std::to_string(val); }
-};
-
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          grape::LoadStrategy load_strategy, template <class> class APP_T,
-          typename... Args>
-void CreateAndQuery(const grape::CommSpec& comm_spec,
-                    const std::string& out_prefix, int fnum,
-                    const grape::ParallelEngineSpec& spec, Args... args) {
-  timer_next("load graph");
-  grape::LoadGraphSpec graph_spec = grape::DefaultLoadGraphSpec();
-  graph_spec.set_directed(false);
-  graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
-  if (!FLAGS_delta_efile.empty() || !FLAGS_delta_vfile.empty()) {
-    graph_spec.set_rebalance(false, 0);
-    if (FLAGS_global_vertex_map) {
-      graph_spec.partitioner_type = grape::PartitionerType::kMapPartitioner;
-      graph_spec.idxer_type = grape::IdxerType::kHashMapIdxer;
-    } else {
-      graph_spec.set_rebalance(false, 0);
-      graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
-      graph_spec.idxer_type = grape::IdxerType::kLocalIdxer;
+template <typename FRAG_T, typename VERTEX_MAP_T>
+bool verify_fragment_vertex_map(const FRAG_T& frag,
+                                const VERTEX_MAP_T& vertex_map) {
+  auto inner_vertices = frag.InnerVertices();
+  auto outer_vertices = frag.OuterVertices();
+  using vid_t = typename FRAG_T::vid_t;
+  using oid_t = typename FRAG_T::oid_t;
+  for (auto v : inner_vertices) {
+    vid_t gid = frag.GetInnerVertexGid(v);
+    oid_t oid;
+    if (!vertex_map.GetOid(gid, oid)) {
+      LOG(ERROR) << "Vertex " << gid << " not found in vertex map.";
+      return false;
     }
-    using FRAG_T = grape::MutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                 load_strategy>;
-    std::shared_ptr<FRAG_T> fragment = grape::LoadGraphAndMutate<FRAG_T>(
-        FLAGS_efile, FLAGS_vfile, FLAGS_delta_efile, FLAGS_delta_vfile,
-        comm_spec, graph_spec);
-    using AppType = APP_T<FRAG_T>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                      out_prefix, args...);
-  } else {
-    if (FLAGS_segmented_partition) {
-      graph_spec.partitioner_type = grape::PartitionerType::kMapPartitioner;
-    } else {
-      graph_spec.set_rebalance(false, 0);
-      graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
-    }
-    if (FLAGS_global_vertex_map) {
-      graph_spec.idxer_type = grape::IdxerType::kHashMapIdxer;
-    } else {
-      graph_spec.set_rebalance(false, 0);
-      graph_spec.idxer_type = grape::IdxerType::kLocalIdxer;
-      graph_spec.partitioner_type = grape::PartitionerType::kHashPartitioner;
-    }
-    using FRAG_T = grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
-                                                   EDATA_T, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment = grape::LoadGraph<FRAG_T>(
-        FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using AppType = APP_T<FRAG_T>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                      out_prefix, args...);
   }
+  for (auto v : outer_vertices) {
+    vid_t gid = frag.GetOuterVertexGid(v);
+    oid_t oid;
+    if (!vertex_map.GetOid(gid, oid)) {
+      LOG(ERROR) << "Vertex " << gid << " not found in vertex map.";
+      return false;
+    }
+  }
+  return true;
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
-void Run() {
-  grape::CommSpec comm_spec;
-  comm_spec.Init(MPI_COMM_WORLD);
+void test_build_vertex_map(const std::string& efile, const std::string& vfile,
+                           const grape::LoadGraphSpec& graph_spec,
+                           const grape::CommSpec& comm_spec) {
+  using FRAG_T =
+      grape::ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T>;
+  std::shared_ptr<FRAG_T> fragment =
+      grape::LoadGraph<FRAG_T>(efile, vfile, comm_spec, graph_spec);
 
-  bool is_coordinator = comm_spec.worker_id() == grape::kCoordinatorRank;
-  timer_start(is_coordinator);
+  verify_fragment_vertex_map(*fragment, fragment->GetVertexMap());
+  verify_vertex_map(comm_spec, fragment->GetVertexMap());
+}
 
-  // FIXME: no barrier apps. more manager? or use a dynamic-cast.
-  auto spec = grape::MultiProcessSpec(comm_spec, __AFFINITY__);
-  int fnum = comm_spec.fnum();
-  CreateAndQuery<OID_T, VID_T, VDATA_T, EDATA_T, grape::LoadStrategy::kOnlyOut,
-                 grape::SSSP, OID_T>(
-      comm_spec, FLAGS_out_prefix, fnum, spec,
-      ParamConverter<OID_T>::FromInt64(FLAGS_sssp_source));
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
+void test_mutate_vertex_map(const std::string& efile_base,
+                            const std::string& vfile,
+                            const std::string& efile_delta,
+                            const grape::LoadGraphSpec& graph_spec,
+                            const grape::CommSpec& comm_spec) {
+  using FRAG_T = grape::MutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T>;
+  std::shared_ptr<FRAG_T> fragment = grape::LoadGraphAndMutate<FRAG_T>(
+      efile_base, vfile, efile_delta, "", comm_spec, graph_spec);
+
+  verify_fragment_vertex_map(*fragment, fragment->GetVertexMap());
+  verify_vertex_map(comm_spec, fragment->GetVertexMap());
 }
 
 int main(int argc, char* argv[]) {
   FLAGS_stderrthreshold = 0;
-
   grape::gflags::SetUsageMessage(
       "Usage: mpiexec [mpi_opts] ./run_app [grape_opts]");
   if (argc == 1) {
-    grape::gflags::ShowUsageWithFlagsRestrict(argv[0], "analytical_apps");
+    grape::gflags::ShowUsageWithFlagsRestrict(argv[0], "vertex_map_tests");
     exit(1);
   }
   grape::gflags::ParseCommandLineFlags(&argc, &argv, true);
   grape::gflags::ShutDownCommandLineFlags();
 
-  google::InitGoogleLogging("analytical_apps");
+  google::InitGoogleLogging("vertex_map_tests");
   google::InstallFailureSignalHandler();
 
   Init();
 
-  if (FLAGS_string_id) {
-    Run<std::string, uint32_t, grape::EmptyType, double>();
-  } else {
-    Run<int64_t, uint32_t, grape::EmptyType, double>();
+  std::vector<bool> string_id_options({false, true});
+  std::vector<bool> rebalance_options({false, true});
+  std::vector<grape::PartitionerType> partitioner_options(
+      {grape::PartitionerType::kHashPartitioner,
+       grape::PartitionerType::kMapPartitioner,
+       grape::PartitionerType::kSegmentedPartitioner});
+  std::vector<grape::IdxerType> idxer_options(
+      {grape::IdxerType::kHashMapIdxer, grape::IdxerType::kHashMapIdxerView,
+       grape::IdxerType::kPTHashIdxer, grape::IdxerType::kSortedArrayIdxer,
+       grape::IdxerType::kLocalIdxer});
+
+  {
+    grape::CommSpec comm_spec;
+    comm_spec.Init(MPI_COMM_WORLD);
+    int idx = 0;
+    for (auto string_id : string_id_options) {
+      for (auto rebalance : rebalance_options) {
+        for (auto partitioner_type : partitioner_options) {
+          for (auto idxer_type : idxer_options) {
+            if (rebalance) {
+              if (partitioner_type ==
+                  grape::PartitionerType::kHashPartitioner) {
+                continue;
+              }
+            }
+            if (idxer_type == grape::IdxerType::kLocalIdxer) {
+              if (partitioner_type !=
+                  grape::PartitionerType::kHashPartitioner) {
+                continue;
+              }
+            }
+            bool vm_extendable =
+                (idxer_type == grape::IdxerType::kHashMapIdxer ||
+                 idxer_type == grape::IdxerType::kLocalIdxer);
+            VLOG(2) << "Test " << idx++ << ": string_id=" << string_id
+                    << ", rebalance=" << rebalance
+                    << ", partitioner_type=" << partitioner_type
+                    << ", idxer_type=" << idxer_type;
+            grape::LoadGraphSpec graph_spec = grape::DefaultLoadGraphSpec();
+            graph_spec.set_directed(false);
+            if (rebalance) {
+              graph_spec.set_rebalance(true, 0);
+            } else {
+              graph_spec.set_rebalance(false, 0);
+            }
+            graph_spec.partitioner_type = partitioner_type;
+            graph_spec.idxer_type = idxer_type;
+
+            graph_spec.set_serialize(true, FLAGS_serialization_prefix);
+            if (string_id) {
+              test_build_vertex_map<std::string, uint32_t, grape::EmptyType,
+                                    double>(FLAGS_efile, FLAGS_vfile,
+                                            graph_spec, comm_spec);
+              if (vm_extendable) {
+                test_mutate_vertex_map<std::string, uint32_t, grape::EmptyType,
+                                       double>(
+                    FLAGS_mutable_efile_base, FLAGS_vfile,
+                    FLAGS_mutable_efile_delta, graph_spec, comm_spec);
+              }
+            } else {
+              test_build_vertex_map<int64_t, uint32_t, grape::EmptyType,
+                                    double>(FLAGS_efile, FLAGS_vfile,
+                                            graph_spec, comm_spec);
+              if (vm_extendable) {
+                test_mutate_vertex_map<int64_t, uint32_t, grape::EmptyType,
+                                       double>(
+                    FLAGS_mutable_efile_base, FLAGS_vfile,
+                    FLAGS_mutable_efile_delta, graph_spec, comm_spec);
+              }
+            }
+
+            graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
+            if (string_id) {
+              test_build_vertex_map<std::string, uint32_t, grape::EmptyType,
+                                    double>(FLAGS_efile, FLAGS_vfile,
+                                            graph_spec, comm_spec);
+              if (vm_extendable) {
+                test_mutate_vertex_map<std::string, uint32_t, grape::EmptyType,
+                                       double>(
+                    FLAGS_mutable_efile_base, FLAGS_vfile,
+                    FLAGS_mutable_efile_delta, graph_spec, comm_spec);
+              }
+            } else {
+              test_build_vertex_map<int64_t, uint32_t, grape::EmptyType,
+                                    double>(FLAGS_efile, FLAGS_vfile,
+                                            graph_spec, comm_spec);
+              if (vm_extendable) {
+                test_mutate_vertex_map<int64_t, uint32_t, grape::EmptyType,
+                                       double>(
+                    FLAGS_mutable_efile_base, FLAGS_vfile,
+                    FLAGS_mutable_efile_delta, graph_spec, comm_spec);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   Finalize();

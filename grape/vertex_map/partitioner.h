@@ -266,4 +266,27 @@ std::unique_ptr<IPartitioner<OID_T>> deserialize_partitioner(
 
 }  // namespace grape
 
+#include <iostream>
+
+namespace std {
+
+ostream& operator<<(ostream& os, const grape::PartitionerType& type) {
+  switch (type) {
+  case grape::PartitionerType::kHashPartitioner:
+    os << "hash";
+    break;
+  case grape::PartitionerType::kMapPartitioner:
+    os << "map";
+    break;
+  case grape::PartitionerType::kSegmentedPartitioner:
+    os << "segment";
+    break;
+  default:
+    os << "unknown";
+  }
+  return os;
+}
+
+}  // namespace std
+
 #endif  // GRAPE_VERTEX_MAP_PARTITIONER_H_
