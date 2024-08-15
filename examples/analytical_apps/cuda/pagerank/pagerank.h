@@ -18,6 +18,9 @@ limitations under the License.
 #ifdef __CUDACC__
 #include "cuda/app_config.h"
 #include "grape/grape.h"
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/transform_reduce.h>
 namespace grape {
 namespace cuda {
 

@@ -27,7 +27,7 @@ limitations under the License.
 namespace grape {
 namespace cuda {
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          grape::LoadStrategy _load_strategy, typename VERTEX_MAP_T>
+          grape::LoadStrategy _load_strategy>
 class HostFragment;
 
 namespace dev {
@@ -445,8 +445,7 @@ class DeviceFragment {
   ArrayView<ArrayView<vertex_t>> mirrors_of_frag_;
 
   template <typename _OID_T, typename _VID_T, typename _VDATA_T,
-            typename _EDATA_T, grape::LoadStrategy __load_strategy,
-            typename _VERTEX_MAP_T>
+            typename _EDATA_T, grape::LoadStrategy __load_strategy>
   friend class grape::cuda::HostFragment;
 };
 

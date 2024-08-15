@@ -43,7 +43,6 @@ limitations under the License.
 #include "grape/types.h"
 #include "grape/util.h"
 #include "grape/utils/vertex_array.h"
-#include "grape/vertex_map/global_vertex_map.h"
 
 namespace grape {
 namespace cuda {
@@ -65,14 +64,12 @@ inline void CalculateOffsetWithPrefixSum(const Stream& stream,
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut,
-          typename VERTEX_MAP_T = GlobalVertexMap<OID_T, VID_T>>
-class HostFragment
-    : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                      _load_strategy, VERTEX_MAP_T> {
+          grape::LoadStrategy _load_strategy = grape::LoadStrategy::kOnlyOut>
+class HostFragment : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
+                                                     EDATA_T, _load_strategy> {
  public:
-  using base_t = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                          _load_strategy, VERTEX_MAP_T>;
+  using base_t =
+      ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, _load_strategy>;
   using internal_vertex_t = typename base_t::internal_vertex_t;
   using edge_t = typename base_t::edge_t;
   using nbr_t = typename base_t::nbr_t;
@@ -86,8 +83,7 @@ class HostFragment
   using edata_t = EDATA_T;
   using vertex_range_t = typename base_t::vertex_range_t;
 
-  using vertex_map_t = typename base_t::vertex_map_t;
-  using dev_vertex_map_t = cuda::DeviceVertexMap<vertex_map_t>;
+  using dev_vertex_map_t = cuda::DeviceVertexMap<VertexMap<OID_T, VID_T>>;
   using inner_vertices_t = typename base_t::inner_vertices_t;
   using outer_vertices_t = typename base_t::outer_vertices_t;
   using device_t =
@@ -99,15 +95,14 @@ class HostFragment
 
   static constexpr grape::LoadStrategy load_strategy = _load_strategy;
 
-  HostFragment() = default;
+  HostFragment() : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
 
-  explicit HostFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
-
-  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
+  void Init(const CommSpec& comm_spec, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+            std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) {
-    base_t::Init(fid, directed, vertices, edges);
-    __allocate_device_fragment__();
+    base_t::Init(comm_spec, directed, std::move(vm_ptr), vertices, edges);
+    __allocate_device_fragment__(comm_spec.local_id());
   }
 
   template <typename IOADAPTOR_T>
@@ -116,9 +111,12 @@ class HostFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const std::string& prefix, const fid_t fid) {
-    base_t::template Deserialize<IOADAPTOR_T>(prefix, fid);
-    __allocate_device_fragment__();
+  void Deserialize(const CommSpec& comm_spec,
+                   std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string& prefix) {
+    base_t::template Deserialize<IOADAPTOR_T>(comm_spec, std::move(vm_ptr),
+                                              prefix);
+    __allocate_device_fragment__(comm_spec.local_id());
   }
 
   void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) {
@@ -135,7 +133,6 @@ class HostFragment
     }
 
     if (conf.need_split_edges || conf.need_split_edges_by_fragment) {
-      auto& comm_spec = vm_ptr_->GetCommSpec();
       auto& ie = ie_.get_edges();
       auto& ieoffset = ie_.get_offsets();
       auto& oe = oe_.get_edges();
@@ -161,7 +158,7 @@ class HostFragment
                                    stream.cuda_stream()));
 
         auto prefix_sum = compute_prefix_sum(ieoffset);
-        ArrayView<VID_T> d_prefix_sum(prefix_sum);
+        ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
         CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
             stream, d_prefix_sum, thrust::raw_pointer_cast(d_ie_.data()),
@@ -176,7 +173,7 @@ class HostFragment
                                    stream.cuda_stream()));
 
         auto prefix_sum = compute_prefix_sum(oeoffset);
-        ArrayView<VID_T> d_prefix_sum(prefix_sum);
+        ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
         CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
             stream, d_prefix_sum, thrust::raw_pointer_cast(d_oe_.data()),
@@ -211,7 +208,7 @@ class HostFragment
     }
 
     if (conf.need_build_device_vm) {
-      d_vm_ptr_->Init(stream);
+      d_vm_ptr_->Init(stream, comm_spec, vm_ptr_);
     }
     stream.Sync();
   }
@@ -321,18 +318,17 @@ class HostFragment
     return dev_frag;
   }
 
-  void __allocate_device_fragment__() {
-    auto& comm_spec = vm_ptr_->GetCommSpec();
+  void __allocate_device_fragment__(int local_id) {
     auto& ie = ie_.get_edges();
     auto& ieoffset = ie_.get_offsets();
     auto& oe = oe_.get_edges();
     auto& oeoffset = oe_.get_offsets();
 
-    int dev_id = comm_spec.local_id();
+    int dev_id = local_id;
     CHECK_CUDA(cudaSetDevice(dev_id));
     Stream stream;
 
-    d_vm_ptr_ = std::make_shared<dev_vertex_map_t>(vm_ptr_);
+    d_vm_ptr_ = std::make_shared<dev_vertex_map_t>();
     auto offset_size = ivnum_ + ovnum_ + 1;
     auto compute_prefix_sum =
         [offset_size](
@@ -354,7 +350,7 @@ class HostFragment
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
 
       auto prefix_sum = compute_prefix_sum(ieoffset);
-      ArrayView<VID_T> d_prefix_sum(prefix_sum);
+      ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
       CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
           stream, d_prefix_sum, thrust::raw_pointer_cast(d_ie_.data()),
@@ -370,7 +366,7 @@ class HostFragment
                                  cudaMemcpyHostToDevice, stream.cuda_stream()));
 
       auto prefix_sum = compute_prefix_sum(oeoffset);
-      ArrayView<VID_T> d_prefix_sum(prefix_sum);
+      ArrayView<VID_T> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
       CalculateOffsetWithPrefixSum<nbr_t, vid_t>(
           stream, d_prefix_sum, thrust::raw_pointer_cast(d_oe_.data()),
@@ -414,7 +410,6 @@ class HostFragment
           [] __device__(VID_T * gids, VID_T * lids, VID_T size,
                         CUDASTL::HashMap<VID_T, VID_T> * ovg2l) {
             auto tid = TID_1D;
-            gids = thrust::raw_pointer_cast(gids);
             auto nthreads = TOTAL_THREADS_1D;
 
             for (VID_T idx = 0 + tid; idx < size; idx += nthreads) {
@@ -424,8 +419,7 @@ class HostFragment
               (*ovg2l)[gid] = lid;
             }
           },
-          thrust::raw_pointer_cast(gids.data()),
-          thrust::raw_pointer_cast(lids.data()), size, d_ovg2l_.get());
+          gids.data(), lids.data(), size, d_ovg2l_.get());
     }
 
     d_mirrors_of_frag_holder_.resize(fnum_);
@@ -635,7 +629,7 @@ class HostFragment
       thrust::device_vector<fid_t>& d_fid_list,
       thrust::device_vector<fid_t*>& d_fid_list_offset) {
     pinned_vector<size_t> prefix_sum(ivnum_ + 1, 0);
-    ArrayView<size_t> d_prefix_sum(prefix_sum);
+    ArrayView<size_t> d_prefix_sum(prefix_sum.data(), prefix_sum.size());
 
     for (VID_T i = 0; i < ivnum_; ++i) {
       prefix_sum[i + 1] =

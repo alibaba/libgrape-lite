@@ -26,10 +26,8 @@ limitations under the License.
 #include <vector>
 
 #include <grape/config.h>
-#include <grape/fragment/basic_fragment_loader.h>
 #include <grape/fragment/edgecut_fragment_base.h>
 #include <grape/fragment/fragment_base.h>
-#include <grape/fragment/partitioner.h>
 #include <grape/graph/adj_list.h>
 #include <grape/graph/edge.h>
 #include <grape/graph/vertex.h>
@@ -41,7 +39,7 @@ limitations under the License.
 #include <grape/utils/gcontainer.h>
 #include <grape/utils/iterator_pair.h>
 #include <grape/utils/vertex_array.h>
-#include <grape/vertex_map/global_vertex_map.h>
+#include <grape/vertex_map/vertex_map.h>
 #include <grape/worker/comm_spec.h>
 
 #include "flat_hash_map/flat_hash_map.hpp"
@@ -276,7 +274,6 @@ struct AppendOnlyEdgecutFragmentTraits {
   using sub_vertices_t = VertexVector<VID_T>;
   using fragment_adj_list_t = AdjList<VID_T, EDATA_T>;
   using fragment_const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
-  using vertex_map_t = GlobalVertexMap<OID_T, VID_T>;
   using mirror_vertices_t = std::vector<Vertex<VID_T>>;
 };
 
@@ -301,7 +298,7 @@ class AppendOnlyEdgecutFragment
   using oid_t = OID_T;
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
-  using vertex_map_t = typename traits_t::vertex_map_t;
+  using vertex_map_t = VertexMap<OID_T, VID_T>;
   using nbr_space_iter_impl = NbrSpaceIterImpl<VID_T, EDATA_T>;
   using nbr_mapspace_iter_impl = NbrMapSpaceIterImpl<VID_T, EDATA_T>;
 
@@ -326,8 +323,8 @@ class AppendOnlyEdgecutFragment
   /** Constructor.
    * @param vm_ptr the vertex map.
    */
-  explicit AppendOnlyEdgecutFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
+  AppendOnlyEdgecutFragment()
+      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
 
   virtual ~AppendOnlyEdgecutFragment() {}
 
@@ -336,9 +333,11 @@ class AppendOnlyEdgecutFragment
   using base_t::InnerVertexGid2Lid;
   using base_t::IsInnerVertexGid;
   static std::string type_info() { return ""; }
-  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
+  void Init(const CommSpec& comm_spec, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+            std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid, directed);
+    init(comm_spec.fid(), directed, std::move(vm_ptr));
 
     ovnum_ = 0;
     oenum_ = 0;
@@ -376,12 +375,12 @@ class AppendOnlyEdgecutFragment
     }
     tvnum_ = ivnum_ + ovnum_;
     max_old_ilid_ = ivnum_;
-    min_old_olid_ = id_parser_.max_local_id() - ovnum_;
+    min_old_olid_ = id_parser_.max_local_id() - ovnum_ + 1;
     this->inner_vertices_.SetRange(0, ivnum_);
-    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
-                                   id_parser_.max_local_id());
-    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
-                             id_parser_.max_local_id());
+    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_ + 1,
+                                   id_parser_.max_local_id() + 1);
+    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_ + 1,
+                             id_parser_.max_local_id() + 1);
 
     {
       std::vector<int> odegree(ivnum_, 0);
@@ -500,11 +499,13 @@ class AppendOnlyEdgecutFragment
     std::vector<edge_t> edges;
     edges.reserve(edge_messages.size());
     std::vector<oid_t> empty_id_list;
-    auto& partitioner = vm_ptr_->GetPartitioner();
     {
       edata_t e_data;
       oid_t src, dst, src_gid, dst_gid;
       fid_t src_fid, dst_fid;
+      std::vector<Edge<OID_T, EDATA_T>> edge_list;
+      edge_list.reserve(edge_messages.size());
+      std::vector<OID_T> local_vertices_to_add;
       auto line_parser_ptr =
           std::make_shared<TSVLineParser<oid_t, vdata_t, edata_t>>();
       for (auto& msg : edge_messages) {
@@ -517,12 +518,26 @@ class AppendOnlyEdgecutFragment
           LOG(ERROR) << e.what();
           continue;
         }
-        src_fid = partitioner.GetPartitionId(src);
-        dst_fid = partitioner.GetPartitionId(dst);
-        vm_ptr_->AddVertex(src, src_gid);
-        vm_ptr_->AddVertex(dst, dst_gid);
-        if (src_fid == fid_ || dst_fid == fid_) {
-          edges.emplace_back(src_gid, dst_gid, e_data);
+        src_fid = vm_ptr_->GetFragmentId(src);
+        dst_fid = vm_ptr_->GetFragmentId(dst);
+        if (src_fid == fid_) {
+          if (!vm_ptr_->GetGid(src, src_gid)) {
+            local_vertices_to_add.push_back(src);
+          }
+          edge_list.emplace_back(src, dst, e_data);
+        } else if (dst_fid == fid_) {
+          if (!vm_ptr_->GetGid(dst, dst_gid)) {
+            local_vertices_to_add.push_back(dst);
+          }
+          edge_list.emplace_back(src, dst, e_data);
+        }
+      }
+
+      vm_ptr_->ExtendVertices(comm_spec, std::move(local_vertices_to_add));
+      for (auto& e : edge_list) {
+        if (vm_ptr_->GetGid(e.src, src_gid) &&
+            vm_ptr_->GetGid(e.dst, dst_gid)) {
+          edges.emplace_back(src_gid, dst_gid, e.edata);
         }
       }
     }
@@ -573,10 +588,11 @@ class AppendOnlyEdgecutFragment
         }
       }
       this->inner_vertices_.SetRange(0, ivnum_);
-      this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
-                                     id_parser_.max_local_id());
-      this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
-                               id_parser_.max_local_id());
+      this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_ + 1,
+                                     id_parser_.max_local_id() + 1);
+      this->vertices_.SetRange(0, ivnum_,
+                               id_parser_.max_local_id() - ovnum_ + 1,
+                               id_parser_.max_local_id() + 1);
       tvnum_ = ivnum_ + ovnum_;
       ovgid_.resize(ovnum_);
       memcpy(&ovgid_[old_ovnum], &ov_to_extend[0],
@@ -605,7 +621,7 @@ class AppendOnlyEdgecutFragment
     InArchive ia;
 
     vid_t xivnum = max_old_ilid_;
-    vid_t xovnum = id_parser_.max_local_id() - min_old_olid_;
+    vid_t xovnum = id_parser_.max_local_id() - min_old_olid_ + 1;
 
     ia << xivnum << xovnum << oenum_;
     io_adaptor->WriteArchive(ia);
@@ -646,10 +662,13 @@ class AppendOnlyEdgecutFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const std::string prefix, const fid_t fid) {
+  void Deserialize(const CommSpec& comm_spec,
+                   std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string prefix) {
+    vm_ptr_ = std::move(vm_ptr);
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), kSerializationFilenameFormat, prefix.c_str(),
-             fid);
+             comm_spec.fid());
     VLOG(1) << "Deserialize from " << fbuf;
     auto io_adaptor =
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
@@ -700,15 +719,15 @@ class AppendOnlyEdgecutFragment
     io_adaptor->Close();
 
     max_old_ilid_ = ivnum_;
-    min_old_olid_ = id_parser_.max_local_id() - ovnum_;
+    min_old_olid_ = id_parser_.max_local_id() - ovnum_ + 1;
     extra_oenum_ = 0;
     extra_oe_.clear();
     extra_oe_.resize(ivnum_, -1);
     this->inner_vertices_.SetRange(0, ivnum_);
-    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_,
-                                   id_parser_.max_local_id());
-    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_,
-                             id_parser_.max_local_id());
+    this->outer_vertices_.SetRange(id_parser_.max_local_id() - ovnum_ + 1,
+                                   id_parser_.max_local_id() + 1);
+    this->vertices_.SetRange(0, ivnum_, id_parser_.max_local_id() - ovnum_ + 1,
+                             id_parser_.max_local_id() + 1);
 
     initOuterVerticesOfFragment();
   }

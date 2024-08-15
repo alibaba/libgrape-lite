@@ -137,7 +137,7 @@ class EdgecutFragmentBase
    * @return The original ID.
    */
   OID_T GetInnerVertexId(vertex_t v) const {
-    OID_T oid;
+    OID_T oid{};
     vm_ptr_->GetOid(GetInnerVertexGid(v), oid);
     return oid;
   }
@@ -150,7 +150,7 @@ class EdgecutFragmentBase
    * @return The original ID.
    */
   OID_T GetOuterVertexId(vertex_t v) const {
-    OID_T oid;
+    OID_T oid{};
     vm_ptr_->GetOid(GetOuterVertexGid(v), oid);
     return oid;
   }

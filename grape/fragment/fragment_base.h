@@ -22,6 +22,7 @@ limitations under the License.
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
+#include "grape/vertex_map/vertex_map.h"
 #include "grape/worker/comm_spec.h"
 
 namespace grape {
@@ -51,25 +52,23 @@ template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           typename TRAITS_T>
 class FragmentBase {
  public:
-  using vertex_map_t = typename TRAITS_T::vertex_map_t;
-
   using fragment_adj_list_t = typename TRAITS_T::fragment_adj_list_t;
   using fragment_const_adj_list_t =
       typename TRAITS_T::fragment_const_adj_list_t;
 
   FragmentBase() : vm_ptr_(nullptr) {}
+  virtual ~FragmentBase() {}
 
-  explicit FragmentBase(std::shared_ptr<vertex_map_t> vm_ptr)
-      : vm_ptr_(vm_ptr) {}
-
-  std::shared_ptr<vertex_map_t> GetVertexMap() { return vm_ptr_; }
-  const std::shared_ptr<vertex_map_t> GetVertexMap() const { return vm_ptr_; }
+  VertexMap<OID_T, VID_T>& GetVertexMap() { return *vm_ptr_; }
+  const VertexMap<OID_T, VID_T>& GetVertexMap() const { return *vm_ptr_; }
 
  protected:
-  void init(fid_t fid, bool directed) {
+  void init(fid_t fid, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr) {
     fid_ = fid;
     directed_ = directed;
-    fnum_ = vm_ptr_->GetFragmentNum();
+    fnum_ = vm_ptr->GetFragmentNum();
+    vm_ptr_ = std::move(vm_ptr);
     id_parser_.init(fnum_);
     ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
   }
@@ -82,7 +81,8 @@ class FragmentBase {
    * @param vertices A set of vertices.
    * @param edges A set of edges.
    */
-  virtual void Init(fid_t fid, bool directed,
+  virtual void Init(const CommSpec& comm_spec, bool directed,
+                    std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
                     std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
                     std::vector<Edge<VID_T, EDATA_T>>& edges) = 0;
 
@@ -170,7 +170,7 @@ class FragmentBase {
    * @return Its original ID.
    */
   OID_T GetId(const Vertex<VID_T>& v) const {
-    OID_T oid;
+    OID_T oid{};
     vm_ptr_->GetOid(Vertex2Gid(v), oid);
     return oid;
   }
@@ -326,7 +326,7 @@ class FragmentBase {
   VID_T ivnum_;
 
   vertices_t vertices_;
-  std::shared_ptr<vertex_map_t> vm_ptr_;
+  std::unique_ptr<VertexMap<OID_T, VID_T>> vm_ptr_;
 
   IdParser<VID_T> id_parser_;
 };

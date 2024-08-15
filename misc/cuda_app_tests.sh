@@ -61,7 +61,7 @@ function RunAppWithELoader() {
   NP=$1; shift
   APP=$1; shift
 
-  cmd="mpirun -n ${NP} ./run_cuda_app --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output --nosegmented_partition $@"
+  cmd="mpirun -n ${NP} ./run_cuda_app --efile ${GRAPE_HOME}/dataset/${GRAPH}.e --application ${APP} --out_prefix ./extra_tests_output --partitioner_type=hash $@"
   echo ${cmd}
   eval ${cmd}
 }
@@ -117,16 +117,16 @@ for np in ${proc_list}; do
     RunApp ${np} wcc -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 
-    RunApp ${np} wcc_opt -segmented_partition=true -rebalance=true -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_tt
+    RunApp ${np} wcc_opt -rebalance=true -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_tt
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 
-    RunApp ${np} wcc_opt -segmented_partition=true -rebalance=false -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_tf
+    RunApp ${np} wcc_opt  -rebalance=false -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_tf
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 
-    RunApp ${np} wcc_opt -segmented_partition=false -rebalance=true -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_ft
+    RunApp ${np} wcc_opt --partitioner_type=hash -rebalance=true -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_ft
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
 
-    RunApp ${np} wcc_opt -segmented_partition=false -rebalance=false -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_ff
+    RunApp ${np} wcc_opt --partitioner_type=hash -rebalance=false -lb=${lb} ${SER} --serialization_prefix=./serial/${GRAPH}_wcc_opt_ff
     WCCVerify ${GRAPE_HOME}/dataset/${GRAPH}-WCC
   done
 done

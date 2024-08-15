@@ -20,6 +20,8 @@ limitations under the License.
 #include <ostream>
 #include <type_traits>
 
+#include "pthash/utils/hasher.hpp"
+
 // Use the same setting with apache-arrow to avoid possible conflicts
 #define nssv_CONFIG_SELECT_STRING_VIEW nssv_STRING_VIEW_NONSTD
 #include "string_view/string_view.hpp"
@@ -136,6 +138,31 @@ struct InternalOID<std::string> {
   }
 
   static std::string FromInternal(const type& val) { return std::string(val); }
+};
+
+struct murmurhasher {
+  typedef pthash::hash64 hash_type;
+
+  // specialization for std::string
+  static inline hash_type hash(std::string const& val, uint64_t seed) {
+    return pthash::MurmurHash2_64(val.data(), val.size(), seed);
+  }
+
+  // specialization for uint64_t
+  static inline hash_type hash(uint64_t val, uint64_t seed) {
+    return pthash::MurmurHash2_64(reinterpret_cast<char const*>(&val),
+                                  sizeof(val), seed);
+  }
+
+  static inline hash_type hash(const nonstd::string_view& val, uint64_t seed) {
+    return pthash::MurmurHash2_64(val.data(), val.size(), seed);
+  }
+
+#if __cplusplus >= 201703L
+  static inline hash_type hash(std::string_view const& val, uint64_t seed) {
+    return pthash::MurmurHash2_64(val.data(), val.size(), seed);
+  }
+#endif
 };
 
 #ifdef __cpp_lib_is_invocable

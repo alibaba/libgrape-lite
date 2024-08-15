@@ -184,6 +184,13 @@ class ImmutableCSR {
   Array<nbr_t, Allocator<nbr_t>>& get_edges_mut() { return edges_; }
   Array<nbr_t*, Allocator<nbr_t*>>& get_offsets_mut() { return offsets_; }
 
+  size_t memory_usage() const {
+    size_t mem = sizeof(*this);
+    mem += offsets_.size() * sizeof(nbr_t*);
+    mem += edges_.size() * sizeof(nbr_t);
+    return mem;
+  }
+
   template <typename IOADAPTOR_T>
   void Serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
     vid_t vnum = vertex_num();
