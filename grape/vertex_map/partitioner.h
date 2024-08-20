@@ -270,7 +270,7 @@ std::unique_ptr<IPartitioner<OID_T>> deserialize_partitioner(
 
 namespace std {
 
-ostream& operator<<(ostream& os, const grape::PartitionerType& type) {
+inline ostream& operator<<(ostream& os, const grape::PartitionerType& type) {
   switch (type) {
   case grape::PartitionerType::kHashPartitioner:
     os << "hash";

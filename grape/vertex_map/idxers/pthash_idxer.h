@@ -16,8 +16,10 @@ limitations under the License.
 #ifndef GRAPE_VERTEX_MAP_IDXERS_PTHASH_IDXER_H_
 #define GRAPE_VERTEX_MAP_IDXERS_PTHASH_IDXER_H_
 
+#include "grape/util.h"
 #include "grape/utils/gcontainer.h"
 #include "grape/utils/pthash_utils/ph_indexer_view.h"
+#include "grape/vertex_map/idxers/idxer_base.h"
 
 namespace grape {
 

@@ -76,7 +76,7 @@ void serialize_idxer(std::unique_ptr<IOAdaptorBase>& writer,
 }  // namespace grape
 
 namespace std {
-ostream& operator<<(ostream& os, const grape::IdxerType& type) {
+inline ostream& operator<<(ostream& os, const grape::IdxerType& type) {
   switch (type) {
   case grape::IdxerType::kHashMapIdxer:
     os << "HashMapIdxer";
