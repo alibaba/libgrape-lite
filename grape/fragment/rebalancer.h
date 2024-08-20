@@ -103,7 +103,8 @@ class Rebalancer {
     } else if (vertex_map_->GetPartitioner().type() ==
                PartitionerType::kSegmentedPartitioner) {
       size_t cur_score = 0;
-      fid_t last_fid = 0;
+      fid_t cur_fid = 0;
+      bool is_boundary = false;
       std::vector<OID_T> boundaries;
       frag_scores_after.resize(fnum, 0);
       for (fid_t i = 0; i < fnum; ++i) {
@@ -121,16 +122,20 @@ class Rebalancer {
                const std::pair<OID_T, vid_t>& b) { return a.first < b.first; });
 
         for (auto& pair : frag_vertices) {
-          cur_score += (degree_[i][pair.second] + vertex_factor_);
-          fid_t cur_fid = std::min<fid_t>(cur_score / expected_score, fnum - 1);
-          frag_scores_after[cur_fid] +=
-              (degree_[i][pair.second] + vertex_factor_);
-          if (cur_fid != last_fid) {
-            last_fid = cur_fid;
+          if (is_boundary) {
             boundaries.push_back(pair.first);
+            is_boundary = false;
           }
           if (cur_fid == self_fid) {
-            native_oids.emplace_back(pair.first);
+            native_oids.push_back(pair.first);
+          }
+          frag_scores_after[cur_fid] +=
+              (degree_[i][pair.second] + vertex_factor_);
+          cur_score += (degree_[i][pair.second] + vertex_factor_);
+          if (cur_score >= expected_score && cur_fid < (fnum - 1)) {
+            is_boundary = true;
+            ++cur_fid;
+            cur_score = 0;
           }
         }
       }
