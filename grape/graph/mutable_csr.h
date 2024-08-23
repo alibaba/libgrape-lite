@@ -552,20 +552,24 @@ class MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
 
     if (std::is_pod<nbr_t>::value) {
       for (vid_t i = 0; i < vnum; ++i) {
-        CHECK(writer->Write(adj_lists_[i].begin,
-                            adj_lists_[i].degree() * sizeof(nbr_t)));
-      }
-    } else {
-      for (vid_t i = 0; i < vnum; ++i) {
-        auto ptr = adj_lists_[i].begin;
-        auto end = adj_lists_[i].end;
-        while (ptr != end) {
-          ia << *ptr;
-          ++ptr;
+        if (degree[i] > 0) {
+          CHECK(writer->Write(adj_lists_[i].begin,
+                              adj_lists_[i].degree() * sizeof(nbr_t)));
         }
       }
-      CHECK(writer->WriteArchive(ia));
-      ia.Clear();
+    } else {
+      if (edge_num > 0) {
+        for (vid_t i = 0; i < vnum; ++i) {
+          auto ptr = adj_lists_[i].begin;
+          auto end = adj_lists_[i].end;
+          while (ptr != end) {
+            ia << *ptr;
+            ++ptr;
+          }
+        }
+        CHECK(writer->WriteArchive(ia));
+        ia.Clear();
+      }
     }
   }
 
@@ -600,23 +604,30 @@ class MutableCSR<VID_T, Nbr<VID_T, EDATA_T>> {
       adj_lists_[i].end = ptr + degree_list[i];
       ptr += capacity_[i];
     }
-    prev_[0] = sentinel;
-    next_[vnum - 1] = sentinel;
+    if (vnum > 0) {
+      prev_[0] = sentinel;
+      next_[vnum - 1] = sentinel;
+    }
+
     if (std::is_pod<nbr_t>::value) {
       for (vid_t i = 0; i < vnum; ++i) {
-        CHECK(reader->Read(ptr, sizeof(nbr_t) * degree_list[i]));
-      }
-    } else {
-      CHECK(reader->ReadArchive(oa));
-      for (vid_t i = 0; i < vnum; ++i) {
-        nbr_t* begin = adj_lists_[i].begin;
-        nbr_t* end = adj_lists_[i].end;
-        while (begin != end) {
-          oa >> *begin;
-          ++begin;
+        if (degree_list[i] > 0) {
+          CHECK(reader->Read(ptr, sizeof(nbr_t) * degree_list[i]));
         }
       }
-      oa.Clear();
+    } else {
+      if (edge_num > 0) {
+        CHECK(reader->ReadArchive(oa));
+        for (vid_t i = 0; i < vnum; ++i) {
+          nbr_t* begin = adj_lists_[i].begin;
+          nbr_t* end = adj_lists_[i].end;
+          while (begin != end) {
+            oa >> *begin;
+            ++begin;
+          }
+        }
+        oa.Clear();
+      }
     }
     buffers_.emplace_back(std::move(buffer));
   }

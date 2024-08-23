@@ -17,7 +17,6 @@ limitations under the License.
 #define GRAPE_FRAGMENT_EV_FRAGMENT_MUTATOR_H_
 
 #include <grape/fragment/basic_fragment_mutator.h>
-#include <grape/fragment/partitioner.h>
 #include <grape/util.h>
 
 namespace grape {

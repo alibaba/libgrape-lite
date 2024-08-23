@@ -24,7 +24,6 @@ limitations under the License.
 #include <glog/logging.h>
 
 #include <grape/fragment/loader.h>
-#include <grape/fragment/partitioner.h>
 #include <grape/grape.h>
 
 #include "append_only_edgecut_fragment.h"

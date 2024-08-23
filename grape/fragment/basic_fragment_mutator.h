@@ -22,6 +22,7 @@ limitations under the License.
 #include <grape/graph/edge.h>
 #include <grape/graph/vertex.h>
 #include <grape/utils/concurrent_queue.h>
+#include <grape/vertex_map/vertex_map.h>
 #include <grape/worker/comm_spec.h>
 
 namespace grape {
@@ -41,7 +42,6 @@ struct Mutation {
 template <typename FRAG_T>
 class BasicFragmentMutator {
   using fragment_t = FRAG_T;
-  using vertex_map_t = typename FRAG_T::vertex_map_t;
   using oid_t = typename FRAG_T::oid_t;
   using internal_oid_t = typename InternalOID<oid_t>::type;
   using vid_t = typename FRAG_T::vid_t;
@@ -49,26 +49,17 @@ class BasicFragmentMutator {
   using edata_t = typename FRAG_T::edata_t;
   using mutation_t = Mutation<vid_t, vdata_t, edata_t>;
   static constexpr LoadStrategy load_strategy = FRAG_T::load_strategy;
-  using partitioner_t = typename vertex_map_t::partitioner_t;
 
  public:
   explicit BasicFragmentMutator(const CommSpec& comm_spec,
                                 std::shared_ptr<fragment_t> fragment)
       : comm_spec_(comm_spec),
         fragment_(fragment),
-        vm_ptr_(fragment->GetVertexMap()) {
+        vm_(fragment->GetVertexMap()) {
     comm_spec_.Dup();
   }
 
   ~BasicFragmentMutator() = default;
-
-  void SetPartitioner(const partitioner_t& partitioner) {
-    vm_ptr_->SetPartitioner(partitioner);
-  }
-
-  void SetPartitioner(partitioner_t&& partitioner) {
-    vm_ptr_->SetPartitioner(std::move(partitioner));
-  }
 
   void AddVerticesToRemove(const std::vector<vid_t>& id_vec) {
     if (parsed_vertices_to_remove_.empty()) {
@@ -132,6 +123,7 @@ class BasicFragmentMutator {
       shuf.Flush();
     }
     recv_thread_.join();
+    MPI_Barrier(comm_spec_.comm());
     got_vertices_to_add_.emplace_back(
         std::move(vertices_to_add_[comm_spec_.fid()].buffers()));
     got_vertices_to_remove_.emplace_back(
@@ -150,8 +142,8 @@ class BasicFragmentMutator {
         foreach_rval(buffers, [this](internal_oid_t&& src, internal_oid_t&& dst,
                                      edata_t&& data) {
           vid_t src_gid, dst_gid;
-          if (vm_ptr_->_GetGid(src, src_gid) &&
-              vm_ptr_->_GetGid(dst, dst_gid)) {
+          if (vm_.GetGid(oid_t(src), src_gid) &&
+              vm_.GetGid(oid_t(dst), dst_gid)) {
             mutation_.edges_to_update.emplace_back(src_gid, dst_gid,
                                                    std::move(data));
           }
@@ -161,20 +153,21 @@ class BasicFragmentMutator {
     got_edges_to_update_.clear();
 
     for (auto& buffers : got_edges_to_remove_) {
-      foreach(buffers, [this](const internal_oid_t& src,
-                              const internal_oid_t& dst) {
-        vid_t src_gid, dst_gid;
-        if (vm_ptr_->_GetGid(src, src_gid) && vm_ptr_->_GetGid(dst, dst_gid)) {
-          mutation_.edges_to_remove.emplace_back(src_gid, dst_gid);
-        }
-      });
+      foreach(buffers,
+              [this](const internal_oid_t& src, const internal_oid_t& dst) {
+                vid_t src_gid, dst_gid;
+                if (vm_.GetGid(oid_t(src), src_gid) &&
+                    vm_.GetGid(oid_t(dst), dst_gid)) {
+                  mutation_.edges_to_remove.emplace_back(src_gid, dst_gid);
+                }
+              });
     }
     got_edges_to_remove_.clear();
 
     for (auto& buffers : got_vertices_to_remove_) {
       foreach(buffers, [this](const internal_oid_t& id) {
         vid_t gid;
-        if (vm_ptr_->_GetGid(id, gid)) {
+        if (vm_.GetGid(oid_t(id), gid)) {
           parsed_vertices_to_remove_.emplace_back(gid);
         }
       });
@@ -185,7 +178,7 @@ class BasicFragmentMutator {
       for (auto& buffers : got_vertices_to_update_) {
         foreach_rval(buffers, [this](internal_oid_t&& id, vdata_t&& data) {
           vid_t gid;
-          if (vm_ptr_->_GetGid(id, gid)) {
+          if (vm_.GetGid(oid_t(id), gid)) {
             parsed_vertices_to_update_.emplace_back(gid, std::move(data));
           }
         });
@@ -193,33 +186,33 @@ class BasicFragmentMutator {
     }
     got_vertices_to_update_.clear();
 
-    auto builder = vm_ptr_->GetLocalBuilder();
+    std::vector<oid_t> local_vertices_to_add;
+
     for (auto& buffers : got_vertices_to_add_) {
-      foreach_rval(buffers,
-                   [this, &builder](internal_oid_t&& id, vdata_t&& data) {
-                     vid_t gid;
-                     builder.add_local_vertex(id, gid);
-                     parsed_vertices_to_add_.emplace_back(gid, std::move(data));
-                   });
+      foreach(buffers, [&local_vertices_to_add](const internal_oid_t& id,
+                                                const vdata_t& data) {
+        local_vertices_to_add.emplace_back(oid_t(id));
+      });
+    }
+
+    vm_.ExtendVertices(comm_spec_, std::move(local_vertices_to_add));
+
+    for (auto& buffers : got_vertices_to_add_) {
+      foreach_rval(buffers, [this](internal_oid_t&& id, vdata_t&& data) {
+        vid_t gid;
+        if (vm_.GetGid(oid_t(id), gid)) {
+          parsed_vertices_to_add_.emplace_back(gid, std::move(data));
+        }
+      });
     }
     got_vertices_to_add_.clear();
-
-    for (auto& buffers : got_edges_to_add_) {
-      foreach_helper(
-          buffers,
-          [&builder](const internal_oid_t& src, const internal_oid_t& dst) {
-            builder.add_vertex(src);
-            builder.add_vertex(dst);
-          },
-          make_index_sequence<2>{});
-    }
-    builder.finish(*vm_ptr_);
 
     for (auto& buffers : got_edges_to_add_) {
       foreach_rval(buffers, [this](internal_oid_t&& src, internal_oid_t&& dst,
                                    edata_t&& data) {
         vid_t src_gid, dst_gid;
-        if (vm_ptr_->_GetGid(src, src_gid) && vm_ptr_->_GetGid(dst, dst_gid)) {
+        if (vm_.GetGid(oid_t(src), src_gid) &&
+            vm_.GetGid(oid_t(dst), dst_gid)) {
           mutation_.edges_to_add.emplace_back(src_gid, dst_gid,
                                               std::move(data));
         }
@@ -276,8 +269,7 @@ class BasicFragmentMutator {
   }
 
   void AddVertex(const internal_oid_t& id, const vdata_t& data) {
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t fid = partitioner.GetPartitionId(id);
+    fid_t fid = vm_.GetFragmentId(oid_t(id));
     vertices_to_add_[fid].Emplace(id, data);
   }
 
@@ -294,9 +286,8 @@ class BasicFragmentMutator {
 
   void AddEdge(const internal_oid_t& src, const internal_oid_t& dst,
                const edata_t& data) {
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t src_fid = partitioner.GetPartitionId(src);
-    fid_t dst_fid = partitioner.GetPartitionId(dst);
+    fid_t src_fid = vm_.GetFragmentId(oid_t(src));
+    fid_t dst_fid = vm_.GetFragmentId(oid_t(dst));
     edges_to_add_[src_fid].Emplace(src, dst, data);
     if (src_fid != dst_fid) {
       edges_to_add_[dst_fid].Emplace(src, dst, data);
@@ -318,8 +309,7 @@ class BasicFragmentMutator {
   }
 
   void RemoveVertex(const oid_t& id) {
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t fid = partitioner.GetPartitionId(id);
+    fid_t fid = vm_.GetFragmentId(id);
     vertices_to_remove_[fid].Emplace(id);
   }
 
@@ -332,9 +322,8 @@ class BasicFragmentMutator {
   }
 
   void RemoveEdge(const oid_t& src, const oid_t& dst) {
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t src_fid = partitioner.GetPartitionId(src);
-    fid_t dst_fid = partitioner.GetPartitionId(dst);
+    fid_t src_fid = vm_.GetFragmentId(src);
+    fid_t dst_fid = vm_.GetFragmentId(dst);
     edges_to_remove_[src_fid].Emplace(src, dst);
     if (src_fid != dst_fid) {
       edges_to_remove_[dst_fid].Emplace(src, dst);
@@ -359,8 +348,7 @@ class BasicFragmentMutator {
   template <typename Q = vdata_t>
   typename std::enable_if<!std::is_same<Q, EmptyType>::value>::type
   UpdateVertex(const oid_t& id, const vdata_t& data) {
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t fid = partitioner.GetPartitionId(id);
+    fid_t fid = vm_.GetFragmentId(id);
     vertices_to_update_[fid].Emplace(id, data);
   }
 
@@ -384,9 +372,8 @@ class BasicFragmentMutator {
   }
 
   void UpdateEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t src_fid = partitioner.GetPartitionId(src);
-    fid_t dst_fid = partitioner.GetPartitionId(dst);
+    fid_t src_fid = vm_.GetFragmentId(src);
+    fid_t dst_fid = vm_.GetFragmentId(dst);
     edges_to_update_[src_fid].Emplace(src, dst, data);
     if (src_fid != dst_fid) {
       edges_to_update_[dst_fid].Emplace(src, dst, data);
@@ -489,8 +476,8 @@ class BasicFragmentMutator {
   }
 
   CommSpec comm_spec_;
+
   std::shared_ptr<fragment_t> fragment_;
-  std::shared_ptr<vertex_map_t> vm_ptr_;
 
   std::thread recv_thread_;
 
@@ -525,6 +512,7 @@ class BasicFragmentMutator {
   static constexpr int eu_tag = 6;
 
   mutation_t mutation_;
+  VertexMap<oid_t, vid_t>& vm_;
 };
 
 }  // namespace grape

@@ -25,12 +25,10 @@ limitations under the License.
 #include "grape/graph/vertex.h"
 #include "grape/types.h"
 #include "grape/util.h"
-#include "grape/vertex_map/global_vertex_map.h"
 
 namespace grape {
 
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          typename VERTEX_MAP_T>
+template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
 struct MutableEdgecutFragmentTraits {
   using inner_vertices_t = VertexRange<VID_T>;
   using outer_vertices_t = VertexRange<VID_T>;
@@ -46,22 +44,17 @@ struct MutableEdgecutFragmentTraits {
 
   using csr_t = DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>>;
   using csr_builder_t = DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>>;
-  using vertex_map_t = VERTEX_MAP_T;
   using mirror_vertices_t = std::vector<Vertex<VID_T>>;
 };
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
-          LoadStrategy _load_strategy = LoadStrategy::kOnlyOut,
-          typename VERTEX_MAP_T =
-              GlobalVertexMap<OID_T, VID_T, HashPartitioner<OID_T>>>
+          LoadStrategy _load_strategy = LoadStrategy::kOnlyOut>
 class MutableEdgecutFragment
     : public CSREdgecutFragmentBase<
           OID_T, VID_T, VDATA_T, EDATA_T,
-          MutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T,
-                                       VERTEX_MAP_T>> {
+          MutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T>> {
  public:
-  using traits_t = MutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T,
-                                                VERTEX_MAP_T>;
+  using traits_t = MutableEdgecutFragmentTraits<OID_T, VID_T, VDATA_T, EDATA_T>;
   using base_t =
       CSREdgecutFragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>;
   using internal_vertex_t = internal::Vertex<VID_T, VDATA_T>;
@@ -72,8 +65,6 @@ class MutableEdgecutFragment
   using oid_t = OID_T;
   using vdata_t = VDATA_T;
   using edata_t = EDATA_T;
-
-  using vertex_map_t = typename traits_t::vertex_map_t;
 
   using IsEdgeCut = std::true_type;
   using IsVertexCut = std::false_type;
@@ -96,19 +87,73 @@ class MutableEdgecutFragment
   template <typename T>
   using vertex_array_t = VertexArray<vertices_t, T>;
 
-  explicit MutableEdgecutFragment(std::shared_ptr<vertex_map_t> vm_ptr)
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>(vm_ptr) {}
+  MutableEdgecutFragment()
+      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
   virtual ~MutableEdgecutFragment() = default;
 
   using base_t::buildCSR;
   using base_t::init;
   using base_t::IsInnerVertexGid;
 
-  static std::string type_info() { return ""; }
+  static std::string type_info() {
+    std::string ret = "MutableEdgecutFragment<";
+    if (std::is_same<OID_T, int64_t>::value) {
+      ret += "int64_t, ";
+    } else if (std::is_same<OID_T, int32_t>::value) {
+      ret += "int32_t, ";
+    } else if (std::is_same<OID_T, std::string>::value) {
+      ret += "std::string, ";
+    } else {
+      LOG(FATAL) << "OID_T type not supported...";
+    }
 
-  void Init(fid_t fid, bool directed, std::vector<internal_vertex_t>& vertices,
+    if (std::is_same<VID_T, uint64_t>::value) {
+      ret += "uint64_t, ";
+    } else if (std::is_same<VID_T, uint32_t>::value) {
+      ret += "uint32_t, ";
+    } else {
+      LOG(FATAL) << "VID_T type not supported...";
+    }
+
+    if (std::is_same<VDATA_T, EmptyType>::value) {
+      ret += "empty, ";
+    } else if (std::is_same<VDATA_T, double>::value) {
+      ret += "double, ";
+    } else if (std::is_same<VDATA_T, float>::value) {
+      ret += "float, ";
+    } else {
+      LOG(FATAL) << "Vertex data type not supported...";
+    }
+
+    if (std::is_same<EDATA_T, EmptyType>::value) {
+      ret += "empty, ";
+    } else if (std::is_same<EDATA_T, double>::value) {
+      ret += "double, ";
+    } else if (std::is_same<EDATA_T, float>::value) {
+      ret += "float, ";
+    } else {
+      LOG(FATAL) << "Edge data type not supported...";
+    }
+
+    if (_load_strategy == LoadStrategy::kOnlyOut) {
+      ret += "out";
+    } else if (_load_strategy == LoadStrategy::kOnlyIn) {
+      ret += "in";
+    } else if (_load_strategy == LoadStrategy::kBothOutIn) {
+      ret += "both";
+    } else {
+      LOG(FATAL) << "Invalid load strategy...";
+    }
+
+    ret += ">";
+    return ret;
+  }
+
+  void Init(const CommSpec& comm_spec, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+            std::vector<internal_vertex_t>& vertices,
             std::vector<edge_t>& edges) override {
-    init(fid, directed);
+    init(comm_spec.fid(), directed, std::move(vm_ptr));
 
     ovnum_ = 0;
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
@@ -387,10 +432,13 @@ class MutableEdgecutFragment
   }
 
   template <typename IOADAPTOR_T>
-  void Deserialize(const std::string& prefix, const fid_t fid) {
+  void Deserialize(const CommSpec& comm_spec,
+                   std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                   const std::string& prefix) {
+    vm_ptr_ = std::move(vm_ptr);
     char fbuf[1024];
     snprintf(fbuf, sizeof(fbuf), kSerializationFilenameFormat, prefix.c_str(),
-             fid);
+             comm_spec.fid());
     auto io_adaptor =
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
     io_adaptor->Open();

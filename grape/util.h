@@ -22,6 +22,7 @@ limitations under the License.
 #endif
 #endif
 
+#include <limits.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -29,6 +30,7 @@ limitations under the License.
 #include <algorithm>
 #include <cassert>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -140,9 +142,39 @@ struct IdenticalHasher<uint64_t> {
   static uint64_t hash(uint64_t x) { return x; }
 };
 
-static inline bool exists_file(const std::string& name) {
+inline bool exists_file(const std::string& name) {
   struct stat buffer;
   return (stat(name.c_str(), &buffer) == 0);
+}
+
+inline std::string get_absolute_path(const std::string& path) {
+  char abs_path[PATH_MAX];
+  if (realpath(path.c_str(), abs_path) == nullptr) {
+    LOG(ERROR) << "Failed to get absolute path for " << path;
+    return "";
+  }
+  return std::string(abs_path);
+}
+
+inline bool create_directories(const std::string& path) {
+  char temp_path[256];
+  snprintf(temp_path, sizeof(temp_path), "%s", path.c_str());
+
+  for (char* p = temp_path + 1; *p; ++p) {
+    if (*p == '/') {
+      *p = '\0';
+      if (mkdir(temp_path, 0755) != 0 && errno != EEXIST) {
+        std::cerr << "Error creating directory: " << temp_path << std::endl;
+        return false;
+      }
+      *p = '/';
+    }
+  }
+  if (mkdir(temp_path, 0755) != 0 && errno != EEXIST) {
+    std::cerr << "Error creating directory: " << temp_path << std::endl;
+    return false;
+  }
+  return true;
 }
 
 inline std::vector<std::string> split_string(const std::string& str,

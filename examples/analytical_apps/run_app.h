@@ -33,7 +33,6 @@ limitations under the License.
 #include <grape/fragment/loader.h>
 #include <grape/grape.h>
 #include <grape/util.h>
-#include <grape/vertex_map/global_vertex_map.h>
 
 #ifdef GRANULA
 #include "thirdparty/atlarge-research-granula/granula.hpp"
@@ -73,10 +72,7 @@ void Init() {
   if (FLAGS_deserialize && FLAGS_serialization_prefix.empty()) {
     LOG(FATAL) << "Please assign a serialization prefix.";
   } else if (FLAGS_efile.empty()) {
-    LOG(FATAL) << "Please assign input edge files.";
-  } else if (FLAGS_vfile.empty() && FLAGS_segmented_partition) {
-    LOG(FATAL) << "EFragmentLoader dosen't support Segmented Partitioner. "
-                  "Please assign vertex files or use Hash Partitioner";
+    LOG(FATAL) << "Please assign input edge file.";
   }
 
   if (!FLAGS_out_prefix.empty() && access(FLAGS_out_prefix.c_str(), 0) != 0) {
@@ -173,28 +169,19 @@ void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
   } else if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
-  if (FLAGS_segmented_partition) {
-    using VertexMapType =
-        GlobalVertexMap<OID_T, VID_T, SegmentedPartitioner<OID_T>>;
-    using FRAG_T = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                            load_strategy, VertexMapType>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using AppType = APP_T<FRAG_T>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                      out_prefix, args...);
-  } else {
-    graph_spec.set_rebalance(false, 0);
-    using FRAG_T =
-        ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using AppType = APP_T<FRAG_T>;
-    auto app = std::make_shared<AppType>();
-    DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec,
-                                      out_prefix, args...);
-  }
+
+  graph_spec.partitioner_type =
+      grape::parse_partitioner_type_name(FLAGS_partitioner_type);
+  graph_spec.idxer_type = grape::parse_idxer_type_name(FLAGS_idxer_type);
+
+  using FRAG_T =
+      ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
+  std::shared_ptr<FRAG_T> fragment =
+      LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
+  using AppType = APP_T<FRAG_T>;
+  auto app = std::make_shared<AppType>();
+  DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec, out_prefix,
+                                    args...);
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
@@ -212,32 +199,22 @@ void CreateAndQueryStagedApp(const CommSpec& comm_spec,
   } else if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
-  if (FLAGS_segmented_partition) {
-    using VertexMapType =
-        GlobalVertexMap<OID_T, VID_T, SegmentedPartitioner<OID_T>>;
-    using FRAG_T = ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T,
-                                            load_strategy, VertexMapType>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using App1Type = APP1_T<FRAG_T>;
-    auto app1 = std::make_shared<App1Type>();
-    using App2Type = APP2_T<FRAG_T>;
-    auto app2 = std::make_shared<App2Type>();
-    DoDualQuery<FRAG_T, App1Type, App2Type, Args...>(
-        fragment, app1, app2, comm_spec, spec, out_prefix, args...);
-  } else {
-    graph_spec.set_rebalance(false, 0);
-    using FRAG_T =
-        ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
-    std::shared_ptr<FRAG_T> fragment =
-        LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
-    using App1Type = APP1_T<FRAG_T>;
-    auto app1 = std::make_shared<App1Type>();
-    using App2Type = APP2_T<FRAG_T>;
-    auto app2 = std::make_shared<App2Type>();
-    DoDualQuery<FRAG_T, App1Type, App2Type, Args...>(
-        fragment, app1, app2, comm_spec, spec, out_prefix, args...);
-  }
+
+  graph_spec.partitioner_type =
+      grape::parse_partitioner_type_name(FLAGS_partitioner_type);
+  graph_spec.idxer_type = grape::parse_idxer_type_name(FLAGS_idxer_type);
+
+  using FRAG_T =
+      ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T, EDATA_T, load_strategy>;
+  std::shared_ptr<FRAG_T> fragment =
+      LoadGraph<FRAG_T>(FLAGS_efile, FLAGS_vfile, comm_spec, graph_spec);
+
+  using App1Type = APP1_T<FRAG_T>;
+  auto app1 = std::make_shared<App1Type>();
+  using App2Type = APP2_T<FRAG_T>;
+  auto app2 = std::make_shared<App2Type>();
+  DoDualQuery<FRAG_T, App1Type, App2Type, Args...>(
+      fragment, app1, app2, comm_spec, spec, out_prefix, args...);
 }
 
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>

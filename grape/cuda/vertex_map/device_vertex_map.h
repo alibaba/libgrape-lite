@@ -23,7 +23,6 @@ limitations under the License.
 #include "grape/cuda/utils/launcher.h"
 #include "grape/cuda/utils/stream.h"
 #include "grape/fragment/id_parser.h"
-#include "grape/vertex_map/global_vertex_map.h"
 
 namespace grape {
 namespace cuda {
@@ -98,23 +97,22 @@ class DeviceVertexMap {
   using VID_T = typename HOST_VM_T::vid_t;
 
  public:
-  explicit DeviceVertexMap(std::shared_ptr<HOST_VM_T> vm_ptr)
-      : vm_ptr_(vm_ptr) {}
+  DeviceVertexMap() {}
 
-  void Init(const Stream& stream) {
-    auto& comm_spec = vm_ptr_->GetCommSpec();
-    fid_t fnum = comm_spec.fnum();
+  void Init(const Stream& stream, const CommSpec& comm_spec,
+            std::unique_ptr<HOST_VM_T>& vm_ptr) {
+    fnum_ = comm_spec.fnum();
     int dev_id = comm_spec.local_id();
 
     CHECK_CUDA(cudaSetDevice(dev_id));
 
-    id_parser_.init(fnum);
-    d_o2l_.resize(fnum);
-    d_l2o_.resize(fnum);
-    d_l2o_ptr_.resize(fnum);
+    id_parser_.init(fnum_);
+    d_o2l_.resize(fnum_);
+    d_l2o_.resize(fnum_);
+    d_l2o_ptr_.resize(fnum_);
 
-    for (fid_t fid = 0; fid < fnum; fid++) {
-      auto ivnum = vm_ptr_->GetInnerVertexSize(fid);
+    for (fid_t fid = 0; fid < fnum_; fid++) {
+      auto ivnum = vm_ptr->GetInnerVertexSize(fid);
       // TODO(liang): replace this
       d_o2l_[fid] =
           CUDASTL::CreateHashMap<OID_T, VID_T, CUDASTL::HashFunc<OID_T>>(
@@ -124,7 +122,7 @@ class DeviceVertexMap {
 
       for (size_t lid = 0; lid < ivnum; lid++) {
         OID_T oid;
-        CHECK(vm_ptr_->GetOid(fid, lid, oid));
+        CHECK(vm_ptr->GetOid(fid, lid, oid));
         oids[lid] = oid;
       }
 
@@ -141,17 +139,16 @@ class DeviceVertexMap {
               (*o2l)[oid] = lid;
             }
           },
-          thrust::raw_pointer_cast(oids.data()), ivnum, d_o2l_[fid]);
+          oids.data(), ivnum, d_o2l_[fid]);
       d_l2o_[fid].assign(oids.begin(), oids.end());
       d_l2o_ptr_[fid] = ArrayView<OID_T>(d_l2o_[fid]);
     }
   }
 
   dev::DeviceVertexMap<OID_T, VID_T> DeviceObject() {
-    auto& comm_spec = vm_ptr_->GetCommSpec();
     dev::DeviceVertexMap<OID_T, VID_T> dev_vm;
 
-    dev_vm.fnum_ = comm_spec.fnum();
+    dev_vm.fnum_ = fnum_;
     dev_vm.id_parser_ = id_parser_;
 
     // if device vm is built
@@ -163,7 +160,6 @@ class DeviceVertexMap {
   }
 
  private:
-  std::shared_ptr<HOST_VM_T> vm_ptr_;
   IdParser<VID_T> id_parser_;
   // l2o for per device
   thrust::device_vector<
@@ -171,6 +167,8 @@ class DeviceVertexMap {
       d_o2l_;
   std::vector<thrust::device_vector<OID_T>> d_l2o_;
   thrust::device_vector<ArrayView<OID_T>> d_l2o_ptr_;
+
+  fid_t fnum_;
 };
 }  // namespace cuda
 

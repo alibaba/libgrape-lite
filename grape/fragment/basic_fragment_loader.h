@@ -16,71 +16,17 @@ limitations under the License.
 #ifndef GRAPE_FRAGMENT_BASIC_FRAGMENT_LOADER_H_
 #define GRAPE_FRAGMENT_BASIC_FRAGMENT_LOADER_H_
 
-#include <stddef.h>
-
-#include <fstream>
-#include <memory>
-#include <string>
-#include <thread>
-#include <tuple>
-#include <utility>
-#include <vector>
-
 #include "grape/communication/shuffle.h"
-#include "grape/config.h"
+#include "grape/fragment/basic_fragment_loader_base.h"
+#include "grape/fragment/rebalancer.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
-#include "grape/util.h"
-#include "grape/utils/concurrent_queue.h"
-#include "grape/utils/vertex_array.h"
-#include "grape/worker/comm_spec.h"
+#include "grape/vertex_map/vertex_map.h"
 
 namespace grape {
 
-/**
- * @brief LoadGraphSpec determines the specification to load a graph.
- *
- */
-struct LoadGraphSpec {
-  bool directed;
-  bool rebalance;
-  int rebalance_vertex_factor;
-
-  bool serialize;
-  std::string serialization_prefix;
-
-  bool deserialize;
-  std::string deserialization_prefix;
-
-  void set_directed(bool val = true) { directed = val; }
-  void set_rebalance(bool flag, int weight) {
-    rebalance = flag;
-    rebalance_vertex_factor = weight;
-  }
-
-  void set_serialize(bool flag, const std::string& prefix) {
-    serialize = flag;
-    serialization_prefix = prefix;
-  }
-
-  void set_deserialize(bool flag, const std::string& prefix) {
-    deserialize = flag;
-    deserialization_prefix = prefix;
-  }
-};
-
-inline LoadGraphSpec DefaultLoadGraphSpec() {
-  LoadGraphSpec spec;
-  spec.directed = true;
-  spec.rebalance = true;
-  spec.rebalance_vertex_factor = 0;
-  spec.serialize = false;
-  spec.deserialize = false;
-  return spec;
-}
-
-template <typename FRAG_T, typename IOADAPTOR_T>
-class BasicFragmentLoader {
+template <typename FRAG_T>
+class BasicFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
   using fragment_t = FRAG_T;
   using oid_t = typename fragment_t::oid_t;
   using internal_oid_t = typename InternalOID<oid_t>::type;
@@ -88,216 +34,151 @@ class BasicFragmentLoader {
   using vdata_t = typename fragment_t::vdata_t;
   using edata_t = typename fragment_t::edata_t;
 
-  using vertex_map_t = typename fragment_t::vertex_map_t;
-  using partitioner_t = typename vertex_map_t::partitioner_t;
-
-  static constexpr LoadStrategy load_strategy = fragment_t::load_strategy;
-
  public:
-  explicit BasicFragmentLoader(const CommSpec& comm_spec)
-      : comm_spec_(comm_spec) {
-    comm_spec_.Dup();
-    vm_ptr_ = std::make_shared<vertex_map_t>(comm_spec_);
-    vertices_to_frag_.resize(comm_spec_.fnum());
-    edges_to_frag_.resize(comm_spec_.fnum());
-    for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
-      int worker_id = comm_spec_.FragToWorker(fid);
-      vertices_to_frag_[fid].Init(comm_spec_.comm(), vertex_tag, 4096000);
-      vertices_to_frag_[fid].SetDestination(worker_id, fid);
-      edges_to_frag_[fid].Init(comm_spec_.comm(), edge_tag, 4096000);
-      edges_to_frag_[fid].SetDestination(worker_id, fid);
-      if (worker_id == comm_spec_.worker_id()) {
-        vertices_to_frag_[fid].DisableComm();
-        edges_to_frag_[fid].DisableComm();
-      }
+  explicit BasicFragmentLoader(const CommSpec& comm_spec,
+                               const LoadGraphSpec& spec)
+      : BasicFragmentLoaderBase<FRAG_T>(comm_spec, spec) {
+    if (spec_.idxer_type == IdxerType::kLocalIdxer) {
+      LOG(ERROR) << "Global vertex map is required in BasicFragmentLoader";
+      spec_.idxer_type = IdxerType::kHashMapIdxer;
     }
-
+    if (spec_.rebalance) {
+      LOG(ERROR) << "Rebalance is not supported in BasicFragmentLoader";
+      spec_.rebalance = false;
+    }
     recv_thread_running_ = false;
   }
 
-  ~BasicFragmentLoader() { Stop(); }
-
-  void SetPartitioner(const partitioner_t& partitioner) {
-    vm_ptr_->SetPartitioner(partitioner);
+  ~BasicFragmentLoader() {
+    if (recv_thread_running_) {
+      for (auto& ea : edges_to_frag_) {
+        ea.Flush();
+      }
+      edge_recv_thread_.join();
+    }
   }
 
-  void SetPartitioner(partitioner_t&& partitioner) {
-    vm_ptr_->SetPartitioner(std::move(partitioner));
+  void AddVertex(const oid_t& id, const vdata_t& data) override {
+    vertices_.emplace_back(id);
+    vdata_.emplace_back(data);
   }
 
-  void Start() {
-    vertex_recv_thread_ =
-        std::thread(&BasicFragmentLoader::vertexRecvRoutine, this);
+  void ConstructVertices() override {
+    fid_t fid = comm_spec_.fid();
+    fid_t fnum = comm_spec_.fnum();
+    std::unique_ptr<IPartitioner<oid_t>> partitioner(nullptr);
+    if (spec_.partitioner_type == PartitionerType::kHashPartitioner) {
+      partitioner = std::unique_ptr<HashPartitioner<oid_t>>(
+          new HashPartitioner<oid_t>(fnum));
+    } else if (spec_.partitioner_type == PartitionerType::kMapPartitioner) {
+      std::vector<oid_t> all_vertices;
+      sync_comm::FlatAllGather(vertices_, all_vertices, comm_spec_.comm());
+      DistinctSort(all_vertices);
+
+      partitioner = std::unique_ptr<MapPartitioner<oid_t>>(
+          new MapPartitioner<oid_t>(fnum, all_vertices));
+    } else if (spec_.partitioner_type ==
+               PartitionerType::kSegmentedPartitioner) {
+      std::vector<oid_t> all_vertices;
+      sync_comm::FlatAllGather(vertices_, all_vertices, comm_spec_.comm());
+      DistinctSort(all_vertices);
+
+      partitioner = std::unique_ptr<SegmentedPartitioner<oid_t>>(
+          new SegmentedPartitioner<oid_t>(fnum, all_vertices));
+    } else {
+      LOG(FATAL) << "Unsupported partitioner type";
+    }
+    std::vector<std::vector<oid_t>> local_vertices_id;
+    std::vector<std::vector<vdata_t>> local_vertices_data;
+    this->ShuffleVertexData(vertices_, vdata_, local_vertices_id,
+                            local_vertices_data, *partitioner);
+    std::vector<oid_t> sorted_vertices;
+    for (auto& buf : local_vertices_id) {
+      sorted_vertices.insert(sorted_vertices.end(), buf.begin(), buf.end());
+    }
+    std::sort(sorted_vertices.begin(), sorted_vertices.end());
+
+    VertexMapBuilder<oid_t, vid_t> builder(fid, fnum, std::move(partitioner),
+                                           spec_.idxer_type);
+    for (auto& v : sorted_vertices) {
+      builder.add_vertex(v);
+    }
+    vertex_map_ =
+        std::unique_ptr<VertexMap<oid_t, vid_t>>(new VertexMap<oid_t, vid_t>());
+    builder.finish(comm_spec_, *vertex_map_);
+
+    for (size_t buf_i = 0; buf_i < local_vertices_id.size(); ++buf_i) {
+      std::vector<oid_t>& local_vertices = local_vertices_id[buf_i];
+      std::vector<vdata_t>& local_vdata = local_vertices_data[buf_i];
+      size_t local_vertices_num = local_vertices.size();
+      for (size_t i = 0; i < local_vertices_num; ++i) {
+        vid_t gid;
+        if (vertex_map_->GetGid(local_vertices[i], gid)) {
+          processed_vertices_.emplace_back(gid, std::move(local_vdata[i]));
+        }
+      }
+    }
+
+    edges_to_frag_.resize(fnum);
+    for (fid_t fid = 0; fid < fnum; ++fid) {
+      int worker_id = comm_spec_.FragToWorker(fid);
+      edges_to_frag_[fid].Init(comm_spec_.comm(), edge_tag, 4096000);
+      edges_to_frag_[fid].SetDestination(worker_id, fid);
+      if (worker_id == comm_spec_.worker_id()) {
+        edges_to_frag_[fid].DisableComm();
+      }
+    }
     edge_recv_thread_ =
         std::thread(&BasicFragmentLoader::edgeRecvRoutine, this);
     recv_thread_running_ = true;
   }
 
-  void Stop() {
-    if (recv_thread_running_) {
-      for (auto& va : vertices_to_frag_) {
-        va.Flush();
+  void AddEdge(const oid_t& src, const oid_t& dst,
+               const edata_t& data) override {
+    vid_t src_gid, dst_gid;
+    if (vertex_map_->GetGid(src, src_gid) &&
+        vertex_map_->GetGid(dst, dst_gid)) {
+      fid_t src_fid = id_parser_.get_fragment_id(src_gid);
+      fid_t dst_fid = id_parser_.get_fragment_id(dst_gid);
+      edges_to_frag_[src_fid].Emplace(src_gid, dst_gid, data);
+      if (src_fid != dst_fid) {
+        edges_to_frag_[dst_fid].Emplace(src_gid, dst_gid, data);
       }
-      for (auto& ea : edges_to_frag_) {
-        ea.Flush();
-      }
-      vertex_recv_thread_.join();
-      edge_recv_thread_.join();
-      recv_thread_running_ = false;
     }
   }
 
-  void AddVertex(const oid_t& id, const vdata_t& data) {
-    internal_oid_t internal_id(id);
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t fid = partitioner.GetPartitionId(internal_id);
-    vertices_to_frag_[fid].Emplace(internal_id, data);
-  }
-
-  void AddEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
-    internal_oid_t internal_src(src);
-    internal_oid_t internal_dst(dst);
-    auto& partitioner = vm_ptr_->GetPartitioner();
-    fid_t src_fid = partitioner.GetPartitionId(internal_src);
-    fid_t dst_fid = partitioner.GetPartitionId(internal_dst);
-    edges_to_frag_[src_fid].Emplace(internal_src, internal_dst, data);
-    if (src_fid != dst_fid) {
-      edges_to_frag_[dst_fid].Emplace(internal_src, internal_dst, data);
-    }
-  }
-
-  bool SerializeFragment(std::shared_ptr<fragment_t>& fragment,
-                         const std::string& serialization_prefix) {
-    std::string type_prefix = fragment_t::type_info();
-    std::string typed_prefix = serialization_prefix + "/" + type_prefix;
-    char serial_file[1024];
-    snprintf(serial_file, sizeof(serial_file), "%s/%s", typed_prefix.c_str(),
-             kSerializationVertexMapFilename);
-    vm_ptr_->template Serialize<IOADAPTOR_T>(typed_prefix);
-    fragment->template Serialize<IOADAPTOR_T>(typed_prefix);
-
-    return true;
-  }
-
-  bool existSerializationFile(const std::string& prefix) {
-    char vm_fbuf[1024], frag_fbuf[1024];
-    snprintf(vm_fbuf, sizeof(vm_fbuf), "%s/%s", prefix.c_str(),
-             kSerializationVertexMapFilename);
-    snprintf(frag_fbuf, sizeof(frag_fbuf), kSerializationFilenameFormat,
-             prefix.c_str(), comm_spec_.fid());
-    std::string vm_path = vm_fbuf;
-    std::string frag_path = frag_fbuf;
-    return exists_file(vm_path) && exists_file(frag_path);
-  }
-
-  bool DeserializeFragment(std::shared_ptr<fragment_t>& fragment,
-                           const std::string& deserialization_prefix) {
-    std::string type_prefix = fragment_t::type_info();
-    std::string typed_prefix = deserialization_prefix + "/" + type_prefix;
-    if (!existSerializationFile(typed_prefix)) {
-      return false;
-    }
-    auto io_adaptor =
-        std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(typed_prefix));
-    if (io_adaptor->IsExist()) {
-      vm_ptr_->template Deserialize<IOADAPTOR_T>(typed_prefix,
-                                                 comm_spec_.fid());
-      fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
-      fragment->template Deserialize<IOADAPTOR_T>(typed_prefix,
-                                                  comm_spec_.fid());
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  void ConstructFragment(std::shared_ptr<fragment_t>& fragment, bool directed) {
-    for (auto& va : vertices_to_frag_) {
-      va.Flush();
-    }
+  void ConstructFragment(std::shared_ptr<fragment_t>& fragment) override {
     for (auto& ea : edges_to_frag_) {
       ea.Flush();
     }
-    vertex_recv_thread_.join();
+
     edge_recv_thread_.join();
     recv_thread_running_ = false;
 
     MPI_Barrier(comm_spec_.comm());
 
-    got_vertices_.emplace_back(
-        std::move(vertices_to_frag_[comm_spec_.fid()].buffers()));
-    vertices_to_frag_[comm_spec_.fid()].Clear();
     got_edges_.emplace_back(
         std::move(edges_to_frag_[comm_spec_.fid()].buffers()));
     edges_to_frag_[comm_spec_.fid()].Clear();
 
-    vm_ptr_->Init();
-    auto builder = vm_ptr_->GetLocalBuilder();
-    for (auto& buffers : got_vertices_) {
-      foreach_helper(
-          buffers,
-          [&builder](const internal_oid_t& id) { builder.add_vertex(id); },
-          make_index_sequence<1>{});
-    }
+    std::vector<Edge<vid_t, edata_t>> processed_edges;
     for (auto& buffers : got_edges_) {
-      foreach_helper(
-          buffers,
-          [&builder](const internal_oid_t& src, const internal_oid_t& dst) {
-            builder.add_vertex(src);
-            builder.add_vertex(dst);
-          },
-          make_index_sequence<2>{});
-    }
-    builder.finish(*vm_ptr_);
-
-    processed_vertices_.clear();
-    if (!std::is_same<vdata_t, EmptyType>::value) {
-      for (auto& buffers : got_vertices_) {
-        foreach_rval(buffers, [this](internal_oid_t&& id, vdata_t&& data) {
-          vid_t gid;
-          CHECK(vm_ptr_->_GetGid(id, gid));
-          processed_vertices_.emplace_back(gid, std::move(data));
-        });
-      }
-    }
-    got_vertices_.clear();
-
-    for (auto& buffers : got_edges_) {
-      foreach_rval(buffers, [this](internal_oid_t&& src, internal_oid_t&& dst,
-                                   edata_t&& data) {
-        vid_t src_gid, dst_gid;
-        CHECK(vm_ptr_->_GetGid(src, src_gid));
-        CHECK(vm_ptr_->_GetGid(dst, dst_gid));
-        processed_edges_.emplace_back(src_gid, dst_gid, std::move(data));
+      foreach_rval(buffers, [&processed_edges](vid_t&& src, vid_t&& dst,
+                                               edata_t&& data) {
+        processed_edges.emplace_back(src, dst, std::move(data));
       });
     }
 
-    fragment = std::shared_ptr<fragment_t>(new fragment_t(vm_ptr_));
-    fragment->Init(comm_spec_.fid(), directed, processed_vertices_,
-                   processed_edges_);
+    fragment = std::make_shared<fragment_t>();
+    fragment->Init(comm_spec_, spec_.directed, std::move(vertex_map_),
+                   processed_vertices_, processed_edges);
 
-    if (!std::is_same<vdata_t, EmptyType>::value) {
-      initOuterVertexData(fragment);
-    }
+    this->InitOuterVertexData(fragment);
   }
 
-  void vertexRecvRoutine() {
-    ShuffleIn<internal_oid_t, vdata_t> data_in;
-    data_in.Init(comm_spec_.fnum(), comm_spec_.comm(), vertex_tag);
-    fid_t dst_fid;
-    int src_worker_id;
-    while (!data_in.Finished()) {
-      src_worker_id = data_in.Recv(dst_fid);
-      if (src_worker_id == -1) {
-        break;
-      }
-      got_vertices_.emplace_back(std::move(data_in.buffers()));
-      data_in.Clear();
-    }
-  }
-
+ private:
   void edgeRecvRoutine() {
-    ShuffleIn<internal_oid_t, internal_oid_t, edata_t> data_in;
+    ShuffleIn<vid_t, vid_t, edata_t> data_in;
     data_in.Init(comm_spec_.fnum(), comm_spec_.comm(), edge_tag);
     fid_t dst_fid;
     int src_worker_id;
@@ -306,75 +187,37 @@ class BasicFragmentLoader {
       if (src_worker_id == -1) {
         break;
       }
-      CHECK_EQ(dst_fid, comm_spec_.fid());
-      got_edges_.emplace_back(std::move(data_in.buffers()));
-      data_in.Clear();
-    }
-  }
-
-  void initOuterVertexData(std::shared_ptr<fragment_t> fragment) {
-    int worker_num = comm_spec_.worker_num();
-
-    std::vector<std::vector<vid_t>> request_gid_lists(worker_num);
-    auto& outer_vertices = fragment->OuterVertices();
-    for (auto& v : outer_vertices) {
-      fid_t fid = fragment->GetFragId(v);
-      request_gid_lists[comm_spec_.FragToWorker(fid)].emplace_back(
-          fragment->GetOuterVertexGid(v));
-    }
-    std::vector<std::vector<vid_t>> requested_gid_lists(worker_num);
-    sync_comm::AllToAll(request_gid_lists, requested_gid_lists,
-                        comm_spec_.comm());
-    std::vector<std::vector<vdata_t>> response_vdata_lists(worker_num);
-    for (int i = 0; i < worker_num; ++i) {
-      auto& id_vec = requested_gid_lists[i];
-      auto& data_vec = response_vdata_lists[i];
-      data_vec.reserve(id_vec.size());
-      for (auto id : id_vec) {
-        typename fragment_t::vertex_t v;
-        CHECK(fragment->InnerVertexGid2Vertex(id, v));
-        data_vec.emplace_back(fragment->GetData(v));
-      }
-    }
-    std::vector<std::vector<vdata_t>> responsed_vdata_lists(worker_num);
-    sync_comm::AllToAll(response_vdata_lists, responsed_vdata_lists,
-                        comm_spec_.comm());
-    for (int i = 0; i < worker_num; ++i) {
-      auto& id_vec = request_gid_lists[i];
-      auto& data_vec = responsed_vdata_lists[i];
-      CHECK_EQ(id_vec.size(), data_vec.size());
-      size_t num = id_vec.size();
-      for (size_t k = 0; k < num; ++k) {
-        typename fragment_t::vertex_t v;
-        CHECK(fragment->OuterVertexGid2Vertex(id_vec[k], v));
-        fragment->SetData(v, data_vec[k]);
+      if (dst_fid == comm_spec_.fid()) {
+        got_edges_.emplace_back(std::move(data_in.buffers()));
+        data_in.Clear();
       }
     }
   }
 
- private:
-  CommSpec comm_spec_;
-  std::shared_ptr<vertex_map_t> vm_ptr_;
+  std::vector<oid_t> vertices_;
+  std::vector<vdata_t> vdata_;
 
-  std::vector<ShuffleOut<internal_oid_t, vdata_t>> vertices_to_frag_;
-  std::vector<ShuffleOut<internal_oid_t, internal_oid_t, edata_t>>
-      edges_to_frag_;
+  std::vector<internal::Vertex<vid_t, vdata_t>> processed_vertices_;
 
-  std::thread vertex_recv_thread_;
+  std::unique_ptr<VertexMap<oid_t, vid_t>> vertex_map_;
+
+  std::vector<ShuffleOut<vid_t, vid_t, edata_t>> edges_to_frag_;
   std::thread edge_recv_thread_;
   bool recv_thread_running_;
 
-  std::vector<ShuffleBufferTuple<internal_oid_t, vdata_t>> got_vertices_;
-  std::vector<ShuffleBufferTuple<internal_oid_t, internal_oid_t, edata_t>>
-      got_edges_;
+  std::vector<ShuffleBufferTuple<vid_t, vid_t, edata_t>> got_edges_;
 
-  std::vector<internal::Vertex<vid_t, vdata_t>> processed_vertices_;
-  std::vector<Edge<vid_t, edata_t>> processed_edges_;
+  std::vector<vid_t> src_gid_list_;
+  std::vector<vid_t> dst_gid_list_;
+  std::vector<edata_t> edata_;
 
-  static constexpr int vertex_tag = 5;
-  static constexpr int edge_tag = 6;
+  using BasicFragmentLoaderBase<FRAG_T>::comm_spec_;
+  using BasicFragmentLoaderBase<FRAG_T>::spec_;
+  using BasicFragmentLoaderBase<FRAG_T>::id_parser_;
+
+  using BasicFragmentLoaderBase<FRAG_T>::edge_tag;
 };
 
-}  // namespace grape
+};  // namespace grape
 
 #endif  // GRAPE_FRAGMENT_BASIC_FRAGMENT_LOADER_H_

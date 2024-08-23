@@ -19,9 +19,11 @@ limitations under the License.
 #include <stdlib.h>
 #include <string.h>
 
+#include <memory>
 #include <vector>
 
 #include "grape/types.h"
+#include "grape/utils/ref_vector.h"
 
 namespace grape {
 
@@ -74,10 +76,135 @@ class StringViewVector {
     offsets_.swap(rhs.offsets_);
   }
 
+  template <typename IOADAPTOR_T>
+  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) const {
+    size_t content_buffer_size = content_buffer().size();
+    CHECK(writer->Write(&content_buffer_size, sizeof(size_t)));
+    if (content_buffer_size > 0) {
+      CHECK(writer->Write(const_cast<char*>(content_buffer().data()),
+                          content_buffer_size * sizeof(char)));
+    }
+    size_t offset_buffer_size = offset_buffer().size();
+    CHECK(writer->Write(&offset_buffer_size, sizeof(size_t)));
+    if (offset_buffer_size > 0) {
+      CHECK(writer->Write(const_cast<size_t*>(offset_buffer().data()),
+                          offset_buffer_size * sizeof(size_t)));
+    }
+  }
+
+  template <typename IOADAPTOR_T>
+  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+    size_t content_buffer_size;
+    CHECK(reader->Read(&content_buffer_size, sizeof(size_t)));
+    if (content_buffer_size > 0) {
+      content_buffer().resize(content_buffer_size);
+      CHECK(reader->Read(content_buffer().data(),
+                         content_buffer_size * sizeof(char)));
+    }
+    size_t offset_buffer_size;
+    CHECK(reader->Read(&offset_buffer_size, sizeof(size_t)));
+    if (offset_buffer_size > 0) {
+      offset_buffer().resize(offset_buffer_size);
+      CHECK(reader->Read(offset_buffer().data(),
+                         offset_buffer_size * sizeof(size_t)));
+    }
+  }
+
+  void serialize_to_mem(std::vector<char>& buf) const {
+    encode_vec(buffer_, buf);
+    encode_vec(offsets_, buf);
+  }
+
  private:
   std::vector<char> buffer_;
   std::vector<size_t> offsets_;
 };
+
+template <>
+struct ref_vector<nonstd::string_view> {
+  ref_vector() {}
+  ~ref_vector() {}
+
+  size_t init(const void* buffer, size_t size) {
+    size_t buffer_size = buffer_.init(buffer, size);
+    const void* ptr = reinterpret_cast<const char*>(buffer) + buffer_size;
+    size_t offset_size = offsets_.init(ptr, size - buffer_size);
+    return buffer_size + offset_size;
+  }
+
+  ref_vector<char>& buffer() { return buffer_; }
+  ref_vector<size_t>& offsets() { return offsets_; }
+
+  const ref_vector<char>& buffer() const { return buffer_; }
+  const ref_vector<size_t>& offsets() const { return offsets_; }
+
+  size_t size() const {
+    if (offsets_.size() == 0) {
+      return 0;
+    }
+    return offsets_.size() - 1;
+  }
+
+  nonstd::string_view get(size_t idx) const {
+    size_t from = offsets_.get(idx);
+    size_t to = offsets_.get(idx + 1);
+    return nonstd::string_view(buffer_.data() + from, to - from);
+  }
+
+  template <typename Loader>
+  void load(Loader& loader) {
+    loader.load_ref_vec(buffer_);
+    loader.load_ref_vec(offsets_);
+  }
+
+ private:
+  ref_vector<char> buffer_;
+  ref_vector<size_t> offsets_;
+};
+
+#if __cplusplus >= 201703L
+template <>
+struct ref_vector<std::string_view> {
+  ref_vector() {}
+  ~ref_vector() {}
+
+  size_t init(const void* buffer, size_t size) {
+    size_t buffer_size = buffer_.init(buffer, size);
+    const void* ptr = reinterpret_cast<const char*>(buffer) + buffer_size;
+    size_t offset_size = offsets_.init(ptr, size - buffer_size);
+    return buffer_size + offset_size;
+  }
+
+  ref_vector<char>& buffer() { return buffer_; }
+  ref_vector<size_t>& offsets() { return offsets_; }
+
+  const ref_vector<char>& buffer() const { return buffer_; }
+  const ref_vector<size_t>& offsets() const { return offsets_; }
+
+  size_t size() const {
+    if (offsets_.size() == 0) {
+      return 0;
+    }
+    return offsets_.size() - 1;
+  }
+
+  std::string_view get(size_t idx) const {
+    size_t from = offsets_.get(idx);
+    size_t to = offsets_.get(idx + 1);
+    return std::string_view(buffer_.data() + from, to - from);
+  }
+
+  template <typename Loader>
+  void load(Loader& loader) {
+    loader.load_ref_vec(buffer_);
+    loader.load_ref_vec(offsets_);
+  }
+
+ private:
+  ref_vector<char> buffer_;
+  ref_vector<size_t> offsets_;
+};
+#endif
 
 }  // namespace grape
 
