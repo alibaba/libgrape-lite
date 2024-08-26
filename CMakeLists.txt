@@ -298,6 +298,13 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
         PATTERN "*.hpp"
 )
 
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/pthash/
+        DESTINATION include/pthash
+        FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "*.hpp"
+)
+
 if (WITH_CUDA)
   install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/cuda_hashmap
           DESTINATION include/cuda_hashmap
