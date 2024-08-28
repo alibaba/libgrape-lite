@@ -292,6 +292,7 @@ endif()
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/thirdparty/flat_hash_map
                   ${PROJECT_SOURCE_DIR}/thirdparty/string_view
+                  ${PROJECT_SOURCE_DIR}/thirdparty/pthash
         DESTINATION include
         FILES_MATCHING
         PATTERN "*.h"
