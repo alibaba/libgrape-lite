@@ -157,6 +157,7 @@ class ImmutableEdgecutFragment
   using base_t::buildCSR;
   using base_t::init;
   using base_t::IsInnerVertexGid;
+  using base_t::parallelBuildCSR;
 
   static std::string type_info() {
     std::string ret = "ImmutableEdgecutFragment<";
@@ -219,6 +220,7 @@ class ImmutableEdgecutFragment
             std::vector<edge_t>& edges) override {
     init(comm_spec.fid(), directed, std::move(vm_ptr));
 
+    double t0 = -grape::GetCurrentTime();
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
       std::vector<VID_T> outer_vertices;
@@ -318,7 +320,9 @@ class ImmutableEdgecutFragment
       memcpy(&ovgid_[0], &outer_vertices[0],
              outer_vertices.size() * sizeof(VID_T));
     }
+    t0 += grape::GetCurrentTime();
 
+    double t1 = -grape::GetCurrentTime();
     vid_t ovid = ivnum_;
     for (auto gid : ovgid_) {
       ovg2l_.emplace(gid, ovid);
@@ -328,9 +332,13 @@ class ImmutableEdgecutFragment
     this->inner_vertices_.SetRange(0, ivnum_);
     this->outer_vertices_.SetRange(ivnum_, ivnum_ + ovnum_);
     this->vertices_.SetRange(0, ivnum_ + ovnum_);
+    t1 += grape::GetCurrentTime();
 
+    double t2 = -grape::GetCurrentTime();
     buildCSR(this->Vertices(), edges, load_strategy);
+    t2 += grape::GetCurrentTime();
 
+    double t3 = -grape::GetCurrentTime();
     initOuterVerticesOfFragment();
 
     vdata_.clear();
@@ -348,6 +356,181 @@ class ImmutableEdgecutFragment
         }
       }
     }
+    t3 += grape::GetCurrentTime();
+    LOG(INFO) << "[frag-" << fid_
+              << "] load graph: construct vertices time: " << t0
+              << ", init time: " << t1 << ", build csr time: " << t2
+              << ", init outer vertices time: " << t3;
+  }
+
+  void ParallelInit(const CommSpec& comm_spec, bool directed,
+                    std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                    std::vector<internal_vertex_t>& vertices,
+                    std::vector<edge_t>& edges, int concurrency) override {
+    init(comm_spec.fid(), directed, std::move(vm_ptr));
+
+    double t0 = -grape::GetCurrentTime();
+    static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
+    {
+      std::vector<VID_T> outer_vertices;
+      auto iter_in = [&](Edge<VID_T, EDATA_T>& e,
+                         std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.dst)) {
+          if (!IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          e.src = invalid_vid;
+        }
+      };
+      auto iter_out = [&](Edge<VID_T, EDATA_T>& e,
+                          std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          e.src = invalid_vid;
+        }
+      };
+      auto iter_out_in = [&](Edge<VID_T, EDATA_T>& e,
+                             std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else if (IsInnerVertexGid(e.dst)) {
+          outer_vertices.push_back(e.src);
+        } else {
+          e.src = invalid_vid;
+        }
+      };
+
+      auto iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                                    std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.dst)) {
+          if (!IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          if (IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.dst);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+      auto iter_out_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                                     std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          if (IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+
+      std::vector<std::vector<VID_T>> outer_vertices_vec(concurrency);
+      std::vector<std::thread> threads;
+      for (int i = 0; i < concurrency; ++i) {
+        threads.emplace_back(
+            [&, this](int tid) {
+              size_t batch = (edges.size() + concurrency - 1) / concurrency;
+              size_t begin = std::min(batch * tid, edges.size());
+              size_t end = std::min(begin + batch, edges.size());
+              auto& vec = outer_vertices_vec[tid];
+              if (load_strategy == LoadStrategy::kOnlyIn) {
+                if (directed) {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_in(edges[j], vec);
+                  }
+                } else {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_in_undirected(edges[j], vec);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kOnlyOut) {
+                if (directed) {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_out(edges[j], vec);
+                  }
+                } else {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_out_undirected(edges[j], vec);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kBothOutIn) {
+                for (size_t j = begin; j < end; ++j) {
+                  iter_out_in(edges[j], vec);
+                }
+              } else {
+                LOG(FATAL) << "Invalid load strategy";
+              }
+              DistinctSort(vec);
+            },
+            i);
+      }
+      for (auto& thrd : threads) {
+        thrd.join();
+      }
+      for (auto& vec : outer_vertices_vec) {
+        outer_vertices.insert(outer_vertices.end(), vec.begin(), vec.end());
+      }
+
+      DistinctSort(outer_vertices);
+
+      ovgid_.resize(outer_vertices.size());
+      memcpy(&ovgid_[0], &outer_vertices[0],
+             outer_vertices.size() * sizeof(VID_T));
+    }
+    t0 += grape::GetCurrentTime();
+
+    double t1 = -grape::GetCurrentTime();
+    vid_t ovid = ivnum_;
+    for (auto gid : ovgid_) {
+      ovg2l_.emplace(gid, ovid);
+      ++ovid;
+    }
+    ovnum_ = ovid - ivnum_;
+    this->inner_vertices_.SetRange(0, ivnum_);
+    this->outer_vertices_.SetRange(ivnum_, ivnum_ + ovnum_);
+    this->vertices_.SetRange(0, ivnum_ + ovnum_);
+    t1 += grape::GetCurrentTime();
+
+    double t2 = -grape::GetCurrentTime();
+    parallelBuildCSR(this->Vertices(), edges, load_strategy, concurrency);
+    t2 += grape::GetCurrentTime();
+
+    double t3 = -grape::GetCurrentTime();
+    initOuterVerticesOfFragment();
+
+    vdata_.clear();
+    vdata_.resize(ivnum_ + ovnum_);
+    if (sizeof(internal_vertex_t) > sizeof(VID_T)) {
+      for (auto& v : vertices) {
+        VID_T gid = v.vid;
+        if (id_parser_.get_fragment_id(gid) == fid_) {
+          vdata_[id_parser_.get_local_id(gid)] = v.vdata;
+        } else {
+          auto iter = ovg2l_.find(gid);
+          if (iter != ovg2l_.end()) {
+            vdata_[iter->second] = v.vdata;
+          }
+        }
+      }
+    }
+
+    t3 += grape::GetCurrentTime();
+    LOG(INFO) << "[frag-" << fid_ << "] construct vertices time: " << t0
+              << ", init time: " << t1 << ", build csr time: " << t2
+              << ", init outer vertices time: " << t3;
+    LOG(INFO) << "[frag-" << fid_ << "] ivnum: " << ivnum_
+              << ", ovnum: " << ovnum_ << ", edge_num: " << this->GetEdgeNum();
   }
 
   template <typename IOADAPTOR_T>

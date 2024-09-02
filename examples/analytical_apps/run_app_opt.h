@@ -64,6 +64,7 @@ void RunUndirectedPageRankOpt(const CommSpec& comm_spec,
   LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
   graph_spec.set_directed(FLAGS_directed);
   graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  graph_spec.load_concurrency = FLAGS_load_concurrency;
   if (FLAGS_deserialize) {
     graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
   }
@@ -171,6 +172,7 @@ void RunDirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
   graph_spec.set_directed(FLAGS_directed);
   graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  graph_spec.load_concurrency = FLAGS_load_concurrency;
   if (FLAGS_deserialize) {
     graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
   }
@@ -208,6 +210,7 @@ void RunUndirectedCDLP(const CommSpec& comm_spec, const std::string& out_prefix,
   LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
   graph_spec.set_directed(FLAGS_directed);
   graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  graph_spec.load_concurrency = FLAGS_load_concurrency;
   if (FLAGS_deserialize) {
     graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
   }
@@ -263,6 +266,7 @@ void CreateAndQueryOpt(const CommSpec& comm_spec, const std::string& out_prefix,
   LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
   graph_spec.set_directed(FLAGS_directed);
   graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  graph_spec.load_concurrency = FLAGS_load_concurrency;
   if (FLAGS_deserialize) {
     graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
   }
@@ -293,6 +297,7 @@ void CreateAndQueryStagedAppOpt(const CommSpec& comm_spec,
   LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
   graph_spec.set_directed(FLAGS_directed);
   graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  graph_spec.load_concurrency = FLAGS_load_concurrency;
   if (FLAGS_deserialize) {
     graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
   } else if (FLAGS_serialize) {

@@ -45,15 +45,15 @@ class ImmutableCSRBuild {
 
   void init(VID_T vnum) {
     vnum_ = vnum;
-    degree_.clear();
-    degree_.resize(vnum, 0);
+    degree_ = std::vector<std::atomic<int>>(vnum);
+    for (VID_T i = 0; i < vnum; ++i) {
+      degree_[i].store(0);
+    }
   }
 
   void init(const VertexRange<VID_T>& range) {
     assert(range.begin_value() == 0);
-    vnum_ = range.size();
-    degree_.clear();
-    degree_.resize(vnum_, 0);
+    init(range.size());
   }
 
   void inc_degree(VID_T i) {
@@ -64,8 +64,8 @@ class ImmutableCSRBuild {
 
   void build_offsets() {
     edge_num_ = 0;
-    for (auto d : degree_) {
-      edge_num_ += d;
+    for (VID_T i = 0; i < vnum_; ++i) {
+      edge_num_ += degree_[i].load();
     }
     edges_.clear();
     edges_.resize(edge_num_);
@@ -77,15 +77,19 @@ class ImmutableCSRBuild {
     }
     CHECK_EQ(offsets_[vnum_], edges_.data() + edge_num_);
     {
-      std::vector<int> tmp;
+      std::vector<std::atomic<int>> tmp;
       tmp.swap(degree_);
     }
-    iter_ = offsets_;
+    iter_ = std::vector<std::atomic<int>>(vnum_);
+    for (VID_T i = 0; i < vnum_; ++i) {
+      iter_[i].store(0);
+    }
   }
 
   void add_edge(VID_T src, const nbr_t& nbr) {
     if (src < vnum_) {
-      nbr_t* ptr = iter_[src]++;
+      int offset = iter_[src].fetch_add(1);
+      nbr_t* ptr = offsets_[src] + offset;
       *ptr = nbr;
     }
   }
@@ -112,8 +116,8 @@ class ImmutableCSRBuild {
 
   Array<nbr_t, Allocator<nbr_t>> edges_;
   Array<nbr_t*, Allocator<nbr_t*>> offsets_;
-  std::vector<int> degree_;
-  Array<nbr_t*, Allocator<nbr_t*>> iter_;
+  std::vector<std::atomic<int>> degree_;
+  std::vector<std::atomic<int>> iter_;
 };
 
 template <typename VID_T, typename NBR_T>

@@ -114,6 +114,7 @@ class EVFragmentLoader {
       }
     }
 
+    double t0 = -grape::GetCurrentTime();
     if (!vfile.empty()) {
       auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(vfile));
       io_adaptor->SetPartialRead(comm_spec_.worker_id(),
@@ -143,7 +144,9 @@ class EVFragmentLoader {
     }
 
     basic_fragment_loader_->ConstructVertices();
+    t0 += grape::GetCurrentTime();
 
+    double t1 = -grape::GetCurrentTime();
     {
       auto io_adaptor =
           std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(efile)));
@@ -175,11 +178,19 @@ class EVFragmentLoader {
       }
       io_adaptor->Close();
     }
+    t1 += grape::GetCurrentTime();
 
     VLOG(1) << "[worker-" << comm_spec_.worker_id()
             << "] finished add vertices and edges";
 
+    double t2 = -grape::GetCurrentTime();
     basic_fragment_loader_->ConstructFragment(fragment);
+    t2 += grape::GetCurrentTime();
+
+    LOG(INFO) << "[worker-" << comm_spec_.worker_id()
+              << "] load graph: construct vertices time: " << t0
+              << "s, construct edges time: " << t1
+              << ", construct fragment time: " << t2 << "s";
 
     if (spec.serialize) {
       bool serialized = SerializeFragment<fragment_t, IOADAPTOR_T>(

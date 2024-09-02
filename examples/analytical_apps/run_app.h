@@ -164,6 +164,7 @@ void CreateAndQuery(const CommSpec& comm_spec, const std::string& out_prefix,
   LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
   graph_spec.set_directed(FLAGS_directed);
   graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  graph_spec.load_concurrency = FLAGS_load_concurrency;
   if (FLAGS_deserialize) {
     graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
   } else if (FLAGS_serialize) {
@@ -194,6 +195,7 @@ void CreateAndQueryStagedApp(const CommSpec& comm_spec,
   LoadGraphSpec graph_spec = DefaultLoadGraphSpec();
   graph_spec.set_directed(FLAGS_directed);
   graph_spec.set_rebalance(FLAGS_rebalance, FLAGS_rebalance_vertex_factor);
+  graph_spec.load_concurrency = FLAGS_load_concurrency;
   if (FLAGS_deserialize) {
     graph_spec.set_deserialize(true, FLAGS_serialization_prefix);
   } else if (FLAGS_serialize) {
