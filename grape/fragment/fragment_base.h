@@ -86,6 +86,14 @@ class FragmentBase {
                     std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
                     std::vector<Edge<VID_T, EDATA_T>>& edges) = 0;
 
+  virtual void ParallelInit(
+      const CommSpec& comm_spec, bool directed,
+      std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+      std::vector<internal::Vertex<VID_T, VDATA_T>>& vertices,
+      std::vector<Edge<VID_T, EDATA_T>>& edges, int concurrency) {
+    return Init(comm_spec, directed, std::move(vm_ptr), vertices, edges);
+  }
+
   /**
    * @brief For some kind of applications, specific data structures will be
    * generated.
@@ -172,6 +180,14 @@ class FragmentBase {
   OID_T GetId(const Vertex<VID_T>& v) const {
     OID_T oid{};
     vm_ptr_->GetOid(Vertex2Gid(v), oid);
+    return oid;
+  }
+
+  using internal_id_t = typename InternalOID<OID_T>::type;
+
+  internal_id_t GetInternalId(const Vertex<VID_T>& v) const {
+    internal_id_t oid{};
+    vm_ptr_->GetInternalOid(Vertex2Gid(v), oid);
     return oid;
   }
 

@@ -115,6 +115,9 @@ class EVFragmentLoader {
     }
 
     if (!vfile.empty()) {
+      MPI_Barrier(comm_spec_.comm());
+      double t0 = -grape::GetCurrentTime();
+
       auto io_adaptor = std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(vfile));
       io_adaptor->SetPartialRead(comm_spec_.worker_id(),
                                  comm_spec_.worker_num());
@@ -140,10 +143,26 @@ class EVFragmentLoader {
         basic_fragment_loader_->AddVertex(vertex_id, v_data);
       }
       io_adaptor->Close();
+
+      MPI_Barrier(comm_spec_.comm());
+      t0 += grape::GetCurrentTime();
+      if (comm_spec_.worker_id() == 0) {
+        VLOG(1) << "finished reading vertices inputs, time: " << t0 << " s";
+      }
+
+      double t1 = -grape::GetCurrentTime();
+      basic_fragment_loader_->ConstructVertices();
+
+      MPI_Barrier(comm_spec_.comm());
+      t1 += grape::GetCurrentTime();
+      if (comm_spec_.worker_id() == 0) {
+        VLOG(1) << "finished constructing vertices, time: " << t1 << " s";
+      }
+    } else {
+      basic_fragment_loader_->ConstructVertices();
     }
 
-    basic_fragment_loader_->ConstructVertices();
-
+    double t2 = -grape::GetCurrentTime();
     {
       auto io_adaptor =
           std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(efile)));
@@ -175,11 +194,20 @@ class EVFragmentLoader {
       }
       io_adaptor->Close();
     }
+    MPI_Barrier(comm_spec_.comm());
+    t2 += grape::GetCurrentTime();
+    if (comm_spec_.worker_id() == 0) {
+      VLOG(1) << "finished reading edges inputs, time: " << t2 << " s";
+    }
 
-    VLOG(1) << "[worker-" << comm_spec_.worker_id()
-            << "] finished add vertices and edges";
-
+    double t3 = -grape::GetCurrentTime();
     basic_fragment_loader_->ConstructFragment(fragment);
+    MPI_Barrier(comm_spec_.comm());
+    t3 += grape::GetCurrentTime();
+
+    if (comm_spec_.worker_id() == 0) {
+      VLOG(1) << "finished constructing fragment, time: " << t3 << " s";
+    }
 
     if (spec.serialize) {
       bool serialized = SerializeFragment<fragment_t, IOADAPTOR_T>(

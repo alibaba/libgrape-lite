@@ -411,9 +411,11 @@ class CSREdgecutFragmentBase
   using base_t::IsInnerVertexGid;
   using base_t::IsInnerVertexLid;
   using base_t::OuterVertexGid2Lid;
-  void buildCSR(const typename csr_builder_t::vertex_range_t& vertex_range,
+  using vertices_t = typename TRAITS_T::vertices_t;
+
+  void buildCSR(const vertices_t& vertex_range,
                 std::vector<Edge<VID_T, EDATA_T>>& edges,
-                LoadStrategy load_strategy) {
+                LoadStrategy load_strategy, int concurrency = 1) {
     csr_builder_t ie_builder, oe_builder;
     ie_builder.init(vertex_range);
     oe_builder.init(vertex_range);
@@ -497,42 +499,89 @@ class CSREdgecutFragmentBase
         ie_builder.inc_degree(e.dst);
       }
     };
-    if (load_strategy == LoadStrategy::kOnlyIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          parse_iter_in(e);
+
+    if (concurrency == 1) {
+      if (load_strategy == LoadStrategy::kOnlyIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            parse_iter_in(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            parse_iter_in_undirected(e);
+          }
+        }
+      } else if (load_strategy == LoadStrategy::kOnlyOut) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            parse_iter_out(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            parse_iter_out_undirected(e);
+          }
+        }
+      } else if (load_strategy == LoadStrategy::kBothOutIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            parse_iter_out_in(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            parse_iter_out_in_undirected(e);
+          }
         }
       } else {
-        for (auto& e : edges) {
-          parse_iter_in_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kOnlyOut) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          parse_iter_out(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          parse_iter_out_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          parse_iter_out_in(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          parse_iter_out_in_undirected(e);
-        }
+        LOG(FATAL) << "Invalid load strategy";
       }
     } else {
-      LOG(FATAL) << "Invalid load strategy";
+      std::vector<std::thread> threads;
+      for (int i = 0; i < concurrency; ++i) {
+        threads.emplace_back(
+            [&, this](int tid) {
+              size_t batch = (edges.size() + concurrency - 1) / concurrency;
+              size_t begin = std::min(batch * tid, edges.size());
+              size_t end = std::min(begin + batch, edges.size());
+              if (load_strategy == LoadStrategy::kOnlyIn) {
+                if (this->directed_) {
+                  for (size_t i = begin; i < end; ++i) {
+                    parse_iter_in(edges[i]);
+                  }
+                } else {
+                  for (size_t i = begin; i < end; ++i) {
+                    parse_iter_in_undirected(edges[i]);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kOnlyOut) {
+                if (this->directed_) {
+                  for (size_t i = begin; i < end; ++i) {
+                    parse_iter_out(edges[i]);
+                  }
+                } else {
+                  for (size_t i = begin; i < end; ++i) {
+                    parse_iter_out_undirected(edges[i]);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kBothOutIn) {
+                if (this->directed_) {
+                  for (size_t i = begin; i < end; ++i) {
+                    parse_iter_out_in(edges[i]);
+                  }
+                } else {
+                  for (size_t i = begin; i < end; ++i) {
+                    parse_iter_out_in_undirected(edges[i]);
+                  }
+                }
+              } else {
+                LOG(FATAL) << "Invalid load strategy";
+              }
+            },
+            i);
+      }
+      for (auto& thrd : threads) {
+        thrd.join();
+      }
     }
-
-    ie_builder.build_offsets();
-    oe_builder.build_offsets();
 
     auto insert_iter_in = [&](const Edge<VID_T, EDATA_T>& e) {
       if (e.src != invalid_vid) {
@@ -593,42 +642,94 @@ class CSREdgecutFragmentBase
       }
     };
 
-    if (load_strategy == LoadStrategy::kOnlyIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          insert_iter_in(e);
+    ie_builder.build_offsets();
+    oe_builder.build_offsets();
+
+    if (concurrency == 1) {
+      if (load_strategy == LoadStrategy::kOnlyIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            insert_iter_in(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            insert_iter_in_undirected(e);
+          }
+        }
+      } else if (load_strategy == LoadStrategy::kOnlyOut) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            insert_iter_out(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            insert_iter_out_undirected(e);
+          }
+        }
+      } else if (load_strategy == LoadStrategy::kBothOutIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            insert_iter_out_in(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            insert_iter_out_in_undirected(e);
+          }
         }
       } else {
-        for (auto& e : edges) {
-          insert_iter_in_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kOnlyOut) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          insert_iter_out(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          insert_iter_out_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          insert_iter_out_in(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          insert_iter_out_in_undirected(e);
-        }
+        LOG(FATAL) << "Invalid load strategy";
       }
     } else {
-      LOG(FATAL) << "Invalid load strategy";
+      std::vector<std::thread> threads;
+      for (int i = 0; i < concurrency; ++i) {
+        threads.emplace_back(
+            [&, this](int tid) {
+              size_t batch = (edges.size() + concurrency - 1) / concurrency;
+              size_t begin = std::min(batch * tid, edges.size());
+              size_t end = std::min(begin + batch, edges.size());
+              if (load_strategy == LoadStrategy::kOnlyIn) {
+                if (this->directed_) {
+                  for (size_t i = begin; i < end; ++i) {
+                    insert_iter_in(edges[i]);
+                  }
+                } else {
+                  for (size_t i = begin; i < end; ++i) {
+                    insert_iter_in_undirected(edges[i]);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kOnlyOut) {
+                if (this->directed_) {
+                  for (size_t i = begin; i < end; ++i) {
+                    insert_iter_out(edges[i]);
+                  }
+                } else {
+                  for (size_t i = begin; i < end; ++i) {
+                    insert_iter_out_undirected(edges[i]);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kBothOutIn) {
+                if (this->directed_) {
+                  for (size_t i = begin; i < end; ++i) {
+                    insert_iter_out_in(edges[i]);
+                  }
+                } else {
+                  for (size_t i = begin; i < end; ++i) {
+                    insert_iter_out_in_undirected(edges[i]);
+                  }
+                }
+              } else {
+                LOG(FATAL) << "Invalid load strategy";
+              }
+            },
+            i);
+      }
+      for (auto& thrd : threads) {
+        thrd.join();
+      }
     }
 
-    ie_builder.finish(ie_);
-    oe_builder.finish(oe_);
+    ie_builder.finish(ie_, concurrency);
+    oe_builder.finish(oe_, concurrency);
   }
 
   template <typename IOADAPTOR_T>

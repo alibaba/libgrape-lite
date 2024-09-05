@@ -59,7 +59,7 @@ struct ImmutableEdgecutFragmentTraits {
   using fragment_const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
 
   using csr_t = ImmutableCSR<VID_T, Nbr<VID_T, EDATA_T>>;
-  using csr_builder_t = ImmutableCSRBuild<VID_T, Nbr<VID_T, EDATA_T>>;
+  using csr_builder_t = ImmutableCSRParallelBuilder<VID_T, Nbr<VID_T, EDATA_T>>;
   using mirror_vertices_t = std::vector<Vertex<VID_T>>;
 };
 
@@ -330,6 +330,162 @@ class ImmutableEdgecutFragment
     this->vertices_.SetRange(0, ivnum_ + ovnum_);
 
     buildCSR(this->Vertices(), edges, load_strategy);
+
+    initOuterVerticesOfFragment();
+
+    vdata_.clear();
+    vdata_.resize(ivnum_ + ovnum_);
+    if (sizeof(internal_vertex_t) > sizeof(VID_T)) {
+      for (auto& v : vertices) {
+        VID_T gid = v.vid;
+        if (id_parser_.get_fragment_id(gid) == fid_) {
+          vdata_[id_parser_.get_local_id(gid)] = v.vdata;
+        } else {
+          auto iter = ovg2l_.find(gid);
+          if (iter != ovg2l_.end()) {
+            vdata_[iter->second] = v.vdata;
+          }
+        }
+      }
+    }
+  }
+
+  void ParallelInit(const CommSpec& comm_spec, bool directed,
+                    std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                    std::vector<internal_vertex_t>& vertices,
+                    std::vector<edge_t>& edges, int concurrency) override {
+    init(comm_spec.fid(), directed, std::move(vm_ptr));
+
+    static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
+    {
+      auto iter_in = [&](Edge<VID_T, EDATA_T>& e,
+                         std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.dst)) {
+          if (!IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          e.src = invalid_vid;
+        }
+      };
+      auto iter_out = [&](Edge<VID_T, EDATA_T>& e,
+                          std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          e.src = invalid_vid;
+        }
+      };
+      auto iter_out_in = [&](Edge<VID_T, EDATA_T>& e,
+                             std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else if (IsInnerVertexGid(e.dst)) {
+          outer_vertices.push_back(e.src);
+        } else {
+          e.src = invalid_vid;
+        }
+      };
+
+      auto iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                                    std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.dst)) {
+          if (!IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.src);
+          }
+        } else {
+          if (IsInnerVertexGid(e.src)) {
+            outer_vertices.push_back(e.dst);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+      auto iter_out_undirected = [&](Edge<VID_T, EDATA_T>& e,
+                                     std::vector<VID_T>& outer_vertices) {
+        if (IsInnerVertexGid(e.src)) {
+          if (!IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.dst);
+          }
+        } else {
+          if (IsInnerVertexGid(e.dst)) {
+            outer_vertices.push_back(e.src);
+          } else {
+            e.src = invalid_vid;
+          }
+        }
+      };
+
+      std::vector<std::vector<VID_T>> outer_vertices_vec(concurrency);
+      std::vector<std::thread> threads;
+      for (int i = 0; i < concurrency; ++i) {
+        threads.emplace_back(
+            [&, this](int tid) {
+              size_t batch = (edges.size() + concurrency - 1) / concurrency;
+              size_t begin = std::min(batch * tid, edges.size());
+              size_t end = std::min(begin + batch, edges.size());
+              auto& vec = outer_vertices_vec[tid];
+              if (load_strategy == LoadStrategy::kOnlyIn) {
+                if (directed) {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_in(edges[j], vec);
+                  }
+                } else {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_in_undirected(edges[j], vec);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kOnlyOut) {
+                if (directed) {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_out(edges[j], vec);
+                  }
+                } else {
+                  for (size_t j = begin; j < end; ++j) {
+                    iter_out_undirected(edges[j], vec);
+                  }
+                }
+              } else if (load_strategy == LoadStrategy::kBothOutIn) {
+                for (size_t j = begin; j < end; ++j) {
+                  iter_out_in(edges[j], vec);
+                }
+              } else {
+                LOG(FATAL) << "Invalid load strategy";
+              }
+              DistinctSort(vec);
+            },
+            i);
+      }
+      for (auto& thrd : threads) {
+        thrd.join();
+      }
+      std::vector<VID_T> outer_vertices;
+      for (auto& vec : outer_vertices_vec) {
+        outer_vertices.insert(outer_vertices.end(), vec.begin(), vec.end());
+      }
+
+      DistinctSort(outer_vertices);
+
+      ovgid_.resize(outer_vertices.size());
+      memcpy(&ovgid_[0], &outer_vertices[0],
+             outer_vertices.size() * sizeof(VID_T));
+    }
+
+    vid_t ovid = ivnum_;
+    for (auto gid : ovgid_) {
+      ovg2l_.emplace(gid, ovid);
+      ++ovid;
+    }
+    ovnum_ = ovid - ivnum_;
+    this->inner_vertices_.SetRange(0, ivnum_);
+    this->outer_vertices_.SetRange(ivnum_, ivnum_ + ovnum_);
+    this->vertices_.SetRange(0, ivnum_ + ovnum_);
+
+    buildCSR(this->Vertices(), edges, load_strategy, concurrency);
 
     initOuterVerticesOfFragment();
 
