@@ -219,7 +219,6 @@ class ImmutableEdgecutFragment
             std::vector<edge_t>& edges) override {
     init(comm_spec.fid(), directed, std::move(vm_ptr));
 
-    double t0 = -grape::GetCurrentTime();
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
       std::vector<VID_T> outer_vertices;
@@ -319,9 +318,7 @@ class ImmutableEdgecutFragment
       memcpy(&ovgid_[0], &outer_vertices[0],
              outer_vertices.size() * sizeof(VID_T));
     }
-    t0 += grape::GetCurrentTime();
 
-    double t1 = -grape::GetCurrentTime();
     vid_t ovid = ivnum_;
     for (auto gid : ovgid_) {
       ovg2l_.emplace(gid, ovid);
@@ -331,13 +328,9 @@ class ImmutableEdgecutFragment
     this->inner_vertices_.SetRange(0, ivnum_);
     this->outer_vertices_.SetRange(ivnum_, ivnum_ + ovnum_);
     this->vertices_.SetRange(0, ivnum_ + ovnum_);
-    t1 += grape::GetCurrentTime();
 
-    double t2 = -grape::GetCurrentTime();
     buildCSR(this->Vertices(), edges, load_strategy);
-    t2 += grape::GetCurrentTime();
 
-    double t3 = -grape::GetCurrentTime();
     initOuterVerticesOfFragment();
 
     vdata_.clear();
@@ -355,11 +348,6 @@ class ImmutableEdgecutFragment
         }
       }
     }
-    t3 += grape::GetCurrentTime();
-    LOG(INFO) << "[frag-" << fid_
-              << "] load graph: construct vertices time: " << t0
-              << ", init time: " << t1 << ", build csr time: " << t2
-              << ", init outer vertices time: " << t3;
   }
 
   void ParallelInit(const CommSpec& comm_spec, bool directed,
@@ -368,7 +356,6 @@ class ImmutableEdgecutFragment
                     std::vector<edge_t>& edges, int concurrency) override {
     init(comm_spec.fid(), directed, std::move(vm_ptr));
 
-    double t0 = -grape::GetCurrentTime();
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
       auto iter_in = [&](Edge<VID_T, EDATA_T>& e,
@@ -435,11 +422,9 @@ class ImmutableEdgecutFragment
 
       std::vector<std::vector<VID_T>> outer_vertices_vec(concurrency);
       std::vector<std::thread> threads;
-      std::vector<double> thread_time(concurrency, 0);
       for (int i = 0; i < concurrency; ++i) {
         threads.emplace_back(
             [&, this](int tid) {
-              double tt = -grape::GetCurrentTime();
               size_t batch = (edges.size() + concurrency - 1) / concurrency;
               size_t begin = std::min(batch * tid, edges.size());
               size_t end = std::min(begin + batch, edges.size());
@@ -472,15 +457,12 @@ class ImmutableEdgecutFragment
                 LOG(FATAL) << "Invalid load strategy";
               }
               DistinctSort(vec);
-              tt += grape::GetCurrentTime();
-              thread_time[tid] = tt;
             },
             i);
       }
       for (auto& thrd : threads) {
         thrd.join();
       }
-      show_thread_timing(thread_time, "construct outer vertices time");
       std::vector<VID_T> outer_vertices;
       for (auto& vec : outer_vertices_vec) {
         outer_vertices.insert(outer_vertices.end(), vec.begin(), vec.end());
@@ -492,9 +474,7 @@ class ImmutableEdgecutFragment
       memcpy(&ovgid_[0], &outer_vertices[0],
              outer_vertices.size() * sizeof(VID_T));
     }
-    t0 += grape::GetCurrentTime();
 
-    double t1 = -grape::GetCurrentTime();
     vid_t ovid = ivnum_;
     for (auto gid : ovgid_) {
       ovg2l_.emplace(gid, ovid);
@@ -504,13 +484,9 @@ class ImmutableEdgecutFragment
     this->inner_vertices_.SetRange(0, ivnum_);
     this->outer_vertices_.SetRange(ivnum_, ivnum_ + ovnum_);
     this->vertices_.SetRange(0, ivnum_ + ovnum_);
-    t1 += grape::GetCurrentTime();
 
-    double t2 = -grape::GetCurrentTime();
     buildCSR(this->Vertices(), edges, load_strategy, concurrency);
-    t2 += grape::GetCurrentTime();
 
-    double t3 = -grape::GetCurrentTime();
     initOuterVerticesOfFragment();
 
     vdata_.clear();
@@ -528,11 +504,6 @@ class ImmutableEdgecutFragment
         }
       }
     }
-
-    t3 += grape::GetCurrentTime();
-    LOG(INFO) << "[frag-" << fid_ << "] construct vertices time: " << t0
-              << ", init time: " << t1 << ", build csr time: " << t2
-              << ", init outer vertices time: " << t3;
   }
 
   template <typename IOADAPTOR_T>

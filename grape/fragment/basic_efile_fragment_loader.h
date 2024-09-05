@@ -27,7 +27,7 @@ limitations under the License.
 
 namespace grape {
 
-inline size_t custom_hash(size_t val) {
+inline size_t rehash_oid(size_t val) {
   val = (val ^ 61) ^ (val >> 16);
   val = val + (val << 3);
   val = val ^ (val >> 4);
@@ -142,13 +142,10 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
         std::vector<std::vector<internal_oid_t>> vertices_mat(concurrency_ *
                                                               concurrency_);
         std::vector<std::thread> threads;
-        std::vector<double> thread_time(concurrency_, 0);
         for (int i = 0; i < concurrency_; ++i) {
           threads.emplace_back(
               [&, this](int tid) {
-                double tt = -grape::GetCurrentTime();
                 fid_t fid = comm_spec_.fid();
-                // auto& vec = vertices[tid];
                 for (auto& buffer : got_edges_) {
                   size_t size = buffer.size();
                   size_t chunk = (size + concurrency_ - 1) / concurrency_;
@@ -160,17 +157,15 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
                         [&](const internal_oid_t& src,
                             const internal_oid_t& dst) {
                           int src_hash =
-                              custom_hash(std::hash<internal_oid_t>()(src)) %
+                              rehash_oid(std::hash<internal_oid_t>()(src)) %
                               concurrency_;
                           vertices_mat[tid * concurrency_ + src_hash]
                               .emplace_back(src);
                           int dst_hash =
-                              custom_hash(std::hash<internal_oid_t>()(dst)) %
+                              rehash_oid(std::hash<internal_oid_t>()(dst)) %
                               concurrency_;
                           vertices_mat[tid * concurrency_ + dst_hash]
                               .emplace_back(dst);
-                          // vec.emplace_back(src);
-                          // vec.emplace_back(dst);
                         },
                         make_index_sequence<2>{});
                   } else {
@@ -180,39 +175,32 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
                             const internal_oid_t& dst) {
                           if (builder.get_fragment_id(src) == fid) {
                             int src_hash =
-                                custom_hash(std::hash<internal_oid_t>()(src)) %
+                                rehash_oid(std::hash<internal_oid_t>()(src)) %
                                 concurrency_;
                             vertices_mat[tid * concurrency_ + src_hash]
                                 .emplace_back(src);
-                            // vec.emplace_back(src);
                           }
                           if (builder.get_fragment_id(dst) == fid) {
                             int dst_hash =
-                                custom_hash(std::hash<internal_oid_t>()(dst)) %
+                                rehash_oid(std::hash<internal_oid_t>()(dst)) %
                                 concurrency_;
                             vertices_mat[tid * concurrency_ + dst_hash]
                                 .emplace_back(dst);
-                            // vec.emplace_back(dst);
                           }
                         },
                         make_index_sequence<2>{});
                   }
                 }
-                // DistinctSort(vec);
-                tt += grape::GetCurrentTime();
-                thread_time[tid] = tt;
               },
               i);
         }
         for (auto& thrd : threads) {
           thrd.join();
         }
-        show_thread_timing(thread_time, "parse vertices");
         std::vector<std::thread> aggregate_threads;
         for (int i = 0; i < concurrency_; ++i) {
           aggregate_threads.emplace_back(
               [&, this](int tid) {
-                double tt = -grape::GetCurrentTime();
                 auto& vec = vertices[tid];
                 for (int j = 0; j < concurrency_; ++j) {
                   vec.insert(vec.end(),
@@ -220,31 +208,20 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
                              vertices_mat[j * concurrency_ + tid].end());
                 }
                 DistinctSort(vec);
-                tt += grape::GetCurrentTime();
-                thread_time[tid] = tt;
               },
               i);
         }
         for (auto& thrd : aggregate_threads) {
           thrd.join();
         }
-        show_thread_timing(thread_time, "aggregate vertices");
         // TODO(luoxiaojian): parallelize this part
-        double tx = -grape::GetCurrentTime();
         for (auto& vec : vertices) {
           for (auto& v : vec) {
             builder.add_vertex(v);
           }
         }
-        tx += grape::GetCurrentTime();
-        LOG(INFO) << "[worker-" << comm_spec_.worker_id()
-                  << "] finished adding vertices, time: " << tx << " s";
       }
-      double ty = -grape::GetCurrentTime();
       builder.finish(comm_spec_, *vm_ptr);
-      ty += grape::GetCurrentTime();
-      LOG(INFO) << "[worker-" << comm_spec_.worker_id()
-                << "] finished building vertex map, time: " << ty << " s";
     }
     MPI_Barrier(comm_spec_.comm());
     t0 += grape::GetCurrentTime();
@@ -275,11 +252,9 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
       }
       processed_edges.resize(total);
       std::vector<std::thread> threads;
-      std::vector<double> thread_time(concurrency_, 0);
       for (int i = 0; i < concurrency_; ++i) {
         threads.emplace_back(
             [&, this](int tid) {
-              double tt = -grape::GetCurrentTime();
               size_t global_offset = 0;
               for (auto& buffer : got_edges_) {
                 size_t size = buffer.size();
@@ -304,15 +279,12 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
                       }
                     });
               }
-              tt += grape::GetCurrentTime();
-              thread_time[tid] = tt;
             },
             i);
       }
       for (auto& thrd : threads) {
         thrd.join();
       }
-      show_thread_timing(thread_time, "construct edges");
     }
     MPI_Barrier(comm_spec_.comm());
     t1 += grape::GetCurrentTime();

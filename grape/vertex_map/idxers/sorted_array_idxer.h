@@ -221,21 +221,15 @@ class SortedArrayIdxerBuilder<std::string, VID_T>
   using internal_oid_t = typename InternalOID<std::string>::type;
   void add(const internal_oid_t& oid) override {
     keys_.push_back(std::string(oid));
-    // keys_.push_back(oid);
   }
 
   std::unique_ptr<IdxerBase<std::string, VID_T>> finish() override {
     if (!sorted_) {
-      double t0 = -GetCurrentTime();
       DistinctSort(keys_);
-      t0 += GetCurrentTime();
-      double t1 = -GetCurrentTime();
       for (auto& key : keys_) {
         id_list_.emplace_back(key);
       }
       sorted_ = true;
-      t1 += GetCurrentTime();
-      LOG(INFO) << "sort time: " << t0 << ", copy time: " << t1;
     }
     return std::unique_ptr<IdxerBase<std::string, VID_T>>(
         new SortedArrayIdxer<std::string, VID_T>(std::move(id_list_)));
@@ -247,24 +241,17 @@ class SortedArrayIdxerBuilder<std::string, VID_T>
 
   void sync_response(const CommSpec& comm_spec, int source, int tag) override {
     if (!sorted_) {
-      double t0 = -GetCurrentTime();
       DistinctSort(keys_);
-      t0 += GetCurrentTime();
-      double t1 = -GetCurrentTime();
       for (auto& key : keys_) {
         id_list_.emplace_back(key);
       }
       sorted_ = true;
-      t1 += GetCurrentTime();
-      LOG(INFO) << "[worker-" << comm_spec.worker_id() << "] sort time: " << t0
-                << ", copy time: " << t1;
     }
     sync_comm::Send(id_list_, source, tag, comm_spec.comm());
   }
 
  private:
   std::vector<std::string> keys_;
-  // std::vector<internal_oid_t> keys_;
   StringViewVector id_list_;
   bool sorted_ = false;
 };

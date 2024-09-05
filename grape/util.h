@@ -223,19 +223,6 @@ inline size_t get_available_memory() {
 #endif
 }
 
-void show_thread_timing(const std::vector<double>& thread_time,
-                        const std::string& prefix) {
-  double total = 0, min_t = std::numeric_limits<double>::max(), max_t = 0;
-  for (auto& t : thread_time) {
-    total += t;
-    min_t = std::min(min_t, t);
-    max_t = std::max(max_t, t);
-  }
-  double avg_t = total / thread_time.size();
-  LOG(INFO) << prefix << " min: " << min_t << " max: " << max_t
-            << " avg: " << avg_t;
-}
-
 }  // namespace grape
 
 #endif  // GRAPE_UTIL_H_
