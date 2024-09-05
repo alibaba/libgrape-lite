@@ -80,12 +80,8 @@ class SortedArrayIdxer<std::string, VID_T>
 
  public:
   SortedArrayIdxer() {}
-  explicit SortedArrayIdxer(
-      Array<std::string, Allocator<std::string>>&& id_list) {
-    for (auto& id : id_list) {
-      id_list_.emplace_back(id);
-    }
-  }
+  explicit SortedArrayIdxer(StringViewVector&& id_list)
+      : id_list_(std::move(id_list)) {}
   ~SortedArrayIdxer() {}
 
   bool get_key(VID_T vid, internal_oid_t& oid) const override {
@@ -159,6 +155,31 @@ class SortedArrayIdxerDummyBuilder : public IdxerBuilderBase<OID_T, VID_T> {
   Array<OID_T, Allocator<OID_T>> id_list_;
 };
 
+template <typename VID_T>
+class SortedArrayIdxerDummyBuilder<std::string, VID_T>
+    : public IdxerBuilderBase<std::string, VID_T> {
+ public:
+  using internal_oid_t = typename InternalOID<std::string>::type;
+  void add(const internal_oid_t& oid) override {}
+
+  std::unique_ptr<IdxerBase<std::string, VID_T>> finish() override {
+    return std::unique_ptr<IdxerBase<std::string, VID_T>>(
+        new SortedArrayIdxer<std::string, VID_T>(std::move(id_list_)));
+  }
+
+  void sync_request(const CommSpec& comm_spec, int target, int tag) override {
+    sync_comm::Recv(id_list_, target, tag, comm_spec.comm());
+  }
+
+  void sync_response(const CommSpec& comm_spec, int source, int tag) override {
+    LOG(ERROR) << "SortedArrayIdxerDummyBuilder should not be used to sync "
+                  "response";
+  }
+
+ private:
+  StringViewVector id_list_;
+};
+
 template <typename OID_T, typename VID_T>
 class SortedArrayIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
  public:
@@ -190,6 +211,61 @@ class SortedArrayIdxerBuilder : public IdxerBuilderBase<OID_T, VID_T> {
 
  private:
   std::vector<OID_T> keys_;
+  bool sorted_ = false;
+};
+
+template <typename VID_T>
+class SortedArrayIdxerBuilder<std::string, VID_T>
+    : public IdxerBuilderBase<std::string, VID_T> {
+ public:
+  using internal_oid_t = typename InternalOID<std::string>::type;
+  void add(const internal_oid_t& oid) override {
+    keys_.push_back(std::string(oid));
+    // keys_.push_back(oid);
+  }
+
+  std::unique_ptr<IdxerBase<std::string, VID_T>> finish() override {
+    if (!sorted_) {
+      double t0 = -GetCurrentTime();
+      DistinctSort(keys_);
+      t0 += GetCurrentTime();
+      double t1 = -GetCurrentTime();
+      for (auto& key : keys_) {
+        id_list_.emplace_back(key);
+      }
+      sorted_ = true;
+      t1 += GetCurrentTime();
+      LOG(INFO) << "sort time: " << t0 << ", copy time: " << t1;
+    }
+    return std::unique_ptr<IdxerBase<std::string, VID_T>>(
+        new SortedArrayIdxer<std::string, VID_T>(std::move(id_list_)));
+  }
+
+  void sync_request(const CommSpec& comm_spec, int target, int tag) override {
+    LOG(ERROR) << "HashMapIdxerBuilder should not be used to sync request";
+  }
+
+  void sync_response(const CommSpec& comm_spec, int source, int tag) override {
+    if (!sorted_) {
+      double t0 = -GetCurrentTime();
+      DistinctSort(keys_);
+      t0 += GetCurrentTime();
+      double t1 = -GetCurrentTime();
+      for (auto& key : keys_) {
+        id_list_.emplace_back(key);
+      }
+      sorted_ = true;
+      t1 += GetCurrentTime();
+      LOG(INFO) << "[worker-" << comm_spec.worker_id() << "] sort time: " << t0
+                << ", copy time: " << t1;
+    }
+    sync_comm::Send(id_list_, source, tag, comm_spec.comm());
+  }
+
+ private:
+  std::vector<std::string> keys_;
+  // std::vector<internal_oid_t> keys_;
+  StringViewVector id_list_;
   bool sorted_ = false;
 };
 

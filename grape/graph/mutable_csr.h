@@ -112,7 +112,7 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
-  void finish(MutableCSR<VID_T, Nbr<VID_T, EDATA_T>>& ret) {
+  void finish(MutableCSR<VID_T, Nbr<VID_T, EDATA_T>>& ret, int concurrency) {
     if (vnum_ == 0) {
       ret.capacity_.clear();
       ret.prev_.clear();

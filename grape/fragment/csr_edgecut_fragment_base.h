@@ -411,9 +411,11 @@ class CSREdgecutFragmentBase
   using base_t::IsInnerVertexGid;
   using base_t::IsInnerVertexLid;
   using base_t::OuterVertexGid2Lid;
-  void buildCSR(const typename csr_builder_t::vertex_range_t& vertex_range,
+  using vertices_t = typename TRAITS_T::vertices_t;
+
+  void buildCSR(const vertices_t& vertex_range,
                 std::vector<Edge<VID_T, EDATA_T>>& edges,
-                LoadStrategy load_strategy) {
+                LoadStrategy load_strategy, int concurrency = 1) {
     csr_builder_t ie_builder, oe_builder;
     ie_builder.init(vertex_range);
     oe_builder.init(vertex_range);
@@ -497,42 +499,6 @@ class CSREdgecutFragmentBase
         ie_builder.inc_degree(e.dst);
       }
     };
-    if (load_strategy == LoadStrategy::kOnlyIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          parse_iter_in(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          parse_iter_in_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kOnlyOut) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          parse_iter_out(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          parse_iter_out_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          parse_iter_out_in(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          parse_iter_out_in_undirected(e);
-        }
-      }
-    } else {
-      LOG(FATAL) << "Invalid load strategy";
-    }
-
-    ie_builder.build_offsets();
-    oe_builder.build_offsets();
 
     auto insert_iter_in = [&](const Edge<VID_T, EDATA_T>& e) {
       if (e.src != invalid_vid) {
@@ -593,137 +559,47 @@ class CSREdgecutFragmentBase
       }
     };
 
-    if (load_strategy == LoadStrategy::kOnlyIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          insert_iter_in(e);
+    if (concurrency == 1) {
+      if (load_strategy == LoadStrategy::kOnlyIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            parse_iter_in(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            parse_iter_in_undirected(e);
+          }
+        }
+      } else if (load_strategy == LoadStrategy::kOnlyOut) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            parse_iter_out(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            parse_iter_out_undirected(e);
+          }
+        }
+      } else if (load_strategy == LoadStrategy::kBothOutIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            parse_iter_out_in(e);
+          }
+        } else {
+          for (auto& e : edges) {
+            parse_iter_out_in_undirected(e);
+          }
         }
       } else {
-        for (auto& e : edges) {
-          insert_iter_in_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kOnlyOut) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          insert_iter_out(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          insert_iter_out_undirected(e);
-        }
-      }
-    } else if (load_strategy == LoadStrategy::kBothOutIn) {
-      if (this->directed_) {
-        for (auto& e : edges) {
-          insert_iter_out_in(e);
-        }
-      } else {
-        for (auto& e : edges) {
-          insert_iter_out_in_undirected(e);
-        }
+        LOG(FATAL) << "Invalid load strategy";
       }
     } else {
-      LOG(FATAL) << "Invalid load strategy";
-    }
-
-    ie_builder.finish(ie_);
-    oe_builder.finish(oe_);
-  }
-
-  void parallelBuildCSR(
-      const typename csr_builder_t::vertex_range_t& vertex_range,
-      std::vector<Edge<VID_T, EDATA_T>>& edges, LoadStrategy load_strategy,
-      int concurrency) {
-    csr_builder_t ie_builder, oe_builder;
-    ie_builder.init(vertex_range);
-    oe_builder.init(vertex_range);
-
-    static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
-    auto parse_iter_in = [&](Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        if (IsInnerVertexGid(e.src)) {
-          InnerVertexGid2Lid(e.src, e.src);
-        } else {
-          CHECK(OuterVertexGid2Lid(e.src, e.src));
-          oe_builder.inc_degree(e.src);
-        }
-        InnerVertexGid2Lid(e.dst, e.dst);
-        ie_builder.inc_degree(e.dst);
-      }
-    };
-    auto parse_iter_out = [&](Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        InnerVertexGid2Lid(e.src, e.src);
-        oe_builder.inc_degree(e.src);
-        if (IsInnerVertexGid(e.dst)) {
-          InnerVertexGid2Lid(e.dst, e.dst);
-        } else {
-          CHECK(OuterVertexGid2Lid(e.dst, e.dst));
-          ie_builder.inc_degree(e.dst);
-        }
-      }
-    };
-    auto parse_iter_out_in = [&](Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        Gid2Lid(e.src, e.src);
-        oe_builder.inc_degree(e.src);
-        Gid2Lid(e.dst, e.dst);
-        ie_builder.inc_degree(e.dst);
-      }
-    };
-    auto parse_iter_in_undirected = [&](Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        if (IsInnerVertexGid(e.src)) {
-          InnerVertexGid2Lid(e.src, e.src);
-          ie_builder.inc_degree(e.src);
-        } else {
-          CHECK(OuterVertexGid2Lid(e.src, e.src));
-          oe_builder.inc_degree(e.src);
-        }
-        if (IsInnerVertexGid(e.dst)) {
-          InnerVertexGid2Lid(e.dst, e.dst);
-          ie_builder.inc_degree(e.dst);
-        } else {
-          CHECK(OuterVertexGid2Lid(e.dst, e.dst));
-          oe_builder.inc_degree(e.dst);
-        }
-      }
-    };
-    auto parse_iter_out_undirected = [&](Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        if (IsInnerVertexGid(e.src)) {
-          InnerVertexGid2Lid(e.src, e.src);
-          oe_builder.inc_degree(e.src);
-        } else {
-          CHECK(OuterVertexGid2Lid(e.src, e.src));
-          ie_builder.inc_degree(e.src);
-        }
-        if (IsInnerVertexGid(e.dst)) {
-          InnerVertexGid2Lid(e.dst, e.dst);
-          oe_builder.inc_degree(e.dst);
-        } else {
-          CHECK(OuterVertexGid2Lid(e.dst, e.dst));
-          ie_builder.inc_degree(e.dst);
-        }
-      }
-    };
-    auto parse_iter_out_in_undirected = [&](Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        Gid2Lid(e.src, e.src);
-        oe_builder.inc_degree(e.src);
-        ie_builder.inc_degree(e.src);
-        Gid2Lid(e.dst, e.dst);
-        oe_builder.inc_degree(e.dst);
-        ie_builder.inc_degree(e.dst);
-      }
-    };
-
-    {
       std::vector<std::thread> threads;
+      std::vector<double> thread_time(concurrency, 0);
       for (int i = 0; i < concurrency; ++i) {
         threads.emplace_back(
             [&, this](int tid) {
+              double tt = -grape::GetCurrentTime();
               size_t batch = (edges.size() + concurrency - 1) / concurrency;
               size_t begin = std::min(batch * tid, edges.size());
               size_t end = std::min(begin + batch, edges.size());
@@ -760,81 +636,61 @@ class CSREdgecutFragmentBase
               } else {
                 LOG(FATAL) << "Invalid load strategy";
               }
+              tt += grape::GetCurrentTime();
+              thread_time[tid] = tt;
             },
             i);
       }
       for (auto& thrd : threads) {
         thrd.join();
       }
+      show_thread_timing(thread_time, "inc degree");
     }
 
     ie_builder.build_offsets();
     oe_builder.build_offsets();
 
-    auto insert_iter_in = [&](const Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-        if (!IsInnerVertexLid(e.src)) {
-          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-        }
-      }
-    };
-    auto insert_iter_out = [&](const Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-        if (!IsInnerVertexLid(e.dst)) {
-          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-        }
-      }
-    };
-    auto insert_iter_out_in = [&](const Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-        oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-      }
-    };
-    auto insert_iter_in_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        if (IsInnerVertexLid(e.src)) {
-          ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+    if (concurrency == 1) {
+      if (load_strategy == LoadStrategy::kOnlyIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            insert_iter_in(e);
+          }
         } else {
-          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+          for (auto& e : edges) {
+            insert_iter_in_undirected(e);
+          }
         }
-        if (IsInnerVertexLid(e.dst)) {
-          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+      } else if (load_strategy == LoadStrategy::kOnlyOut) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            insert_iter_out(e);
+          }
         } else {
-          oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
+          for (auto& e : edges) {
+            insert_iter_out_undirected(e);
+          }
         }
-      }
-    };
-    auto insert_iter_out_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        if (IsInnerVertexLid(e.src)) {
-          oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+      } else if (load_strategy == LoadStrategy::kBothOutIn) {
+        if (this->directed_) {
+          for (auto& e : edges) {
+            insert_iter_out_in(e);
+          }
         } else {
-          ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
+          for (auto& e : edges) {
+            insert_iter_out_in_undirected(e);
+          }
         }
-        if (IsInnerVertexLid(e.dst)) {
-          oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-        } else {
-          ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-        }
+      } else {
+        LOG(FATAL) << "Invalid load strategy";
       }
-    };
-    auto insert_iter_out_in_undirected = [&](const Edge<VID_T, EDATA_T>& e) {
-      if (e.src != invalid_vid) {
-        ie_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-        ie_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-        oe_builder.add_edge(e.src, nbr_t(e.dst, e.edata));
-        oe_builder.add_edge(e.dst, nbr_t(e.src, e.edata));
-      }
-    };
-
-    {
+    } else {
       std::vector<std::thread> threads;
+      std::vector<double> thread_time(concurrency, 0);
       for (int i = 0; i < concurrency; ++i) {
         threads.emplace_back(
             [&, this](int tid) {
+              double tt = -grape::GetCurrentTime();
               size_t batch = (edges.size() + concurrency - 1) / concurrency;
               size_t begin = std::min(batch * tid, edges.size());
               size_t end = std::min(begin + batch, edges.size());
@@ -871,16 +727,19 @@ class CSREdgecutFragmentBase
               } else {
                 LOG(FATAL) << "Invalid load strategy";
               }
+              tt += grape::GetCurrentTime();
+              thread_time[tid] = tt;
             },
             i);
       }
       for (auto& thrd : threads) {
         thrd.join();
       }
+      show_thread_timing(thread_time, "insert edge");
     }
 
-    ie_builder.finish(ie_);
-    oe_builder.finish(oe_);
+    ie_builder.finish(ie_, concurrency);
+    oe_builder.finish(oe_, concurrency);
   }
 
   template <typename IOADAPTOR_T>

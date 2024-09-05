@@ -183,6 +183,14 @@ class FragmentBase {
     return oid;
   }
 
+  using internal_id_t = typename InternalOID<OID_T>::type;
+
+  internal_id_t GetInternalId(const Vertex<VID_T>& v) const {
+    internal_id_t oid{};
+    vm_ptr_->GetInternalOid(Vertex2Gid(v), oid);
+    return oid;
+  }
+
   OID_T Gid2Oid(VID_T gid) const {
     OID_T oid;
     vm_ptr_->GetOid(gid, oid);

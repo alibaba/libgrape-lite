@@ -84,15 +84,15 @@ class DeMutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
     }
   }
 
-  void finish(DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>>& ret) {
+  void finish(DeMutableCSR<VID_T, Nbr<VID_T, EDATA_T>>& ret, int concurrency) {
     ret.min_id_ = min_id_;
     ret.max_id_ = max_id_;
     ret.max_head_id_ = max_head_id_;
     ret.min_tail_id_ = min_tail_id_;
     ret.dedup_ = dedup_;
 
-    head_builder_.finish(ret.head_);
-    tail_builder_.finish(ret.tail_);
+    head_builder_.finish(ret.head_, concurrency);
+    tail_builder_.finish(ret.tail_, concurrency);
 
     if (dedup_) {
       VID_T head_num = ret.head_.vertex_num();

@@ -27,6 +27,15 @@ limitations under the License.
 
 namespace grape {
 
+inline size_t custom_hash(size_t val) {
+  val = (val ^ 61) ^ (val >> 16);
+  val = val + (val << 3);
+  val = val ^ (val >> 4);
+  val = val * 0x27d4eb2d;
+  val = val ^ (val >> 15);
+  return val;
+}
+
 template <typename FRAG_T>
 class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
   using fragment_t = FRAG_T;
@@ -129,49 +138,119 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
         }
       } else {
         std::atomic<size_t> idx(0);
-        size_t buf_num = got_edges_.size();
         std::vector<std::vector<internal_oid_t>> vertices(concurrency_);
+        std::vector<std::vector<internal_oid_t>> vertices_mat(concurrency_ *
+                                                              concurrency_);
         std::vector<std::thread> threads;
+        std::vector<double> thread_time(concurrency_, 0);
         for (int i = 0; i < concurrency_; ++i) {
           threads.emplace_back(
               [&, this](int tid) {
+                double tt = -grape::GetCurrentTime();
                 fid_t fid = comm_spec_.fid();
-                auto& vec = vertices[tid];
-                while (true) {
-                  size_t cur = idx.fetch_add(1);
-                  if (cur >= buf_num) {
-                    break;
+                // auto& vec = vertices[tid];
+                for (auto& buffer : got_edges_) {
+                  size_t size = buffer.size();
+                  size_t chunk = (size + concurrency_ - 1) / concurrency_;
+                  size_t start = std::min(size, chunk * tid);
+                  size_t end = std::min(size, start + chunk);
+                  if (spec_.idxer_type == IdxerType::kLocalIdxer) {
+                    range_foreach_helper(
+                        buffer, start, end,
+                        [&](const internal_oid_t& src,
+                            const internal_oid_t& dst) {
+                          int src_hash =
+                              custom_hash(std::hash<internal_oid_t>()(src)) %
+                              concurrency_;
+                          vertices_mat[tid * concurrency_ + src_hash]
+                              .emplace_back(src);
+                          int dst_hash =
+                              custom_hash(std::hash<internal_oid_t>()(dst)) %
+                              concurrency_;
+                          vertices_mat[tid * concurrency_ + dst_hash]
+                              .emplace_back(dst);
+                          // vec.emplace_back(src);
+                          // vec.emplace_back(dst);
+                        },
+                        make_index_sequence<2>{});
+                  } else {
+                    range_foreach_helper(
+                        buffer, start, end,
+                        [&](const internal_oid_t& src,
+                            const internal_oid_t& dst) {
+                          if (builder.get_fragment_id(src) == fid) {
+                            int src_hash =
+                                custom_hash(std::hash<internal_oid_t>()(src)) %
+                                concurrency_;
+                            vertices_mat[tid * concurrency_ + src_hash]
+                                .emplace_back(src);
+                            // vec.emplace_back(src);
+                          }
+                          if (builder.get_fragment_id(dst) == fid) {
+                            int dst_hash =
+                                custom_hash(std::hash<internal_oid_t>()(dst)) %
+                                concurrency_;
+                            vertices_mat[tid * concurrency_ + dst_hash]
+                                .emplace_back(dst);
+                            // vec.emplace_back(dst);
+                          }
+                        },
+                        make_index_sequence<2>{});
                   }
-                  auto& buffer = got_edges_[cur];
-                  foreach_helper(
-                      buffer,
-                      [&](const internal_oid_t& src,
-                          const internal_oid_t& dst) {
-                        if (builder.get_fragment_id(src) == fid) {
-                          vec.emplace_back(src);
-                        }
-                        if (builder.get_fragment_id(dst) == fid) {
-                          vec.emplace_back(dst);
-                        }
-                      },
-                      make_index_sequence<2>{});
                 }
-                DistinctSort(vec);
+                // DistinctSort(vec);
+                tt += grape::GetCurrentTime();
+                thread_time[tid] = tt;
               },
               i);
         }
         for (auto& thrd : threads) {
           thrd.join();
         }
+        show_thread_timing(thread_time, "parse vertices");
+        std::vector<std::thread> aggregate_threads;
+        for (int i = 0; i < concurrency_; ++i) {
+          aggregate_threads.emplace_back(
+              [&, this](int tid) {
+                double tt = -grape::GetCurrentTime();
+                auto& vec = vertices[tid];
+                for (int j = 0; j < concurrency_; ++j) {
+                  vec.insert(vec.end(),
+                             vertices_mat[j * concurrency_ + tid].begin(),
+                             vertices_mat[j * concurrency_ + tid].end());
+                }
+                DistinctSort(vec);
+                tt += grape::GetCurrentTime();
+                thread_time[tid] = tt;
+              },
+              i);
+        }
+        for (auto& thrd : aggregate_threads) {
+          thrd.join();
+        }
+        show_thread_timing(thread_time, "aggregate vertices");
+        // TODO(luoxiaojian): parallelize this part
+        double tx = -grape::GetCurrentTime();
         for (auto& vec : vertices) {
           for (auto& v : vec) {
             builder.add_vertex(v);
           }
         }
+        tx += grape::GetCurrentTime();
+        LOG(INFO) << "[worker-" << comm_spec_.worker_id()
+                  << "] finished adding vertices, time: " << tx << " s";
       }
+      double ty = -grape::GetCurrentTime();
       builder.finish(comm_spec_, *vm_ptr);
+      ty += grape::GetCurrentTime();
+      LOG(INFO) << "[worker-" << comm_spec_.worker_id()
+                << "] finished building vertex map, time: " << ty << " s";
     }
+    MPI_Barrier(comm_spec_.comm());
     t0 += grape::GetCurrentTime();
+    if (comm_spec_.worker_id() == 0) {
+      VLOG(1) << "finished constructing vertex_map, time: " << t0 << " s";
+    }
 
     double t1 = -grape::GetCurrentTime();
     std::vector<Edge<vid_t, edata_t>> processed_edges;
@@ -195,39 +274,51 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
         total += buffers.size();
       }
       processed_edges.resize(total);
-      std::atomic<size_t> idx(0);
-      size_t buf_num = got_edges_.size();
       std::vector<std::thread> threads;
+      std::vector<double> thread_time(concurrency_, 0);
       for (int i = 0; i < concurrency_; ++i) {
-        threads.emplace_back([&, this]() {
-          while (true) {
-            size_t cur = idx.fetch_add(1);
-            if (cur >= buf_num) {
-              break;
-            }
-            auto& buffer = got_edges_[cur];
-            size_t offset = offsets[cur];
-            foreach_rval(buffer, [&](internal_oid_t&& src, internal_oid_t&& dst,
-                                     edata_t&& data) {
-              vid_t src_gid, dst_gid;
-              if (vm_ptr->GetGid(oid_t(src), src_gid) &&
-                  vm_ptr->GetGid(oid_t(dst), dst_gid)) {
-                processed_edges[offset] =
-                    Edge<vid_t, edata_t>(src_gid, dst_gid, std::move(data));
-              } else {
-                processed_edges[offset] = Edge<vid_t, edata_t>(
-                    std::numeric_limits<vid_t>::max(),
-                    std::numeric_limits<vid_t>::max(), std::move(data));
+        threads.emplace_back(
+            [&, this](int tid) {
+              double tt = -grape::GetCurrentTime();
+              size_t global_offset = 0;
+              for (auto& buffer : got_edges_) {
+                size_t size = buffer.size();
+                size_t chunk = (size + concurrency_ - 1) / concurrency_;
+                size_t start = std::min(size, chunk * tid);
+                size_t end = std::min(size, start + chunk);
+                size_t local_offset = global_offset + start;
+                global_offset += size;
+                range_foreach_rval(
+                    buffer, start, end,
+                    [&](internal_oid_t&& src, internal_oid_t&& dst,
+                        edata_t&& data) {
+                      vid_t src_gid, dst_gid;
+                      if (vm_ptr->GetGidFromInternalOid(src, src_gid) &&
+                          vm_ptr->GetGidFromInternalOid(dst, dst_gid)) {
+                        processed_edges[local_offset++] = Edge<vid_t, edata_t>(
+                            src_gid, dst_gid, std::move(data));
+                      } else {
+                        processed_edges[local_offset++] = Edge<vid_t, edata_t>(
+                            std::numeric_limits<vid_t>::max(),
+                            std::numeric_limits<vid_t>::max(), std::move(data));
+                      }
+                    });
               }
-            });
-          }
-        });
+              tt += grape::GetCurrentTime();
+              thread_time[tid] = tt;
+            },
+            i);
       }
       for (auto& thrd : threads) {
         thrd.join();
       }
+      show_thread_timing(thread_time, "construct edges");
     }
+    MPI_Barrier(comm_spec_.comm());
     t1 += grape::GetCurrentTime();
+    if (comm_spec_.worker_id() == 0) {
+      VLOG(1) << "finished parsing edges, time: " << t1 << " s";
+    }
 
     double t2 = -grape::GetCurrentTime();
     fragment = std::make_shared<fragment_t>();
@@ -239,11 +330,11 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
       fragment->ParallelInit(comm_spec_, spec_.directed, std::move(vm_ptr),
                              fake_vertices, processed_edges, concurrency_);
     }
+    MPI_Barrier(comm_spec_.comm());
     t2 += grape::GetCurrentTime();
-    LOG(INFO) << "[worker-" << comm_spec_.worker_id()
-              << "] basic loader: construct vertices time: " << t0
-              << " s, construct edges: " << t1
-              << " s, construct fragment: " << t2 << " s";
+    if (comm_spec_.worker_id() == 0) {
+      VLOG(1) << "finished initializing fragment, time: " << t2 << " s";
+    }
 
     if (!std::is_same<EmptyType, vdata_t>::value) {
       this->InitOuterVertexData(fragment);

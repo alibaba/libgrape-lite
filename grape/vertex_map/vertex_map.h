@@ -77,13 +77,25 @@ class VertexMap {
     return GetOid(fid, GetLidFromGid(gid), oid);
   }
 
+  bool GetInternalOid(const VID_T& gid, internal_oid_t& oid) const {
+    fid_t fid = GetFidFromGid(gid);
+    return GetInternalOid(fid, GetLidFromGid(gid), oid);
+  }
+
   bool GetOid(fid_t fid, const VID_T& lid, OID_T& oid) const {
     internal_oid_t internal_oid;
+    if (GetInternalOid(fid, lid, internal_oid)) {
+      oid = InternalOID<OID_T>::FromInternal(internal_oid);
+      return true;
+    }
+    return false;
+  }
+
+  bool GetInternalOid(fid_t fid, const VID_T& lid, internal_oid_t& oid) const {
     if (fid >= fnum_) {
       return false;
     }
-    if (idxers_[fid]->get_key(lid, internal_oid)) {
-      oid = InternalOID<OID_T>::FromInternal(internal_oid);
+    if (idxers_[fid]->get_key(lid, oid)) {
       return true;
     }
     return false;
@@ -107,6 +119,26 @@ class VertexMap {
       return false;
     }
     return GetGid(fid, oid, gid);
+  }
+
+  bool GetGidFromInternalOid(fid_t fid, const internal_oid_t& oid,
+                             VID_T& gid) const {
+    if (fid >= fnum_) {
+      return false;
+    }
+    if (idxers_[fid]->get_index(oid, gid)) {
+      gid = Lid2Gid(fid, gid);
+      return true;
+    }
+    return false;
+  }
+
+  bool GetGidFromInternalOid(const internal_oid_t& oid, VID_T& gid) const {
+    fid_t fid = partitioner_->GetPartitionId(oid);
+    if (fid == fnum_) {
+      return false;
+    }
+    return GetGidFromInternalOid(fid, oid, gid);
   }
 
   void reset() { idxers_.clear(); }

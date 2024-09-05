@@ -59,7 +59,7 @@ struct ImmutableEdgecutFragmentTraits {
   using fragment_const_adj_list_t = ConstAdjList<VID_T, EDATA_T>;
 
   using csr_t = ImmutableCSR<VID_T, Nbr<VID_T, EDATA_T>>;
-  using csr_builder_t = ImmutableCSRBuild<VID_T, Nbr<VID_T, EDATA_T>>;
+  using csr_builder_t = ImmutableCSRParallelBuilder<VID_T, Nbr<VID_T, EDATA_T>>;
   using mirror_vertices_t = std::vector<Vertex<VID_T>>;
 };
 
@@ -157,7 +157,6 @@ class ImmutableEdgecutFragment
   using base_t::buildCSR;
   using base_t::init;
   using base_t::IsInnerVertexGid;
-  using base_t::parallelBuildCSR;
 
   static std::string type_info() {
     std::string ret = "ImmutableEdgecutFragment<";
@@ -372,7 +371,6 @@ class ImmutableEdgecutFragment
     double t0 = -grape::GetCurrentTime();
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
     {
-      std::vector<VID_T> outer_vertices;
       auto iter_in = [&](Edge<VID_T, EDATA_T>& e,
                          std::vector<VID_T>& outer_vertices) {
         if (IsInnerVertexGid(e.dst)) {
@@ -437,9 +435,11 @@ class ImmutableEdgecutFragment
 
       std::vector<std::vector<VID_T>> outer_vertices_vec(concurrency);
       std::vector<std::thread> threads;
+      std::vector<double> thread_time(concurrency, 0);
       for (int i = 0; i < concurrency; ++i) {
         threads.emplace_back(
             [&, this](int tid) {
+              double tt = -grape::GetCurrentTime();
               size_t batch = (edges.size() + concurrency - 1) / concurrency;
               size_t begin = std::min(batch * tid, edges.size());
               size_t end = std::min(begin + batch, edges.size());
@@ -472,12 +472,16 @@ class ImmutableEdgecutFragment
                 LOG(FATAL) << "Invalid load strategy";
               }
               DistinctSort(vec);
+              tt += grape::GetCurrentTime();
+              thread_time[tid] = tt;
             },
             i);
       }
       for (auto& thrd : threads) {
         thrd.join();
       }
+      show_thread_timing(thread_time, "construct outer vertices time");
+      std::vector<VID_T> outer_vertices;
       for (auto& vec : outer_vertices_vec) {
         outer_vertices.insert(outer_vertices.end(), vec.begin(), vec.end());
       }
@@ -503,7 +507,7 @@ class ImmutableEdgecutFragment
     t1 += grape::GetCurrentTime();
 
     double t2 = -grape::GetCurrentTime();
-    parallelBuildCSR(this->Vertices(), edges, load_strategy, concurrency);
+    buildCSR(this->Vertices(), edges, load_strategy, concurrency);
     t2 += grape::GetCurrentTime();
 
     double t3 = -grape::GetCurrentTime();
@@ -529,8 +533,6 @@ class ImmutableEdgecutFragment
     LOG(INFO) << "[frag-" << fid_ << "] construct vertices time: " << t0
               << ", init time: " << t1 << ", build csr time: " << t2
               << ", init outer vertices time: " << t3;
-    LOG(INFO) << "[frag-" << fid_ << "] ivnum: " << ivnum_
-              << ", ovnum: " << ovnum_ << ", edge_num: " << this->GetEdgeNum();
   }
 
   template <typename IOADAPTOR_T>

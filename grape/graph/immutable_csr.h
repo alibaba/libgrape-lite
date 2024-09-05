@@ -33,15 +33,15 @@ template <typename VID_T, typename NBR_T>
 class ImmutableCSR;
 
 template <typename VID_T, typename NBR_T>
-class ImmutableCSRBuild {
+class ImmutableCSRParallelBuilder {
   using vid_t = VID_T;
   using nbr_t = NBR_T;
 
  public:
   using vertex_range_t = VertexRange<VID_T>;
 
-  ImmutableCSRBuild() {}
-  ~ImmutableCSRBuild() {}
+  ImmutableCSRParallelBuilder() {}
+  ~ImmutableCSRParallelBuilder() {}
 
   void init(VID_T vnum) {
     vnum_ = vnum;
@@ -101,9 +101,33 @@ class ImmutableCSRBuild {
     }
   }
 
-  void finish(ImmutableCSR<VID_T, NBR_T>& ret) {
-    for (VID_T i = 0; i < vnum_; ++i) {
-      std::sort(offsets_[i], offsets_[i + 1]);
+  void finish(ImmutableCSR<VID_T, NBR_T>& ret, int concurrency) {
+    if (concurrency == 1) {
+      for (VID_T i = 0; i < vnum_; ++i) {
+        std::sort(offsets_[i], offsets_[i + 1]);
+      }
+    } else {
+      std::vector<std::thread> threads;
+      std::atomic<VID_T> offset(0);
+      static constexpr VID_T chunk = 4096;
+      for (int i = 0; i < concurrency; ++i) {
+        threads.emplace_back([this, &offset]() {
+          while (true) {
+            VID_T begin = std::min(offset.fetch_add(chunk), vnum_);
+            VID_T end = std::min(begin + chunk, vnum_);
+            if (begin == end) {
+              break;
+            }
+            while (begin < end) {
+              std::sort(offsets_[begin], offsets_[begin + 1]);
+              ++begin;
+            }
+          }
+        });
+      }
+      for (auto& thrd : threads) {
+        thrd.join();
+      }
     }
 
     ret.edges_.swap(edges_);
@@ -121,6 +145,90 @@ class ImmutableCSRBuild {
 };
 
 template <typename VID_T, typename NBR_T>
+class ImmutableCSRBuilder {
+  using vid_t = VID_T;
+  using nbr_t = NBR_T;
+
+ public:
+  using vertex_range_t = VertexRange<VID_T>;
+
+  ImmutableCSRBuilder() {}
+  ~ImmutableCSRBuilder() {}
+
+  void init(VID_T vnum) {
+    vnum_ = vnum;
+    degree_.clear();
+    degree_.resize(vnum, 0);
+  }
+
+  void init(const VertexRange<VID_T>& range) {
+    assert(range.begin_value() == 0);
+    vnum_ = range.size();
+    degree_.clear();
+    degree_.resize(vnum_, 0);
+  }
+
+  void inc_degree(VID_T i) {
+    if (i < vnum_) {
+      ++degree_[i];
+    }
+  }
+
+  void build_offsets() {
+    edge_num_ = 0;
+    for (auto d : degree_) {
+      edge_num_ += d;
+    }
+    edges_.clear();
+    edges_.resize(edge_num_);
+    offsets_.clear();
+    offsets_.resize(vnum_ + 1);
+    offsets_[0] = edges_.data();
+    for (VID_T i = 0; i < vnum_; ++i) {
+      offsets_[i + 1] = offsets_[i] + degree_[i];
+    }
+    CHECK_EQ(offsets_[vnum_], edges_.data() + edge_num_);
+    {
+      std::vector<int> tmp;
+      tmp.swap(degree_);
+    }
+    iter_ = offsets_;
+  }
+
+  void add_edge(VID_T src, const nbr_t& nbr) {
+    if (src < vnum_) {
+      nbr_t* ptr = iter_[src]++;
+      *ptr = nbr;
+    }
+  }
+
+  template <typename FUNC_T>
+  void sort(const FUNC_T& func) {
+    for (VID_T i = 0; i < vnum_; ++i) {
+      std::sort(offsets_[i], offsets_[i + 1], func);
+    }
+  }
+
+  void finish(ImmutableCSR<VID_T, NBR_T>& ret, int concurrency) {
+    for (VID_T i = 0; i < vnum_; ++i) {
+      std::sort(offsets_[i], offsets_[i + 1]);
+    }
+
+    ret.edges_.swap(edges_);
+    ret.offsets_.swap(offsets_);
+  }
+
+ private:
+  VID_T vnum_;
+  size_t edge_num_;
+
+  Array<nbr_t, Allocator<nbr_t>> edges_;
+  Array<nbr_t*, Allocator<nbr_t*>> offsets_;
+  std::vector<int> degree_;
+  Array<nbr_t*, Allocator<nbr_t*>> iter_;
+};
+
+template <typename VID_T, typename NBR_T>
 class ImmutableCSRStreamBuilder {
  public:
   template <typename ITER_T>
@@ -135,7 +243,7 @@ class ImmutableCSRStreamBuilder {
     degree_.push_back(degree);
   }
 
-  void finish(ImmutableCSR<VID_T, NBR_T>& ret) {
+  void finish(ImmutableCSR<VID_T, NBR_T>& ret, int concurrency) {
     ret.edges_.clear();
     ret.edges_.resize(edges_.size());
     std::copy(edges_.begin(), edges_.end(), ret.edges_.begin());
@@ -158,6 +266,7 @@ class ImmutableCSR {
  public:
   using vid_t = VID_T;
   using nbr_t = NBR_T;
+  using vertex_range_t = VertexRange<VID_T>;
 
   ImmutableCSR() {
     offsets_.resize(1);
@@ -258,7 +367,10 @@ class ImmutableCSR {
   Array<nbr_t*, Allocator<nbr_t*>> offsets_;
 
   template <typename _VID_T, typename _EDATA_T>
-  friend class ImmutableCSRBuild;
+  friend class ImmutableCSRBuilder;
+
+  template <typename _VID_T, typename _EDATA_T>
+  friend class ImmutableCSRParallelBuilder;
 
   template <typename _VID_T, typename _EDATA_T>
   friend class ImmutableCSRStreamBuilder;
