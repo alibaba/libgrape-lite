@@ -48,15 +48,15 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
 
   void init(VID_T vnum) {
     vnum_ = vnum;
-    degree_ = std::vector<std::atomic<int>>(vnum);
-    for (VID_T i = 0; i < vnum; ++i) {
-      degree_[i].store(0);
-    }
+    degree_.clear();
+    degree_.resize(vnum, 0);
   }
 
   void init(const vertex_range_t& range) {
     assert(range.begin_value() == 0);
-    init(range.size());
+    vnum_ = range.size();
+    degree_.clear();
+    degree_.resize(vnum_, 0);
   }
 
   void inc_degree(VID_T i) {
@@ -66,31 +66,23 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
   }
   void resize(VID_T vnum) {
     vnum_ = vnum;
-    std::vector<std::atomic<int>> new_degree(vnum_);
-    size_t keep_size = std::min(vnum_, degree_.size());
-    for (size_t k = 0; k < keep_size; ++k) {
-      new_degree[k].store(degree_[k].load());
-    }
-    for (size_t k = keep_size; k < vnum_; ++k) {
-      new_degree[k].store(0);
-    }
-    degree_ = std::move(new_degree);
+    degree_.resize(vnum_, 0);
   }
 
   VID_T vertex_num() const { return vnum_; }
 
   void build_offsets() {
     size_t total_capacity = 0;
-    for (vid_t i = 0; i < vnum_; ++i) {
-      total_capacity += degree_[i].load() * relax_rate;
+    for (auto d : degree_) {
+      total_capacity += d * relax_rate;
     }
     buffer_.resize(total_capacity);
     nbr_t* ptr = buffer_.data();
     adj_lists_.resize(vnum_);
     capacity_.resize(vnum_);
-    iter_ = std::vector<std::atomic<int>>(vnum_);
+    iter_.resize(vnum_);
     for (vid_t i = 0; i < vnum_; ++i) {
-      iter_[i].store(0);
+      iter_[i] = adj_lists_[i].begin = ptr;
       adj_lists_[i].end = ptr + degree_[i];
       capacity_[i] = degree_[i] * relax_rate;
       ptr += capacity_[i];
@@ -99,8 +91,7 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
 
   void add_edge(VID_T src, const nbr_t& nbr) {
     if (src < vnum_) {
-      int offset = iter_[src].fetch_add(1);
-      nbr_t* ptr = adj_lists_[src].begin + offset;
+      nbr_t* ptr = iter_[src]++;
       *ptr = nbr;
     }
   }
@@ -140,8 +131,8 @@ class MutableCSRBuilder<VID_T, Nbr<VID_T, EDATA_T>> {
 
   std::vector<int> capacity_;
   std::vector<adj_list_t> adj_lists_;
-  std::vector<std::atomic<int>> degree_;
-  std::vector<std::atomic<int>> iter_;
+  std::vector<nbr_t*> iter_;
+  std::vector<int> degree_;
 
   mutable_csr_impl::Blob<vid_t, nbr_t> buffer_;
 };
