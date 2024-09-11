@@ -21,6 +21,7 @@ limitations under the License.
 
 #include "grape/fragment/ev_fragment_loader.h"
 #include "grape/fragment/ev_fragment_mutator.h"
+#include "grape/fragment/vc_fragment_loader.h"
 #include "grape/io/local_io_adaptor.h"
 
 namespace grape {
@@ -64,6 +65,18 @@ static std::shared_ptr<FRAG_T> LoadGraphAndMutate(
       efile, vfile, comm_spec, spec);
   EVFragmentMutator<FRAG_T, IOADAPTOR_T> mutator(comm_spec);
   return mutator.MutateFragment(delta_efile, delta_vfile, ret, spec.directed);
+}
+
+template <typename FRAG_T, typename IOADAPTOR_T = LocalIOAdaptor,
+          typename LINE_PARSER_T =
+              TSVLineParser<typename FRAG_T::oid_t, typename FRAG_T::vdata_t,
+                            typename FRAG_T::edata_t>>
+static std::shared_ptr<FRAG_T> LoadVertexcutGraph(
+    const std::string& efile, int64_t vnum, const CommSpec& comm_spec,
+    const LoadGraphSpec& spec = DefaultLoadGraphSpec()) {
+  std::unique_ptr<VCFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>> loader(
+      new VCFragmentLoader<FRAG_T, IOADAPTOR_T, LINE_PARSER_T>(comm_spec));
+  return loader->LoadFragment(vnum, efile, spec);
 }
 
 }  // namespace grape

@@ -424,7 +424,7 @@ class ImmutableEdgecutFragment
       std::vector<std::thread> threads;
       for (int i = 0; i < concurrency; ++i) {
         threads.emplace_back(
-            [&, this](int tid) {
+            [&](int tid) {
               size_t batch = (edges.size() + concurrency - 1) / concurrency;
               size_t begin = std::min(batch * tid, edges.size());
               size_t end = std::min(begin + batch, edges.size());

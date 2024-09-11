@@ -18,6 +18,7 @@ limitations under the License.
 
 #include <string>
 #include "grape/io/io_adaptor_base.h"
+#include "grape/utils/vertex_array.h"
 
 namespace grape {
 
@@ -263,6 +264,81 @@ std::unique_ptr<IPartitioner<OID_T>> deserialize_partitioner(
   }
   return partitioner;
 }
+
+template <typename OID_T>
+struct VCPartitioner {};
+
+template <>
+struct VCPartitioner<int64_t> {
+  using vertices_t = VertexRange<int64_t>;
+
+ public:
+  VCPartitioner() {}
+  VCPartitioner(fid_t fnum, int64_t vnum) { init(fnum, vnum); }
+
+  void init(fid_t fnum, int64_t vnum) {
+    fnum_ = fnum;
+    vnum_ = vnum;
+
+    fnum_sr_ = std::sqrt(fnum_);
+    CHECK_EQ(fnum_sr_ * fnum_sr_, fnum_);
+
+    vchunk_ = (vnum_ + fnum_sr_ - 1) / fnum_sr_;
+  }
+
+  fid_t get_edge_partition(const int64_t& src, const int64_t& dst) const {
+    return coord_to_fid(get_vertex_coord(src), get_vertex_coord(dst));
+  }
+
+  fid_t get_vertex_coord(const int64_t& v) const { return v / vchunk_; }
+
+  fid_t coord_to_fid(const fid_t& src, const fid_t& dst) const {
+    return src * fnum_sr_ + dst;
+  }
+
+  fid_t get_src_coord(fid_t fid) const { return fid / fnum_sr_; }
+
+  fid_t get_dst_coord(fid_t fid) const { return fid % fnum_sr_; }
+
+  vertices_t get_src_vertices(fid_t fid) const {
+    fid_t src_coord = get_src_coord(fid);
+    return vertices_t(src_coord * vchunk_,
+                      std::min(src_coord + vchunk_, vnum_));
+  }
+  vertices_t get_dst_vertices(fid_t fid) const {
+    fid_t dst_coord = get_dst_coord(fid);
+    return vertices_t(dst_coord * vchunk_,
+                      std::min(dst_coord + vchunk_, vnum_));
+  }
+
+  vertices_t get_master_vertices(fid_t fid) const {
+    int64_t master_vchunk = (vnum_ + fnum_ - 1) / fnum_;
+    return vertices_t(fid * master_vchunk,
+                      std::min((fid + 1) * master_vchunk, vnum_));
+  }
+
+  int64_t get_total_vertices_num() const { return vnum_; }
+
+  template <typename IOADAPTOR_T>
+  void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
+    InArchive arc;
+    arc << fnum_ << fnum_sr_ << vnum_ << vchunk_;
+    CHECK(writer->WriteArchive(arc));
+  }
+
+  template <typename IOADAPTOR_T>
+  void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
+    OutArchive arc;
+    CHECK(reader->ReadArchive(arc));
+    arc >> fnum_ >> fnum_sr_ >> vnum_ >> vchunk_;
+  }
+
+ private:
+  fid_t fnum_;
+  fid_t fnum_sr_;
+  int64_t vnum_;
+  int64_t vchunk_;
+};
 
 }  // namespace grape
 

@@ -137,7 +137,6 @@ class BasicEFileFragmentLoader : public BasicFragmentLoaderBase<FRAG_T> {
               make_index_sequence<2>{});
         }
       } else {
-        std::atomic<size_t> idx(0);
         std::vector<std::vector<internal_oid_t>> vertices(concurrency_);
         std::vector<std::vector<internal_oid_t>> vertices_mat(concurrency_ *
                                                               concurrency_);
