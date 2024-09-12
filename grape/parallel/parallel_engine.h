@@ -42,6 +42,28 @@ class ParallelEngine {
 
   inline ThreadPool& GetThreadPool() { return thread_pool_; }
 
+  template <typename ITER_FUNC_T>
+  inline void ForEach(int from, int to, const ITER_FUNC_T& iter_func) {
+    std::atomic<int> cur(from);
+
+    std::vector<std::future<void>> results(thread_num_);
+    for (uint32_t tid = 0; tid < thread_num_; ++tid) {
+      results[tid] = thread_pool_.enqueue(
+          [&cur, &iter_func, to](int tid) {
+            while (true) {
+              int got = cur.fetch_add(1);
+              if (got >= to) {
+                break;
+              }
+              iter_func(tid, got);
+            }
+          },
+          tid);
+    }
+
+    thread_pool_.WaitEnd(results);
+  }
+
   /**
    * @brief Iterate on vertexes of a VertexRange concurrently.
    *

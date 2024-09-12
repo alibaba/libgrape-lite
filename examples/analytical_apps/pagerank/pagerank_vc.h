@@ -48,33 +48,70 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
     ctx.graph_vnum = frag.GetTotalVerticesNum();
 
     {
+      ctx.t0 -= GetCurrentTime();
       typename fragment_t::template both_vertex_array_t<int> degree(
           frag.GetVertices(), 0);
-      for (auto& e : frag.GetEdges()) {
-        ++degree[vertex_t(e.src)];
-        ++degree[vertex_t(e.dst)];
+      // allocate degree array for both src and dst vertices
+      MemoryInspector::GetInstance().allocate(frag.GetVertices().size() *
+                                              sizeof(int));
+      int bucket_num = frag.GetBucketNum();
+      int concurrency = thread_num();
+      if (bucket_num < (concurrency / 2)) {
+        ForEach(
+            frag.GetEdges().begin(), frag.GetEdges().end(),
+            [&](int tid, const typename fragment_t::edge_t& e) {
+              atomic_add(degree[vertex_t(e.src)], 1);
+              atomic_add(degree[vertex_t(e.dst)], 1);
+            },
+            4096);
+      } else {
+        ForEach(0, bucket_num,
+                [&degree, &frag, bucket_num](int tid, int bucket_id) {
+                  for (int i = 0; i < bucket_num; ++i) {
+                    for (auto& e : frag.GetEdgesOfBucket(i, bucket_id)) {
+                      degree[vertex_t(e.dst)] += 1;
+                    }
+                  }
+                  for (int i = 0; i < bucket_num; ++i) {
+                    for (auto& e : frag.GetEdgesOfBucket(bucket_id, i)) {
+                      degree[vertex_t(e.src)] += 1;
+                    }
+                  }
+                });
       }
+      ctx.t0 += GetCurrentTime();
 
       messages.GatherMasterVertices<fragment_t, int, NumericSum<int>>(
           frag, degree, ctx.master_degree);
+      // deallocate degree array for both src and dst vertices
+      MemoryInspector::GetInstance().deallocate(frag.GetVertices().size() *
+                                                sizeof(int));
     }
 
-    int64_t dangling_vnum_local = 0;
     double p = 1.0 / ctx.graph_vnum;
-    for (auto v : frag.GetMasterVertices()) {
+    int64_t dangling_vnum_local = 0;
+    ctx.t2 -= GetCurrentTime();
+    std::vector<int64_t> dangling_vnum_local_vec(thread_num(), 0);
+    ForEach(frag.GetMasterVertices(), [&](int tid, vertex_t v) {
       if (ctx.master_degree[v] == 0) {
-        ++dangling_vnum_local;
+        ++dangling_vnum_local_vec[tid];
         ctx.master_result[v] = p;
       } else {
         ctx.master_result[v] = p / ctx.master_degree[v];
       }
+    });
+    for (auto x : dangling_vnum_local_vec) {
+      dangling_vnum_local += x;
     }
+    ctx.t2 += GetCurrentTime();
 
     Sum(dangling_vnum_local, ctx.total_dangling_vnum);
     ctx.dangling_sum = p * ctx.total_dangling_vnum;
 
+    ctx.t7 -= GetCurrentTime();
     messages.ScatterMasterVertices<fragment_t, double>(frag, ctx.master_result,
                                                        ctx.curr_result);
+    ctx.t7 += GetCurrentTime();
   }
 
   void IncEval(const fragment_t& frag, context_t& ctx,
@@ -85,36 +122,106 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
                   ctx.delta * ctx.dangling_sum / ctx.graph_vnum;
     ctx.dangling_sum = base * ctx.total_dangling_vnum;
 
+    ctx.t11 -= GetCurrentTime();
+    ForEach(frag.GetVertices(),
+            [&ctx](int tid, vertex_t v) { ctx.next_result[v] = 0; });
+    ctx.t11 += GetCurrentTime();
+
     if (ctx.step != ctx.max_round) {
-      for (auto& e : frag.GetEdges()) {
-        ctx.next_result[vertex_t(e.dst)] += ctx.curr_result[vertex_t(e.src)];
-        ctx.next_result[vertex_t(e.src)] += ctx.curr_result[vertex_t(e.dst)];
+      ctx.t4 -= GetCurrentTime();
+
+      int bucket_num = frag.GetBucketNum();
+      int concurrency = thread_num();
+      if (bucket_num < (concurrency / 2)) {
+        ForEach(
+            frag.GetEdges().begin(), frag.GetEdges().end(),
+            [&ctx](int tid, const typename fragment_t::edge_t& e) {
+              atomic_add(ctx.next_result[vertex_t(e.dst)],
+                         ctx.curr_result[vertex_t(e.src)]);
+              atomic_add(ctx.next_result[vertex_t(e.src)],
+                         ctx.curr_result[vertex_t(e.dst)]);
+            },
+            4096);
+      } else {
+        ForEach(0, bucket_num,
+                [&ctx, &frag, bucket_num](int tid, int bucket_id) {
+                  for (int i = 0; i < bucket_num; ++i) {
+                    for (auto& e : frag.GetEdgesOfBucket(i, bucket_id)) {
+                      ctx.next_result[vertex_t(e.dst)] +=
+                          ctx.curr_result[vertex_t(e.src)];
+                    }
+                  }
+                  for (int i = 0; i < bucket_num; ++i) {
+                    for (auto& e : frag.GetEdgesOfBucket(bucket_id, i)) {
+                      ctx.next_result[vertex_t(e.src)] +=
+                          ctx.curr_result[vertex_t(e.dst)];
+                    }
+                  }
+                });
       }
+
+      ctx.t4 += GetCurrentTime();
 
       messages.GatherMasterVertices<fragment_t, double, NumericSum<double>>(
           frag, ctx.next_result, ctx.master_result);
-      for (auto v : frag.GetMasterVertices()) {
+
+      ctx.t2 -= GetCurrentTime();
+      ForEach(frag.GetMasterVertices(), [&ctx, base](int tid, vertex_t v) {
         if (ctx.master_degree[v] > 0) {
           ctx.master_result[v] =
               (base + ctx.delta * ctx.master_result[v]) / ctx.master_degree[v];
         } else {
           ctx.master_result[v] = base;
         }
-      }
+      });
+      ctx.t2 += GetCurrentTime();
 
+      ctx.t7 -= GetCurrentTime();
       messages.ScatterMasterVertices<fragment_t, double>(
           frag, ctx.master_result, ctx.curr_result);
+      ctx.t7 += GetCurrentTime();
     } else {
-      for (auto& e : frag.GetEdges()) {
-        ctx.next_result[vertex_t(e.dst)] += ctx.curr_result[vertex_t(e.src)];
-        ctx.next_result[vertex_t(e.src)] += ctx.curr_result[vertex_t(e.dst)];
+      ctx.t4 -= GetCurrentTime();
+      int bucket_num = frag.GetBucketNum();
+      int concurrency = thread_num();
+      if (bucket_num < (concurrency / 2)) {
+        ForEach(
+            frag.GetEdges().begin(), frag.GetEdges().end(),
+            [&ctx](int tid, const typename fragment_t::edge_t& e) {
+              atomic_add(ctx.next_result[vertex_t(e.dst)],
+                         ctx.curr_result[vertex_t(e.src)]);
+              atomic_add(ctx.next_result[vertex_t(e.src)],
+                         ctx.curr_result[vertex_t(e.dst)]);
+            },
+            4096);
+      } else {
+        ForEach(0, bucket_num,
+                [&ctx, &frag, bucket_num](int tid, int bucket_id) {
+                  for (int i = 0; i < bucket_num; ++i) {
+                    for (auto& e : frag.GetEdgesOfBucket(i, bucket_id)) {
+                      ctx.next_result[vertex_t(e.dst)] +=
+                          ctx.curr_result[vertex_t(e.src)];
+                    }
+                  }
+                  for (int i = 0; i < bucket_num; ++i) {
+                    for (auto& e : frag.GetEdgesOfBucket(bucket_id, i)) {
+                      ctx.next_result[vertex_t(e.src)] +=
+                          ctx.curr_result[vertex_t(e.dst)];
+                    }
+                  }
+                });
       }
+
+      ctx.t4 += GetCurrentTime();
 
       messages.GatherMasterVertices<fragment_t, double, NumericSum<double>>(
           frag, ctx.next_result, ctx.master_result);
-      for (auto v : frag.GetMasterVertices()) {
+
+      ctx.t2 -= GetCurrentTime();
+      ForEach(frag.GetMasterVertices(), [&ctx, base](int tid, vertex_t v) {
         ctx.master_result[v] = ctx.master_result[v] * ctx.delta + base;
-      }
+      });
+      ctx.t2 += GetCurrentTime();
 
       messages.ForceTerminate();
     }

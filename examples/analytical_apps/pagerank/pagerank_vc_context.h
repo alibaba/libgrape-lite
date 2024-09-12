@@ -16,6 +16,10 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_VC_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_VC_CONTEXT_H_
 
+#include "grape/utils/memory_inspector.h"
+
+#include <iomanip>
+
 namespace grape {
 
 template <typename FRAG_T>
@@ -30,6 +34,15 @@ class PageRankVCContext {
     next_result.Init(fragment.GetVertices());
     master_result.Init(fragment.GetMasterVertices());
     master_degree.Init(fragment.GetMasterVertices());
+
+    MemoryInspector::GetInstance().allocate(fragment.GetVertices().size() *
+                                            sizeof(double));
+    MemoryInspector::GetInstance().allocate(fragment.GetVertices().size() *
+                                            sizeof(double));
+    MemoryInspector::GetInstance().allocate(
+        fragment.GetMasterVertices().size() * sizeof(double));
+    MemoryInspector::GetInstance().allocate(
+        fragment.GetMasterVertices().size() * sizeof(int));
   }
 
   void Init(VCMessageManager& messages, double delta, int max_round) {
@@ -45,6 +58,12 @@ class PageRankVCContext {
       os << v.GetValue() << " " << std::scientific << std::setprecision(15)
          << master_result[v] << std::endl;
     }
+
+    LOG(INFO) << "[frag-" << frag.fid() << "]: init degree: " << t0 << " s, "
+              << "calc master result: " << t2 << " s, "
+              << "propogate: " << t4 << " s, "
+              << "scatter: " << t7 << " s, "
+              << "reset next result: " << t11 << " s";
   }
 
   typename FRAG_T::template both_vertex_array_t<double> curr_result;
@@ -61,6 +80,12 @@ class PageRankVCContext {
   double dangling_sum = 0.0;
 
   const FRAG_T& fragment_;
+
+  double t0 = 0;   // init degree
+  double t2 = 0;   // calc master result
+  double t4 = 0;   // propogate
+  double t7 = 0;   // scatter
+  double t11 = 0;  // reset next result
 };
 
 }  // namespace grape

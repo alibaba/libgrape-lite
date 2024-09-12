@@ -238,6 +238,10 @@ class VertexRange {
     return out_archive;
   }
 
+  std::string to_string() const {
+    return "[" + std::to_string(begin_) + ", " + std::to_string(end_) + ")";
+  }
+
  private:
   T begin_, end_;
 };
@@ -370,6 +374,12 @@ class DualVertexRange {
     out_archive >> range.head_begin_ >> range.head_end_ >> range.tail_begin_ >>
         range.tail_end_;
     return out_archive;
+  }
+
+  std::string to_string() const {
+    return "[" + std::to_string(head_begin_) + ", " +
+           std::to_string(head_end_) + "), [" + std::to_string(tail_begin_) +
+           " " + std::to_string(tail_end_) + ")";
   }
 
  private:
@@ -531,7 +541,7 @@ class VertexArray<DualVertexRange<VID_T>, T> {
     tail_.SetValue(value);
   }
 
-  const DualVertexRange<VID_T>& GetVertexRange() const {
+  DualVertexRange<VID_T> GetVertexRange() const {
     return DualVertexRange<VID_T>(head_.GetVertexRange().begin_value(),
                                   head_.GetVertexRange().end_value(),
                                   tail_.GetVertexRange().begin_value(),

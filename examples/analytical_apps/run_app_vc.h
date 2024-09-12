@@ -19,7 +19,7 @@ limitations under the License.
 #include "grape/fragment/immutable_vertexcut_fragment.h"
 #include "grape/fragment/loader.h"
 #include "pagerank/pagerank_vc.h"
-#include "run_app.h"
+#include "utils.h"
 
 namespace grape {
 
@@ -38,10 +38,18 @@ void CreateAndQueryVC(const CommSpec& comm_spec, const std::string& out_prefix,
                                             grape::EmptyType>;
   std::shared_ptr<FRAG_T> fragment = LoadVertexcutGraph<FRAG_T>(
       FLAGS_efile, FLAGS_vertex_num, comm_spec, graph_spec);
+  VLOG(1) << "[worker-" << comm_spec.worker_id() << "] after loading graph: "
+          << MemoryInspector::GetInstance().GetCurrentMemoryUsage()
+          << " GB, peak: "
+          << MemoryInspector::GetInstance().GetPeakMemoryUsage() << " GB";
   using AppType = APP_T<FRAG_T>;
   auto app = std::make_shared<AppType>();
   DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec, out_prefix,
                                     args...);
+  VLOG(1) << "[worker-" << comm_spec.worker_id() << "] after query: "
+          << MemoryInspector::GetInstance().GetCurrentMemoryUsage()
+          << " GB, peak: "
+          << MemoryInspector::GetInstance().GetPeakMemoryUsage() << " GB";
 }
 
 void RunVC() {

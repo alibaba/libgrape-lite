@@ -49,7 +49,10 @@ class VCMessageManager : public MessageManagerBase {
 
   bool ToTerminate() override { return force_terminate_; }
 
-  void Finalize() override {}
+  void Finalize() override {
+    LOG(INFO) << "[frag-" << fid_ << "] gather comm: " << t0_gather_comm_
+              << ", gather calc: " << t1_gather_calc_;
+  }
 
   void ForceContinue() override {}
 
@@ -73,6 +76,7 @@ class VCMessageManager : public MessageManagerBase {
       LOG(FATAL) << "not implemented for non-POD type";
     }
 
+    t0_gather_comm_ -= GetCurrentTime();
     const auto& partitioner = frag.GetPartitioner();
     const auto& input_range = input.GetVertexRange();
     std::vector<MPI_Request> requests;
@@ -86,7 +90,9 @@ class VCMessageManager : public MessageManagerBase {
                                 requests);
         sent_size_ += input_size * sizeof(MESSAGE_T);
       } else {
-        CHECK(!input_range.OverlapWith(target_vertices));
+        CHECK(!input_range.OverlapWith(target_vertices))
+            << "input: " << input_range.to_string()
+            << ", target: " << target_vertices.to_string();
       }
     }
 
@@ -98,6 +104,8 @@ class VCMessageManager : public MessageManagerBase {
       auto src_vertices = partitioner.get_src_vertices(src_fid);
       if (output_range.IsSubsetOf(src_vertices)) {
         recv_buffers.emplace_back(output_size);
+        MemoryInspector::GetInstance().allocate(output_size *
+                                                sizeof(MESSAGE_T));
         sync_comm::irecv_buffer(recv_buffers.back().data(), output_size,
                                 src_fid, 0, comm_, requests);
         continue;
@@ -107,6 +115,8 @@ class VCMessageManager : public MessageManagerBase {
       auto dst_vertices = partitioner.get_dst_vertices(src_fid);
       if (output_range.IsSubsetOf(dst_vertices)) {
         recv_buffers.emplace_back(output_size);
+        MemoryInspector::GetInstance().allocate(output_size *
+                                                sizeof(MESSAGE_T));
         sync_comm::irecv_buffer(recv_buffers.back().data(), output_size,
                                 src_fid, 0, comm_, requests);
         continue;
@@ -116,7 +126,9 @@ class VCMessageManager : public MessageManagerBase {
     }
 
     MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+    t0_gather_comm_ += GetCurrentTime();
 
+    t1_gather_calc_ -= GetCurrentTime();
     MESSAGE_T* output_data = &output[*output_range.begin()];
     std::vector<std::thread> threads;
     int thread_num = std::thread::hardware_concurrency();
@@ -164,6 +176,12 @@ class VCMessageManager : public MessageManagerBase {
     for (auto& thrd : threads) {
       thrd.join();
     }
+
+    for (auto& recv_buffer : recv_buffers) {
+      MemoryInspector::GetInstance().deallocate(recv_buffer.size() *
+                                                sizeof(MESSAGE_T));
+    }
+    t1_gather_calc_ += GetCurrentTime();
   }
 
   template <typename GRAPH_T, typename MESSAGE_T>
@@ -237,6 +255,9 @@ class VCMessageManager : public MessageManagerBase {
 
   bool force_terminate_;
   TerminateInfo terminate_info_;
+
+  double t0_gather_comm_ = 0;
+  double t1_gather_calc_ = 0;
 };
 
 }  // namespace grape

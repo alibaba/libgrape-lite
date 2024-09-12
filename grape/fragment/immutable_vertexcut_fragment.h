@@ -16,12 +16,36 @@ limitations under the License.
 #ifndef GRAPE_FRAGMENT_IMMUTABLE_VERTEXCUT_FRAGMENT_H_
 #define GRAPE_FRAGMENT_IMMUTABLE_VERTEXCUT_FRAGMENT_H_
 
+#include <atomic>
+
 #include <glog/logging.h>
+
+#include "grape/graph/edge.h"
+#include "grape/types.h"
+#include "grape/utils/memory_inspector.h"
+#include "grape/utils/vertex_array.h"
+#include "grape/vertex_map/partitioner.h"
+#include "grape/worker/comm_spec.h"
 
 namespace grape {
 
+// #define USE_EDGE_ARRAY
+
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
 class ImmutableVertexcutFragment {};
+
+template <typename T>
+struct IteratorPair {
+  IteratorPair() : begin_(nullptr), end_(nullptr) {}
+  IteratorPair(const T* begin, const T* end) : begin_(begin), end_(end) {}
+
+  const T* begin() const { return begin_; }
+
+  const T* end() const { return end_; }
+
+  const T* begin_;
+  const T* end_;
+};
 
 template <typename VID_T>
 class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
@@ -41,10 +65,11 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
   using both_vertex_array_t = VertexArray<both_vertices_t, T>;
 
   ImmutableVertexcutFragment() = default;
-  ~ImmutableVertexcutFragment() = default;
+  ~ImmutableVertexcutFragment() {}
 
   void Init(const CommSpec& comm_spec, int64_t vnum,
-            std::vector<edge_t>&& edges) {
+            std::vector<edge_t>&& edges, int bucket_num,
+            std::vector<size_t>&& bucket_edge_offsets) {
     fid_ = comm_spec.fid();
     fnum_ = comm_spec.fnum();
 
@@ -67,7 +92,15 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
                                   std::max(src_end, dst_end));
     }
 
+#ifdef USE_EDGE_ARRAY
+    edges_.resize(edges.size());
+    MemoryInspector::GetInstance().allocate(sizeof(edge_t) * edges_.size());
+    std::copy(edges.begin(), edges.end(), edges_.begin());
+#else
     edges_ = std::move(edges);
+#endif
+    bucket_num_ = bucket_num;
+    bucket_edge_offsets_ = std::move(bucket_edge_offsets);
   }
 
   const vertices_t& GetSourceVertices() const { return src_vertices_; }
@@ -76,7 +109,11 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
 
   const vertices_t& GetMasterVertices() const { return master_vertices_; }
 
+#ifdef USE_EDGE_ARRAY
+  const Array<edge_t, Allocator<edge_t>>& GetEdges() const { return edges_; }
+#else
   const std::vector<edge_t>& GetEdges() const { return edges_; }
+#endif
 
   fid_t fid() const { return fid_; }
   fid_t fnum() const { return fnum_; }
@@ -94,6 +131,7 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
     InArchive arc;
     arc << fid_ << fnum_ << edges_.size();
     arc << src_vertices_ << dst_vertices_ << vertices_ << master_vertices_;
+    arc << bucket_num_ << bucket_edge_offsets_;
     CHECK(io_adaptor->WriteArchive(arc));
     arc.Clear();
 
@@ -131,6 +169,7 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
     CHECK_EQ(fid_, comm_spec.fid());
     CHECK_EQ(fnum_, comm_spec.fnum());
     arc >> src_vertices_ >> dst_vertices_ >> vertices_ >> master_vertices_;
+    arc >> bucket_num_ >> bucket_edge_offsets_;
 
     partitioner_.deserialize(io_adaptor);
 
@@ -146,6 +185,8 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
       CHECK(io_adaptor->ReadArchive(arc));
       arc >> edges_;
     }
+
+    MemoryInspector::GetInstance().allocate(sizeof(edge_t) * edges_.size());
   }
 
   int64_t GetTotalVerticesNum() const {
@@ -153,6 +194,18 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
   }
 
   const VCPartitioner<int64_t>& GetPartitioner() const { return partitioner_; }
+
+  IteratorPair<edge_t> GetEdgesOfBucket(int src_bucket_id,
+                                        int dst_bucket_id) const {
+    int idx = src_bucket_id * bucket_num_ + dst_bucket_id;
+    if (static_cast<size_t>(idx) >= bucket_edge_offsets_.size()) {
+      return IteratorPair<edge_t>();
+    }
+    return IteratorPair<edge_t>(edges_.data() + bucket_edge_offsets_[idx],
+                                edges_.data() + bucket_edge_offsets_[idx + 1]);
+  }
+
+  int GetBucketNum() const { return bucket_num_; }
 
  private:
   fid_t fid_;
@@ -162,7 +215,13 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
   vertices_t dst_vertices_;
   both_vertices_t vertices_;
   vertices_t master_vertices_;
+#ifdef USE_EDGE_ARRAY
+  Array<edge_t, Allocator<edge_t>> edges_;
+#else
   std::vector<edge_t> edges_;
+#endif
+  int bucket_num_;
+  std::vector<size_t> bucket_edge_offsets_;
 };
 
 }  // namespace grape

@@ -283,7 +283,8 @@ struct VCPartitioner<int64_t> {
     fnum_sr_ = std::sqrt(fnum_);
     CHECK_EQ(fnum_sr_ * fnum_sr_, fnum_);
 
-    vchunk_ = (vnum_ + fnum_sr_ - 1) / fnum_sr_;
+    master_vchunk_ = (vnum_ + fnum_ - 1) / fnum_;
+    vchunk_ = master_vchunk_ * fnum_sr_;
   }
 
   fid_t get_edge_partition(const int64_t& src, const int64_t& dst) const {
@@ -303,18 +304,17 @@ struct VCPartitioner<int64_t> {
   vertices_t get_src_vertices(fid_t fid) const {
     fid_t src_coord = get_src_coord(fid);
     return vertices_t(src_coord * vchunk_,
-                      std::min(src_coord + vchunk_, vnum_));
+                      std::min((src_coord + 1) * vchunk_, vnum_));
   }
   vertices_t get_dst_vertices(fid_t fid) const {
     fid_t dst_coord = get_dst_coord(fid);
     return vertices_t(dst_coord * vchunk_,
-                      std::min(dst_coord + vchunk_, vnum_));
+                      std::min((dst_coord + 1) * vchunk_, vnum_));
   }
 
   vertices_t get_master_vertices(fid_t fid) const {
-    int64_t master_vchunk = (vnum_ + fnum_ - 1) / fnum_;
-    return vertices_t(fid * master_vchunk,
-                      std::min((fid + 1) * master_vchunk, vnum_));
+    return vertices_t(fid * master_vchunk_,
+                      std::min((fid + 1) * master_vchunk_, vnum_));
   }
 
   int64_t get_total_vertices_num() const { return vnum_; }
@@ -322,7 +322,7 @@ struct VCPartitioner<int64_t> {
   template <typename IOADAPTOR_T>
   void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
     InArchive arc;
-    arc << fnum_ << fnum_sr_ << vnum_ << vchunk_;
+    arc << fnum_ << fnum_sr_ << vnum_ << master_vchunk_ << vchunk_;
     CHECK(writer->WriteArchive(arc));
   }
 
@@ -330,13 +330,14 @@ struct VCPartitioner<int64_t> {
   void deserialize(std::unique_ptr<IOADAPTOR_T>& reader) {
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));
-    arc >> fnum_ >> fnum_sr_ >> vnum_ >> vchunk_;
+    arc >> fnum_ >> fnum_sr_ >> vnum_ >> master_vchunk_ >> vchunk_;
   }
 
  private:
   fid_t fnum_;
   fid_t fnum_sr_;
   int64_t vnum_;
+  int64_t master_vchunk_;
   int64_t vchunk_;
 };
 
