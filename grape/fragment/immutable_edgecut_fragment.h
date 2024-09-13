@@ -149,8 +149,7 @@ class ImmutableEdgecutFragment
   template <typename T>
   using vertex_array_t = VertexArray<vertices_t, T>;
 
-  ImmutableEdgecutFragment()
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
+  ImmutableEdgecutFragment() : FragmentBase<OID_T, VDATA_T, EDATA_T>() {}
 
   virtual ~ImmutableEdgecutFragment() = default;
 
@@ -216,7 +215,7 @@ class ImmutableEdgecutFragment
   void Init(const CommSpec& comm_spec, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
             std::vector<internal_vertex_t>& vertices,
-            std::vector<edge_t>& edges) override {
+            std::vector<edge_t>& edges) {
     init(comm_spec.fid(), directed, std::move(vm_ptr));
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();
@@ -353,7 +352,7 @@ class ImmutableEdgecutFragment
   void ParallelInit(const CommSpec& comm_spec, bool directed,
                     std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
                     std::vector<internal_vertex_t>& vertices,
-                    std::vector<edge_t>& edges, int concurrency) override {
+                    std::vector<edge_t>& edges, int concurrency) {
     init(comm_spec.fid(), directed, std::move(vm_ptr));
 
     static constexpr VID_T invalid_vid = std::numeric_limits<VID_T>::max();

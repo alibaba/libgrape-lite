@@ -95,7 +95,7 @@ class HostFragment : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
 
   static constexpr grape::LoadStrategy load_strategy = _load_strategy;
 
-  HostFragment() : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
+  HostFragment() : FragmentBase<OID_T, VDATA_T, EDATA_T>() {}
 
   void Init(const CommSpec& comm_spec, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,

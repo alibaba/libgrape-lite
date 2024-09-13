@@ -23,29 +23,29 @@ limitations under the License.
 namespace grape {
 
 template <typename FRAG_T>
-class PageRankVCContext {
+class PageRankVCContext : public VertexDataContext<FRAG_T, double> {
   using oid_t = typename FRAG_T::oid_t;
 
  public:
-  const FRAG_T& fragment() { return fragment_; }
+  explicit PageRankVCContext(const FRAG_T& fragment)
+      : VertexDataContext<FRAG_T, double>(fragment),
+        master_result(this->data()) {
+    curr_result.Init(fragment.Vertices());
+    next_result.Init(fragment.Vertices());
+    master_degree.Init(fragment.MasterVertices());
 
-  explicit PageRankVCContext(const FRAG_T& fragment) : fragment_(fragment) {
-    curr_result.Init(fragment.GetVertices());
-    next_result.Init(fragment.GetVertices());
-    master_result.Init(fragment.GetMasterVertices());
-    master_degree.Init(fragment.GetMasterVertices());
-
-    MemoryInspector::GetInstance().allocate(fragment.GetVertices().size() *
+    MemoryInspector::GetInstance().allocate(fragment.Vertices().size() *
                                             sizeof(double));
-    MemoryInspector::GetInstance().allocate(fragment.GetVertices().size() *
+    MemoryInspector::GetInstance().allocate(fragment.Vertices().size() *
                                             sizeof(double));
-    MemoryInspector::GetInstance().allocate(
-        fragment.GetMasterVertices().size() * sizeof(double));
-    MemoryInspector::GetInstance().allocate(
-        fragment.GetMasterVertices().size() * sizeof(int));
+    MemoryInspector::GetInstance().allocate(fragment.MasterVertices().size() *
+                                            sizeof(double));
+    MemoryInspector::GetInstance().allocate(fragment.MasterVertices().size() *
+                                            sizeof(int));
   }
 
-  void Init(VCMessageManager& messages, double delta, int max_round) {
+  void Init(GatherScatterMessageManager& messages, double delta,
+            int max_round) {
     this->delta = delta;
     this->max_round = max_round;
     step = 0;
@@ -53,7 +53,7 @@ class PageRankVCContext {
 
   void Output(std::ostream& os) {
     auto& frag = this->fragment();
-    auto master_vertices = frag.GetMasterVertices();
+    auto master_vertices = frag.MasterVertices();
     for (auto v : master_vertices) {
       os << v.GetValue() << " " << std::scientific << std::setprecision(15)
          << master_result[v] << std::endl;
@@ -68,7 +68,7 @@ class PageRankVCContext {
 
   typename FRAG_T::template both_vertex_array_t<double> curr_result;
   typename FRAG_T::template both_vertex_array_t<double> next_result;
-  typename FRAG_T::template vertex_array_t<double> master_result;
+  typename FRAG_T::template vertex_array_t<double>& master_result;
   typename FRAG_T::template vertex_array_t<int> master_degree;
 
   int64_t total_dangling_vnum = 0;
@@ -78,8 +78,6 @@ class PageRankVCContext {
   double delta = 0;
 
   double dangling_sum = 0.0;
-
-  const FRAG_T& fragment_;
 
   double t0 = 0;   // init degree
   double t2 = 0;   // calc master result

@@ -42,13 +42,183 @@ namespace grape {
 template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T,
           typename TRAITS_T>
 class EdgecutFragmentBase
-    : virtual public FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T> {
+    : virtual public FragmentBase<OID_T, VDATA_T, EDATA_T> {
  public:
-  using base_t = FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, TRAITS_T>;
+  using base_t = FragmentBase<OID_T, VDATA_T, EDATA_T>;
   using vid_t = VID_T;
   using vertex_t = Vertex<VID_T>;
+  using fragment_adj_list_t = typename TRAITS_T::fragment_adj_list_t;
+  using fragment_const_adj_list_t =
+      typename TRAITS_T::fragment_const_adj_list_t;
 
   EdgecutFragmentBase() {}
+
+  static constexpr FragmentType fragment_type = FragmentType::kEdgeCut;
+
+  VertexMap<OID_T, VID_T>& GetVertexMap() { return *vm_ptr_; }
+  const VertexMap<OID_T, VID_T>& GetVertexMap() const { return *vm_ptr_; }
+
+  using vertices_t = typename TRAITS_T::vertices_t;
+  /**
+   * @brief Get all vertices referenced to this fragment.
+   *
+   * @return A vertex set can be iterate on.
+   */
+  const vertices_t& Vertices() const { return vertices_; }
+
+  size_t GetVerticesNum() const override { return vertices_.size(); }
+
+  size_t GetTotalVerticesNum() const override {
+    return vm_ptr_->GetTotalVertexSize();
+  }
+
+  /**
+   * @brief Get a vertex with original ID vid.
+   *
+   * @param vid Original ID.
+   * @param v Got vertex.
+   *
+   * @return If find the vertex in this fragment, return true. Otherwise, return
+   * false.
+   */
+  bool GetVertex(const OID_T& oid, Vertex<VID_T>& v) const {
+    VID_T gid;
+    if (vm_ptr_->GetGid(oid, gid)) {
+      return Gid2Vertex(gid, v);
+    }
+    return false;
+  }
+
+  /**
+   * @brief Get the original ID of a vertex.
+   *
+   * @param v Input vertex.
+   *
+   * @return Its original ID.
+   */
+  OID_T GetId(const Vertex<VID_T>& v) const {
+    OID_T oid{};
+    vm_ptr_->GetOid(Vertex2Gid(v), oid);
+    return oid;
+  }
+
+  using internal_id_t = typename InternalOID<OID_T>::type;
+
+  internal_id_t GetInternalId(const Vertex<VID_T>& v) const {
+    internal_id_t oid{};
+    vm_ptr_->GetInternalOid(Vertex2Gid(v), oid);
+    return oid;
+  }
+
+  OID_T Gid2Oid(VID_T gid) const {
+    OID_T oid;
+    vm_ptr_->GetOid(gid, oid);
+    return oid;
+  }
+
+  /**
+   * @brief Get the ID of fragment the input vertex belongs to.
+   *
+   * @param u Input vertex.
+   *
+   * @return Its fragment ID.
+   */
+  fid_t GetFragId(const Vertex<VID_T>& u) const {
+    VID_T gid = Vertex2Gid(u);
+    return id_parser_.get_fragment_id(gid);
+  }
+
+  /**
+   * @brief Get the data of a vertex.
+   *
+   * @param v Input vertex.
+   *
+   * @return Data on it.
+   */
+  virtual const VDATA_T& GetData(const Vertex<VID_T>& v) const = 0;
+
+  /**
+   * @brief Set the data of a vertex.
+   *
+   * @param v Input vertex.
+   * @param val Data to write.
+   * @attention This will only be applied locally, won't sync on other mirrors
+   * globally.
+   */
+  virtual void SetData(const Vertex<VID_T>& v, const VDATA_T& val) = 0;
+
+  /**
+   * @brief Check if vertex v has a child, that is, existing an edge v->u.
+   *
+   * @param v Input vertex.
+   *
+   * @return True if vertex v has a child, false otherwise.
+   */
+  virtual bool HasChild(const Vertex<VID_T>& v) const = 0;
+
+  /**
+   * @brief Check if vertex v has a parent, that is, existing an edge u->v.
+   *
+   * @param v Input vertex.
+   *
+   * @return True if vertex v has a parent, false otherwise.
+   */
+  virtual bool HasParent(const Vertex<VID_T>& v) const = 0;
+
+  /**
+   * @brief Returns the in-degree of vertex v in this fragment.
+   *
+   * @param v Input vertex.
+   *
+   * @return In-degree of vertex v in this fragment.
+   */
+  virtual int GetLocalInDegree(const Vertex<VID_T>& v) const = 0;
+
+  /**
+   * @brief Returns the out-degree of vertex v in this fragment.<Paste>
+   *
+   * @param v Input vertex.
+   *
+   * @return Out-degree of vertex v in this fragment.
+   */
+  virtual int GetLocalOutDegree(const Vertex<VID_T>& v) const = 0;
+
+  /**
+   * @brief Returns the incoming adjacent vertices of v.
+   *
+   * @param v Input vertex.
+   *
+   * @return The incoming adjacent vertices of v.
+   */
+  virtual AdjList<VID_T, EDATA_T> GetIncomingAdjList(
+      const Vertex<VID_T>& v) = 0;
+
+  virtual ConstAdjList<VID_T, EDATA_T> GetIncomingAdjList(
+      const Vertex<VID_T>& v) const = 0;
+
+  virtual fragment_adj_list_t GetIncomingAdjList(const Vertex<VID_T>& v,
+                                                 fid_t fid) = 0;
+
+  virtual fragment_const_adj_list_t GetIncomingAdjList(const Vertex<VID_T>& v,
+                                                       fid_t fid) const = 0;
+  /**
+   * @brief Returns the outgoing adjacent vertices of v.
+   *
+   * @param v Input vertex.
+   *
+   * @return The outgoing adjacent vertices of v.
+   */
+  virtual AdjList<VID_T, EDATA_T> GetOutgoingAdjList(
+      const Vertex<VID_T>& v) = 0;
+
+  virtual ConstAdjList<VID_T, EDATA_T> GetOutgoingAdjList(
+      const Vertex<VID_T>& v) const = 0;
+
+  virtual fragment_adj_list_t GetOutgoingAdjList(const Vertex<VID_T>& v,
+                                                 fid_t fid) = 0;
+
+  virtual fragment_const_adj_list_t GetOutgoingAdjList(const Vertex<VID_T>& v,
+                                                       fid_t fid) const = 0;
 
   /**
    * @brief Returns the number of inner vertices in this fragment.
@@ -341,16 +511,41 @@ class EdgecutFragmentBase
   using base_t::fid;
   using base_t::fnum;
 
-  bool Gid2Vertex(const vid_t& gid, vertex_t& v) const override {
+  /**
+   * @brief Convert from global id to a vertex handle.
+   *
+   * @param gid Input global id.
+   * @param v Output vertex handle.
+   *
+   * @return True if exists a vertex with global id as gid in this fragment,
+   * false otherwise.
+   */
+  bool Gid2Vertex(const vid_t& gid, vertex_t& v) const {
     return IsInnerVertexGid(gid) ? InnerVertexGid2Vertex(gid, v)
                                  : OuterVertexGid2Vertex(gid, v);
   }
 
-  vid_t Vertex2Gid(const vertex_t& v) const override {
+  /**
+   * @brief Convert from vertex handle to its global id.
+   *
+   * @param v Input vertex handle.
+   *
+   * @return Global id of the vertex.
+   */
+  vid_t Vertex2Gid(const vertex_t& v) const {
     return IsInnerVertex(v) ? GetInnerVertexGid(v) : GetOuterVertexGid(v);
   }
 
  protected:
+  void init(fid_t fid, bool directed,
+            std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr) {
+    fid_t fnum = vm_ptr->GetFragmentNum();
+    base_t::init(fid, fnum, directed);
+    vm_ptr_ = std::move(vm_ptr);
+    ivnum_ = vm_ptr_->GetInnerVertexSize(fid);
+    id_parser_.init(fnum);
+  }
+
   inline bool IsInnerVertexGid(VID_T gid) const {
     return id_parser_.get_fragment_id(gid) == fid();
   }
@@ -410,7 +605,7 @@ class EdgecutFragmentBase
   void serialize(std::unique_ptr<IOADAPTOR_T>& writer) {
     base_t::serialize(writer);
     InArchive arc;
-    arc << inner_vertices_ << outer_vertices_;
+    arc << ivnum_ << inner_vertices_ << outer_vertices_ << vertices_;
     CHECK(writer->WriteArchive(arc));
   }
 
@@ -419,15 +614,21 @@ class EdgecutFragmentBase
     base_t::deserialize(reader);
     OutArchive arc;
     CHECK(reader->ReadArchive(arc));
-    arc >> inner_vertices_ >> outer_vertices_;
+    arc >> ivnum_ >> inner_vertices_ >> outer_vertices_ >> vertices_;
+    id_parser_.init(fnum());
   }
+
+  VID_T ivnum_;
 
   inner_vertices_t inner_vertices_;
   outer_vertices_t outer_vertices_;
+  vertices_t vertices_;
+
   std::vector<sub_vertices_t> outer_vertices_of_frag_;
   std::vector<mirror_vertices_t> mirrors_of_frag_;
-  using base_t::id_parser_;
-  using base_t::vm_ptr_;
+
+  std::unique_ptr<VertexMap<OID_T, VID_T>> vm_ptr_;
+  IdParser<VID_T> id_parser_;
 };
 
 }  // namespace grape

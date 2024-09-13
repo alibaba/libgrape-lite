@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_PARALLEL_VC_MESSAGE_MANAGER_H_
-#define GRAPE_PARALLEL_VC_MESSAGE_MANAGER_H_
+#ifndef GRAPE_PARALLEL_GATHER_SCATTER_MESSAGE_MANAGER_H_
+#define GRAPE_PARALLEL_GATHER_SCATTER_MESSAGE_MANAGER_H_
 
 namespace grape {
 
-class VCMessageManager : public MessageManagerBase {
+class GatherScatterMessageManager : public MessageManagerBase {
  public:
-  VCMessageManager() : comm_(NULL_COMM) {}
-  ~VCMessageManager() override {
+  GatherScatterMessageManager() : comm_(NULL_COMM) {}
+  ~GatherScatterMessageManager() override {
     if (ValidComm(comm_)) {
       MPI_Comm_free(&comm_);
     }
@@ -262,4 +262,4 @@ class VCMessageManager : public MessageManagerBase {
 
 }  // namespace grape
 
-#endif  // GRAPE_PARALLEL_VC_MESSAGE_MANAGER_H_
+#endif  // GRAPE_PARALLEL_GATHER_SCATTER_MESSAGE_MANAGER_H_

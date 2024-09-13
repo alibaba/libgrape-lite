@@ -323,8 +323,7 @@ class AppendOnlyEdgecutFragment
   /** Constructor.
    * @param vm_ptr the vertex map.
    */
-  AppendOnlyEdgecutFragment()
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
+  AppendOnlyEdgecutFragment() : FragmentBase<OID_T, VDATA_T, EDATA_T>() {}
 
   virtual ~AppendOnlyEdgecutFragment() {}
 
@@ -336,7 +335,7 @@ class AppendOnlyEdgecutFragment
   void Init(const CommSpec& comm_spec, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
             std::vector<internal_vertex_t>& vertices,
-            std::vector<edge_t>& edges) override {
+            std::vector<edge_t>& edges) {
     init(comm_spec.fid(), directed, std::move(vm_ptr));
 
     ovnum_ = 0;
@@ -480,6 +479,13 @@ class AppendOnlyEdgecutFragment
     }
 
     initOuterVerticesOfFragment();
+  }
+
+  void ParallelInit(const CommSpec& comm_spec, bool directed,
+                    std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                    std::vector<internal_vertex_t>& vertices,
+                    std::vector<edge_t>& edges, int concurrency) {
+    Init(comm_spec, directed, std::move(vm_ptr), vertices, edges);
   }
 
   void InitIndices() {

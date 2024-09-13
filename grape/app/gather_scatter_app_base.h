@@ -13,26 +13,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef GRAPE_APP_VC_APP_BASE_H_
-#define GRAPE_APP_VC_APP_BASE_H_
+#ifndef GRAPE_APP_GATHER_SCATTER_APP_BASE_H_
+#define GRAPE_APP_GATHER_SCATTER_APP_BASE_H_
 
 #include <memory>
 
 #include "grape/types.h"
-#include "grape/worker/vc_worker.h"
+#include "grape/worker/worker.h"
 
 namespace grape {
 
-class VCMessageManager;
+class GatherScatterMessageManager;
 
 template <typename FRAG_T, typename CONTEXT_T,
-          typename MESSAGE_MANAGER_T = VCMessageManager>
-class VCAppBase {
+          typename MESSAGE_MANAGER_T = GatherScatterMessageManager>
+class GatherScatterAppBase {
  public:
+  static constexpr bool need_split_edges = false;
+  static constexpr bool need_split_edges_by_fragment = false;
+  static constexpr MessageStrategy message_strategy =
+      MessageStrategy::kGatherScatter;
+  static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
+
   using message_manager_t = MESSAGE_MANAGER_T;
 
-  VCAppBase() = default;
-  virtual ~VCAppBase() = default;
+  GatherScatterAppBase() = default;
+  virtual ~GatherScatterAppBase() = default;
 
   virtual void PEval(const FRAG_T& graph, CONTEXT_T& context,
                      message_manager_t& messages) = 0;
@@ -41,12 +47,12 @@ class VCAppBase {
                        message_manager_t& messages) = 0;
 };
 
-#define INSTALL_VC_WORKER(APP_T, CONTEXT_T, FRAG_T)               \
+#define INSTALL_GATHER_SCATTER_WORKER(APP_T, CONTEXT_T, FRAG_T)   \
  public:                                                          \
   using fragment_t = FRAG_T;                                      \
   using context_t = CONTEXT_T;                                    \
-  using message_manager_t = grape::VCMessageManager;              \
-  using worker_t = grape::VCWorker<APP_T, message_manager_t>;     \
+  using message_manager_t = grape::GatherScatterMessageManager;   \
+  using worker_t = grape::GatherScatterWorker<APP_T>;             \
   virtual ~APP_T() {}                                             \
   static std::shared_ptr<worker_t> CreateWorker(                  \
       std::shared_ptr<APP_T> app, std::shared_ptr<FRAG_T> frag) { \
@@ -55,4 +61,4 @@ class VCAppBase {
 
 }  // namespace grape
 
-#endif  // GRAPE_APP_VC_APP_BASE_H_
+#endif  // GRAPE_APP_GATHER_SCATTER_APP_BASE_H_

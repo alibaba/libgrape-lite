@@ -30,13 +30,15 @@ struct NumericSum {
 };
 
 template <typename FRAG_T>
-class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
-                   public ParallelEngine,
-                   public Communicator {
+class PageRankVC
+    : public GatherScatterAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
+      public ParallelEngine,
+      public Communicator {
   using vertex_t = Vertex<typename FRAG_T::oid_t>;
 
  public:
-  INSTALL_VC_WORKER(PageRankVC<FRAG_T>, PageRankVCContext<FRAG_T>, FRAG_T)
+  INSTALL_GATHER_SCATTER_WORKER(PageRankVC<FRAG_T>, PageRankVCContext<FRAG_T>,
+                                FRAG_T)
 
   void PEval(const fragment_t& frag, context_t& ctx,
              message_manager_t& messages) {
@@ -50,9 +52,9 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
     {
       ctx.t0 -= GetCurrentTime();
       typename fragment_t::template both_vertex_array_t<int> degree(
-          frag.GetVertices(), 0);
+          frag.Vertices(), 0);
       // allocate degree array for both src and dst vertices
-      MemoryInspector::GetInstance().allocate(frag.GetVertices().size() *
+      MemoryInspector::GetInstance().allocate(frag.Vertices().size() *
                                               sizeof(int));
       int bucket_num = frag.GetBucketNum();
       int concurrency = thread_num();
@@ -84,7 +86,7 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
       messages.GatherMasterVertices<fragment_t, int, NumericSum<int>>(
           frag, degree, ctx.master_degree);
       // deallocate degree array for both src and dst vertices
-      MemoryInspector::GetInstance().deallocate(frag.GetVertices().size() *
+      MemoryInspector::GetInstance().deallocate(frag.Vertices().size() *
                                                 sizeof(int));
     }
 
@@ -92,7 +94,7 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
     int64_t dangling_vnum_local = 0;
     ctx.t2 -= GetCurrentTime();
     std::vector<int64_t> dangling_vnum_local_vec(thread_num(), 0);
-    ForEach(frag.GetMasterVertices(), [&](int tid, vertex_t v) {
+    ForEach(frag.MasterVertices(), [&](int tid, vertex_t v) {
       if (ctx.master_degree[v] == 0) {
         ++dangling_vnum_local_vec[tid];
         ctx.master_result[v] = p;
@@ -123,7 +125,7 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
     ctx.dangling_sum = base * ctx.total_dangling_vnum;
 
     ctx.t11 -= GetCurrentTime();
-    ForEach(frag.GetVertices(),
+    ForEach(frag.Vertices(),
             [&ctx](int tid, vertex_t v) { ctx.next_result[v] = 0; });
     ctx.t11 += GetCurrentTime();
 
@@ -166,7 +168,7 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
           frag, ctx.next_result, ctx.master_result);
 
       ctx.t2 -= GetCurrentTime();
-      ForEach(frag.GetMasterVertices(), [&ctx, base](int tid, vertex_t v) {
+      ForEach(frag.MasterVertices(), [&ctx, base](int tid, vertex_t v) {
         if (ctx.master_degree[v] > 0) {
           ctx.master_result[v] =
               (base + ctx.delta * ctx.master_result[v]) / ctx.master_degree[v];
@@ -218,7 +220,7 @@ class PageRankVC : public VCAppBase<FRAG_T, PageRankVCContext<FRAG_T>>,
           frag, ctx.next_result, ctx.master_result);
 
       ctx.t2 -= GetCurrentTime();
-      ForEach(frag.GetMasterVertices(), [&ctx, base](int tid, vertex_t v) {
+      ForEach(frag.MasterVertices(), [&ctx, base](int tid, vertex_t v) {
         ctx.master_result[v] = ctx.master_result[v] * ctx.delta + base;
       });
       ctx.t2 += GetCurrentTime();

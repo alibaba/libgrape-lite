@@ -29,6 +29,7 @@ limitations under the License.
 #include "grape/config.h"
 #include "grape/parallel/auto_parallel_message_manager.h"
 #include "grape/parallel/batch_shuffle_message_manager.h"
+#include "grape/parallel/gather_scatter_message_manager.h"
 #include "grape/parallel/parallel_engine.h"
 #include "grape/parallel/parallel_message_manager.h"
 #include "grape/parallel/parallel_message_manager_opt.h"
@@ -240,6 +241,9 @@ using AutoWorker =
 
 template <typename APP_T>
 using BatchShuffleWorker = Worker<APP_T, BatchShuffleMessageManager>;
+
+template <typename APP_T>
+using GatherScatterWorker = Worker<APP_T, GatherScatterMessageManager>;
 
 }  // namespace grape
 

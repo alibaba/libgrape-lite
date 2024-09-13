@@ -48,7 +48,8 @@ struct IteratorPair {
 };
 
 template <typename VID_T>
-class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
+class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType>
+    : public FragmentBase<int64_t, EmptyType, EmptyType> {
  public:
   using oid_t = int64_t;
   using vid_t = VID_T;
@@ -57,6 +58,10 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
   using vertices_t = VertexRange<oid_t>;
   using both_vertices_t = DualVertexRange<oid_t>;
   using edge_t = Edge<oid_t, edata_t>;
+  using base_t = FragmentBase<oid_t, vdata_t, edata_t>;
+
+  static constexpr FragmentType fragment_type = FragmentType::kVertexCut;
+  static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
 
   template <typename T>
   using vertex_array_t = VertexArray<vertices_t, T>;
@@ -67,11 +72,13 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
   ImmutableVertexcutFragment() = default;
   ~ImmutableVertexcutFragment() {}
 
+  using base_t::fid_;
+  using base_t::fnum_;
+
   void Init(const CommSpec& comm_spec, int64_t vnum,
             std::vector<edge_t>&& edges, int bucket_num,
             std::vector<size_t>&& bucket_edge_offsets) {
-    fid_ = comm_spec.fid();
-    fnum_ = comm_spec.fnum();
+    base_t::init(comm_spec.fid(), comm_spec.fnum(), false);
 
     partitioner_.init(comm_spec.fnum(), vnum);
     src_vertices_ = partitioner_.get_src_vertices(fid_);
@@ -103,20 +110,19 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
     bucket_edge_offsets_ = std::move(bucket_edge_offsets);
   }
 
-  const vertices_t& GetSourceVertices() const { return src_vertices_; }
-  const vertices_t& GetDestinationVertices() const { return dst_vertices_; }
-  const both_vertices_t& GetVertices() const { return vertices_; }
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) override {}
 
-  const vertices_t& GetMasterVertices() const { return master_vertices_; }
+  const vertices_t& SourceVertices() const { return src_vertices_; }
+  const vertices_t& DestinationVertices() const { return dst_vertices_; }
+  const both_vertices_t& Vertices() const { return vertices_; }
+
+  const vertices_t& MasterVertices() const { return master_vertices_; }
 
 #ifdef USE_EDGE_ARRAY
   const Array<edge_t, Allocator<edge_t>>& GetEdges() const { return edges_; }
 #else
   const std::vector<edge_t>& GetEdges() const { return edges_; }
 #endif
-
-  fid_t fid() const { return fid_; }
-  fid_t fnum() const { return fnum_; }
 
   template <typename IOADAPTOR_T>
   void Serialize(const std::string& prefix) {
@@ -128,8 +134,10 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
     io_adaptor->Open("wb");
 
+    base_t::serialize(io_adaptor);
+
     InArchive arc;
-    arc << fid_ << fnum_ << edges_.size();
+    arc << edges_.size();
     arc << src_vertices_ << dst_vertices_ << vertices_ << master_vertices_;
     arc << bucket_num_ << bucket_edge_offsets_;
     CHECK(io_adaptor->WriteArchive(arc));
@@ -162,10 +170,12 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
         std::unique_ptr<IOADAPTOR_T>(new IOADAPTOR_T(std::string(fbuf)));
     io_adaptor->Open();
 
+    base_t::deserialize(io_adaptor);
+
     OutArchive arc;
     size_t edge_num;
     CHECK(io_adaptor->ReadArchive(arc));
-    arc >> fid_ >> fnum_ >> edge_num;
+    arc >> edge_num;
     CHECK_EQ(fid_, comm_spec.fid());
     CHECK_EQ(fnum_, comm_spec.fnum());
     arc >> src_vertices_ >> dst_vertices_ >> vertices_ >> master_vertices_;
@@ -189,9 +199,13 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
     MemoryInspector::GetInstance().allocate(sizeof(edge_t) * edges_.size());
   }
 
-  int64_t GetTotalVerticesNum() const {
+  size_t GetTotalVerticesNum() const override {
     return partitioner_.get_total_vertices_num();
   }
+
+  size_t GetEdgeNum() const override { return edges_.size(); }
+
+  size_t GetVerticesNum() const override { return vertices_.size(); }
 
   const VCPartitioner<int64_t>& GetPartitioner() const { return partitioner_; }
 
@@ -208,8 +222,6 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType> {
   int GetBucketNum() const { return bucket_num_; }
 
  private:
-  fid_t fid_;
-  fid_t fnum_;
   VCPartitioner<int64_t> partitioner_;
   vertices_t src_vertices_;
   vertices_t dst_vertices_;

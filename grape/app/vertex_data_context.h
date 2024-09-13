@@ -21,8 +21,14 @@ limitations under the License.
 
 namespace grape {
 
+template <typename FRAG_T, typename DATA_T, typename Enable = void>
+class VertexDataContext;
+
 template <typename FRAG_T, typename DATA_T>
-class VertexDataContext : public ContextBase {
+class VertexDataContext<
+    FRAG_T, DATA_T,
+    typename std::enable_if<is_edge_cut_fragment<FRAG_T>::value>::type>
+    : public ContextBase {
   using fragment_t = FRAG_T;
   using vertex_t = typename fragment_t::vertex_t;
   using vertex_array_t = typename fragment_t::template vertex_array_t<DATA_T>;
@@ -38,6 +44,30 @@ class VertexDataContext : public ContextBase {
     } else {
       data_.Init(fragment.InnerVertices());
     }
+  }
+
+  const fragment_t& fragment() { return fragment_; }
+
+  inline vertex_array_t& data() { return data_; }
+
+ private:
+  const fragment_t& fragment_;
+  vertex_array_t data_;
+};
+
+template <typename FRAG_T, typename DATA_T>
+class VertexDataContext<
+    FRAG_T, DATA_T,
+    typename std::enable_if<is_vertex_cut_fragment<FRAG_T>::value>::type>
+    : public ContextBase {
+  using fragment_t = FRAG_T;
+  using vertex_array_t = typename fragment_t::template vertex_array_t<DATA_T>;
+
+ public:
+  using data_t = DATA_T;
+
+  explicit VertexDataContext(const fragment_t& fragment) : fragment_(fragment) {
+    data_.Init(fragment.MasterVertices());
   }
 
   const fragment_t& fragment() { return fragment_; }
