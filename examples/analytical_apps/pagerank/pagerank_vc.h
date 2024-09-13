@@ -114,6 +114,7 @@ class PageRankVC
     messages.ScatterMasterVertices<fragment_t, double>(frag, ctx.master_result,
                                                        ctx.curr_result);
     ctx.t7 += GetCurrentTime();
+    messages.ForceContinue();
   }
 
   void IncEval(const fragment_t& frag, context_t& ctx,
@@ -182,6 +183,7 @@ class PageRankVC
       messages.ScatterMasterVertices<fragment_t, double>(
           frag, ctx.master_result, ctx.curr_result);
       ctx.t7 += GetCurrentTime();
+      messages.ForceContinue();
     } else {
       ctx.t4 -= GetCurrentTime();
       int bucket_num = frag.GetBucketNum();
@@ -224,8 +226,6 @@ class PageRankVC
         ctx.master_result[v] = ctx.master_result[v] * ctx.delta + base;
       });
       ctx.t2 += GetCurrentTime();
-
-      messages.ForceTerminate();
     }
   }
 };

@@ -16,6 +16,11 @@ limitations under the License.
 #ifndef GRAPE_PARALLEL_GATHER_SCATTER_MESSAGE_MANAGER_H_
 #define GRAPE_PARALLEL_GATHER_SCATTER_MESSAGE_MANAGER_H_
 
+#include <mpi.h>
+
+#include "grape/communication/sync_comm.h"
+#include "grape/parallel/message_manager_base.h"
+
 namespace grape {
 
 class GatherScatterMessageManager : public MessageManagerBase {
@@ -43,22 +48,44 @@ class GatherScatterMessageManager : public MessageManagerBase {
 
   void Start() override {}
 
-  void StartARound() override {}
+  void StartARound() override {
+    vote_terminate_ = true;
+    force_terminate_ = false;
+  }
 
-  void FinishARound() override {}
+  void FinishARound() override { ++round_; }
 
-  bool ToTerminate() override { return force_terminate_; }
+  bool ToTerminate() override {
+    int flag[3];
+    flag[0] = vote_terminate_ ? 1 : 0;
+    flag[1] = force_terminate_ ? 1 : 0;
+    int ret[2];
+    MPI_Allreduce(&flag[0], &ret[0], 2, MPI_INT, MPI_SUM, comm_);
+    if (ret[1] > 0) {
+      terminate_info_.success = false;
+      sync_comm::AllGather(terminate_info_.info, comm_);
+      return true;
+    } else if (ret[0] == static_cast<int>(fnum_)) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 
   void Finalize() override {
     LOG(INFO) << "[frag-" << fid_ << "] gather comm: " << t0_gather_comm_
               << ", gather calc: " << t1_gather_calc_;
   }
 
-  void ForceContinue() override {}
+  void ForceContinue() override {
+    force_terminate_ = false;
+    vote_terminate_ = false;
+  }
 
   void ForceTerminate(const std::string& terminate_info = "") override {
     force_terminate_ = true;
     terminate_info_.info[comm_spec_.fid()] = terminate_info;
+    vote_terminate_ = false;
   }
 
   const TerminateInfo& GetTerminateInfo() const override {
@@ -255,6 +282,7 @@ class GatherScatterMessageManager : public MessageManagerBase {
 
   bool force_terminate_;
   TerminateInfo terminate_info_;
+  bool vote_terminate_;
 
   double t0_gather_comm_ = 0;
   double t1_gather_calc_ = 0;
