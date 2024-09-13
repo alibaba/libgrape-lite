@@ -17,6 +17,7 @@ limitations under the License.
 #define GRAPE_UTILS_MEMORY_INSPECTOR_H_
 
 #include "glog/logging.h"
+#include "grape/utils/concurrent_queue.h"
 
 namespace grape {
 
@@ -27,11 +28,17 @@ struct MemoryInspector {
   }
 
   void allocate(size_t size) {
+    lock_.lock();
     current_memory_usage += size;
     peak_memory_usage = std::max(current_memory_usage, peak_memory_usage);
+    lock_.unlock();
   }
 
-  void deallocate(size_t size) { current_memory_usage -= size; }
+  void deallocate(size_t size) {
+    lock_.lock();
+    current_memory_usage -= size;
+    lock_.unlock();
+  }
 
   ~MemoryInspector() {
     double peak_memory_usage_gb = peak_memory_usage / 1024.0 / 1024.0 / 1024.0;
@@ -50,6 +57,8 @@ struct MemoryInspector {
 
   size_t current_memory_usage = 0;
   size_t peak_memory_usage = 0;
+
+  SpinLock lock_;
 };
 
 }  // namespace grape

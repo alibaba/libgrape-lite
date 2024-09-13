@@ -33,6 +33,7 @@ void CreateAndQueryVC(const CommSpec& comm_spec, const std::string& out_prefix,
   } else if (FLAGS_serialize) {
     graph_spec.set_serialize(true, FLAGS_serialization_prefix);
   }
+  graph_spec.single_scan = FLAGS_single_scan_load;
 
   using FRAG_T = ImmutableVertexcutFragment<int64_t, uint32_t, grape::EmptyType,
                                             grape::EmptyType>;

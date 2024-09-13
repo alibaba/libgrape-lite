@@ -333,6 +333,8 @@ struct VCPartitioner<int64_t> {
     arc >> fnum_ >> fnum_sr_ >> vnum_ >> master_vchunk_ >> vchunk_;
   }
 
+  fid_t fnum() const { return fnum_; }
+
  private:
   fid_t fnum_;
   fid_t fnum_sr_;

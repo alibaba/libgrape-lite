@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef GRAPE_FRAGMENT_VC_FRAGMENT_LOADER_H_
 #define GRAPE_FRAGMENT_VC_FRAGMENT_LOADER_H_
 
+#include "grape/fragment/basic_vc_ds_fragment_loader.h"
 #include "grape/fragment/basic_vc_fragment_loader.h"
 
 namespace grape {
@@ -38,7 +39,7 @@ class VCFragmentLoader {
 
  public:
   explicit VCFragmentLoader(const CommSpec& comm_spec)
-      : comm_spec_(comm_spec), basic_fragment_loader_(nullptr) {}
+      : comm_spec_(comm_spec) {}
   ~VCFragmentLoader() = default;
 
   std::shared_ptr<fragment_t> LoadFragment(int64_t vnum,
@@ -52,10 +53,29 @@ class VCFragmentLoader {
       return fragment;
     }
 
-    basic_fragment_loader_ = std::unique_ptr<BasicVCFragmentLoader<fragment_t>>(
-        new BasicVCFragmentLoader<fragment_t>(
-            comm_spec_, vnum, spec.load_concurrency,
-            std::thread::hardware_concurrency()));
+    if (spec.single_scan) {
+      fragment = loadFragmentSingleScan(vnum, efile, spec);
+    } else {
+      fragment = loadFragmentDoubleScan(vnum, efile, spec);
+    }
+
+    if (spec.serialize) {
+      fragment->template Serialize<IOADAPTOR_T>(spec.serialization_prefix);
+    }
+
+    return fragment;
+  }
+
+ private:
+  std::shared_ptr<fragment_t> loadFragmentSingleScan(
+      int64_t vnum, const std::string& efile, const LoadGraphSpec& spec) {
+    std::shared_ptr<fragment_t> fragment(nullptr);
+
+    auto basic_fragment_loader =
+        std::unique_ptr<BasicVCFragmentLoader<fragment_t>>(
+            new BasicVCFragmentLoader<fragment_t>(
+                comm_spec_, vnum, spec.load_concurrency,
+                std::thread::hardware_concurrency()));
 
     auto io_adaptor = std::unique_ptr<io_adaptor_t>(new io_adaptor_t(efile));
     io_adaptor->SetPartialRead(comm_spec_.worker_id(), comm_spec_.worker_num());
@@ -83,7 +103,7 @@ class VCFragmentLoader {
         continue;
       }
 
-      basic_fragment_loader_->AddEdge(src, dst, e_data);
+      basic_fragment_loader->AddEdge(src, dst, e_data);
     }
     io_adaptor->Close();
 
@@ -94,7 +114,7 @@ class VCFragmentLoader {
     }
 
     double t2 = -grape::GetCurrentTime();
-    basic_fragment_loader_->ConstructFragment(fragment);
+    basic_fragment_loader->ConstructFragment(fragment);
     MPI_Barrier(comm_spec_.comm());
     t2 += grape::GetCurrentTime();
 
@@ -105,18 +125,115 @@ class VCFragmentLoader {
             << MemoryInspector::GetInstance().GetCurrentMemoryUsage() << " GB"
             << ", peak: " << MemoryInspector::GetInstance().GetPeakMemoryUsage()
             << " GB";
-
-    if (spec.serialize) {
-      fragment->template Serialize<IOADAPTOR_T>(spec.serialization_prefix);
-    }
-
     return fragment;
   }
 
- private:
-  CommSpec comm_spec_;
+  std::shared_ptr<fragment_t> loadFragmentDoubleScan(
+      int64_t vnum, const std::string& efile, const LoadGraphSpec& spec) {
+    std::shared_ptr<fragment_t> fragment(nullptr);
 
-  std::unique_ptr<BasicVCFragmentLoader<fragment_t>> basic_fragment_loader_;
+    auto basic_fragment_loader =
+        std::unique_ptr<BasicVCDSFragmentLoader<fragment_t>>(
+            new BasicVCDSFragmentLoader<fragment_t>(
+                comm_spec_, vnum, spec.load_concurrency,
+                std::thread::hardware_concurrency()));
+    {
+      auto io_adaptor = std::unique_ptr<io_adaptor_t>(new io_adaptor_t(efile));
+      io_adaptor->SetPartialRead(comm_spec_.worker_id(),
+                                 comm_spec_.worker_num());
+      io_adaptor->Open();
+
+      std::string line;
+      edata_t e_data;
+      oid_t src, dst;
+
+      double t0 = -grape::GetCurrentTime();
+      size_t lineNo = 0;
+      while (io_adaptor->ReadLine(line)) {
+        ++lineNo;
+        if (lineNo % 1000000 == 0) {
+          VLOG(10) << "[worker-" << comm_spec_.worker_id()
+                   << "][efile - scan 1 / 2] " << lineNo;
+        }
+        if (line.empty() || line[0] == '#')
+          continue;
+
+        try {
+          line_parser_.LineParserForEFile(line, src, dst, e_data);
+        } catch (std::exception& e) {
+          VLOG(1) << e.what();
+          continue;
+        }
+
+        basic_fragment_loader->RecordEdge(src, dst);
+      }
+      io_adaptor->Close();
+
+      MPI_Barrier(comm_spec_.comm());
+      t0 += grape::GetCurrentTime();
+      if (comm_spec_.worker_id() == 0) {
+        VLOG(1) << "finished first scan of edges inputs, time: " << t0 << " s";
+      }
+    }
+
+    basic_fragment_loader->AllocateBuffers();
+    MPI_Barrier(comm_spec_.comm());
+
+    {
+      auto io_adaptor = std::unique_ptr<io_adaptor_t>(new io_adaptor_t(efile));
+      io_adaptor->SetPartialRead(comm_spec_.worker_id(),
+                                 comm_spec_.worker_num());
+      io_adaptor->Open();
+
+      std::string line;
+      edata_t e_data;
+      oid_t src, dst;
+
+      double t0 = -grape::GetCurrentTime();
+      size_t lineNo = 0;
+      while (io_adaptor->ReadLine(line)) {
+        ++lineNo;
+        if (lineNo % 1000000 == 0) {
+          VLOG(10) << "[worker-" << comm_spec_.worker_id()
+                   << "][efile - scan 2 / 2] " << lineNo;
+        }
+        if (line.empty() || line[0] == '#')
+          continue;
+
+        try {
+          line_parser_.LineParserForEFile(line, src, dst, e_data);
+        } catch (std::exception& e) {
+          VLOG(1) << e.what();
+          continue;
+        }
+
+        basic_fragment_loader->AddEdge(src, dst, e_data);
+      }
+      io_adaptor->Close();
+
+      MPI_Barrier(comm_spec_.comm());
+      t0 += grape::GetCurrentTime();
+      if (comm_spec_.worker_id() == 0) {
+        VLOG(1) << "finished second scan of edges inputs, time: " << t0 << " s";
+      }
+    }
+
+    double t2 = -grape::GetCurrentTime();
+    basic_fragment_loader->ConstructFragment(fragment);
+    MPI_Barrier(comm_spec_.comm());
+    t2 += grape::GetCurrentTime();
+
+    if (comm_spec_.worker_id() == 0) {
+      VLOG(1) << "finished constructing fragment, time: " << t2 << " s";
+    }
+    VLOG(1) << "[frag-" << comm_spec_.fid() << "] after constructing fragment: "
+            << MemoryInspector::GetInstance().GetCurrentMemoryUsage() << " GB"
+            << ", peak: " << MemoryInspector::GetInstance().GetPeakMemoryUsage()
+            << " GB";
+    return fragment;
+  }
+
+  CommSpec comm_spec_;
   line_parser_t line_parser_;
 };
 

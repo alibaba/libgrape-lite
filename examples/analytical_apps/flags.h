@@ -54,6 +54,7 @@ DECLARE_int32(app_concurrency);
 DECLARE_int32(load_concurrency);
 
 DECLARE_bool(vc);
+DECLARE_bool(single_scan_load);
 
 DECLARE_string(lb);
 #endif  // EXAMPLES_ANALYTICAL_APPS_FLAGS_H_
