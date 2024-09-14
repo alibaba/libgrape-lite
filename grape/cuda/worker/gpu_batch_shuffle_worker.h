@@ -50,7 +50,8 @@ class GPUBatchShuffleWorker {
     prepare_conf.need_split_edges = APP_T::need_split_edges;
     prepare_conf.need_mirror_info = true;
     prepare_conf.need_build_device_vm = APP_T::need_build_device_vm;
-    graph.PrepareToRunApp(comm_spec, prepare_conf);
+    graph.PrepareToRunApp(comm_spec, prepare_conf,
+                          grape::DefaultParallelEngineSpec());
 
     comm_spec_ = comm_spec;
 

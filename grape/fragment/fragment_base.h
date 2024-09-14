@@ -22,6 +22,7 @@ limitations under the License.
 #include "grape/graph/adj_list.h"
 #include "grape/graph/edge.h"
 #include "grape/graph/vertex.h"
+#include "grape/parallel/parallel_engine_spec.h"
 #include "grape/vertex_map/vertex_map.h"
 #include "grape/worker/comm_spec.h"
 
@@ -109,7 +110,8 @@ class FragmentBase {
    * @param strategy
    * @param need_split_edge
    */
-  virtual void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) = 0;
+  virtual void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
+                               const ParallelEngineSpec& pe_spec) = 0;
 
  protected:
   template <typename IOADAPTOR_T>

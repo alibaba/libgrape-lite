@@ -72,9 +72,8 @@ class VCFragmentLoader {
 
     auto basic_fragment_loader =
         std::unique_ptr<BasicVCFragmentLoader<fragment_t>>(
-            new BasicVCFragmentLoader<fragment_t>(
-                comm_spec_, vnum, spec.load_concurrency,
-                std::thread::hardware_concurrency()));
+            new BasicVCFragmentLoader<fragment_t>(comm_spec_, vnum,
+                                                  spec.load_concurrency));
 
     auto io_adaptor = std::unique_ptr<io_adaptor_t>(new io_adaptor_t(efile));
     io_adaptor->SetPartialRead(comm_spec_.worker_id(), comm_spec_.worker_num());
@@ -120,10 +119,10 @@ class VCFragmentLoader {
     if (comm_spec_.worker_id() == 0) {
       VLOG(1) << "finished constructing fragment, time: " << t2 << " s";
     }
+#ifdef TRACKING_MEMORY_ALLOCATIONS
     VLOG(1) << "[frag-" << comm_spec_.fid() << "] after constructing fragment: "
-            << MemoryInspector::GetInstance().GetCurrentMemoryUsage() << " GB"
-            << ", peak: " << MemoryInspector::GetInstance().GetPeakMemoryUsage()
-            << " GB";
+            << MemoryTracker::GetInstance().GetMemoryUsageInfo();
+#endif
     return fragment;
   }
 
@@ -133,9 +132,8 @@ class VCFragmentLoader {
 
     auto basic_fragment_loader =
         std::unique_ptr<BasicVCDSFragmentLoader<fragment_t>>(
-            new BasicVCDSFragmentLoader<fragment_t>(
-                comm_spec_, vnum, spec.load_concurrency,
-                std::thread::hardware_concurrency()));
+            new BasicVCDSFragmentLoader<fragment_t>(comm_spec_, vnum,
+                                                    spec.load_concurrency));
     {
       auto io_adaptor = std::unique_ptr<io_adaptor_t>(new io_adaptor_t(efile));
       io_adaptor->SetPartialRead(comm_spec_.worker_id(),
@@ -225,10 +223,10 @@ class VCFragmentLoader {
     if (comm_spec_.worker_id() == 0) {
       VLOG(1) << "finished constructing fragment, time: " << t2 << " s";
     }
+#ifdef TRACKING_MEMORY_ALLOCATIONS
     VLOG(1) << "[frag-" << comm_spec_.fid() << "] after constructing fragment: "
-            << MemoryInspector::GetInstance().GetCurrentMemoryUsage() << " GB"
-            << ", peak: " << MemoryInspector::GetInstance().GetPeakMemoryUsage()
-            << " GB";
+            << MemoryTracker::GetInstance().GetMemoryUsageInfo();
+#endif
     return fragment;
   }
 

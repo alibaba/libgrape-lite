@@ -738,7 +738,8 @@ class AppendOnlyEdgecutFragment
     initOuterVerticesOfFragment();
   }
 
-  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) override {}
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
+                       const ParallelEngineSpec& pe_spec) override {}
 
   fid_t GetFragIdByGid(const vid_t& gid) const {
     return id_parser_.get_fragment_id(gid);

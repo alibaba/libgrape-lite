@@ -23,7 +23,7 @@ limitations under the License.
 #include "grape/fragment/fragment_base.h"
 #include "grape/graph/edge.h"
 #include "grape/types.h"
-#include "grape/utils/memory_inspector.h"
+#include "grape/utils/memory_tracker.h"
 #include "grape/utils/vertex_array.h"
 #include "grape/vertex_map/partitioner.h"
 #include "grape/worker/comm_spec.h"
@@ -75,8 +75,7 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
   using base_t::fnum_;
 
   void Init(const CommSpec& comm_spec, int64_t vnum,
-            std::vector<edge_t>&& edges, int bucket_num,
-            std::vector<size_t>&& bucket_edge_offsets) {
+            std::vector<edge_t>&& edges) {
     base_t::init(comm_spec.fid(), comm_spec.fnum(), false);
 
     partitioner_.init(comm_spec.fnum(), vnum);
@@ -84,10 +83,10 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     dst_vertices_ = partitioner_.get_dst_vertices(fid_);
     master_vertices_ = partitioner_.get_master_vertices(fid_);
 
-    int64_t src_begin = src_vertices_.begin_value();
-    int64_t src_end = src_vertices_.end_value();
-    int64_t dst_begin = dst_vertices_.begin_value();
-    int64_t dst_end = dst_vertices_.end_value();
+    oid_t src_begin = src_vertices_.begin_value();
+    oid_t src_end = src_vertices_.end_value();
+    oid_t dst_begin = dst_vertices_.begin_value();
+    oid_t dst_end = dst_vertices_.end_value();
 
     if (src_end < dst_begin) {
       vertices_ = both_vertices_t(src_begin, src_end, dst_begin, dst_end);
@@ -100,16 +99,27 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
 
 #ifdef USE_EDGE_ARRAY
     edges_.resize(edges.size());
-    MemoryInspector::GetInstance().allocate(sizeof(edge_t) * edges_.size());
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+    // reallocate memory for edges
+    MemoryTracker::GetInstance().allocate(sizeof(edge_t) * edges_.size());
+    MemoryTracker::GetInstance().deallocate(sizeof(edge_t) * edges_.size());
+#endif
     std::copy(edges.begin(), edges.end(), edges_.begin());
 #else
     edges_ = std::move(edges);
 #endif
-    bucket_num_ = bucket_num;
-    bucket_edge_offsets_ = std::move(bucket_edge_offsets);
+
+    bucket_num_ = 1;
+    bucket_edge_offsets_.push_back(0);
+    bucket_edge_offsets_.push_back(edges_.size());
   }
 
-  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) override {}
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
+                       const ParallelEngineSpec& pe_spec) override {
+    if (bucket_num_ < static_cast<int>(pe_spec.thread_num)) {
+      buildBucket(pe_spec.thread_num);
+    }
+  }
 
   const vertices_t& SourceVertices() const { return src_vertices_; }
   const vertices_t& DestinationVertices() const { return dst_vertices_; }
@@ -138,7 +148,6 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     InArchive arc;
     arc << edges_.size();
     arc << src_vertices_ << dst_vertices_ << vertices_ << master_vertices_;
-    arc << bucket_num_ << bucket_edge_offsets_;
     CHECK(io_adaptor->WriteArchive(arc));
     arc.Clear();
 
@@ -178,13 +187,15 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     CHECK_EQ(fid_, comm_spec.fid());
     CHECK_EQ(fnum_, comm_spec.fnum());
     arc >> src_vertices_ >> dst_vertices_ >> vertices_ >> master_vertices_;
-    arc >> bucket_num_ >> bucket_edge_offsets_;
 
     partitioner_.deserialize(io_adaptor);
 
     if (std::is_pod<edata_t>::value && std::is_pod<oid_t>::value) {
       LOG(INFO) << "is pod";
       edges_.resize(edge_num);
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+      MemoryTracker::GetInstance().allocate(sizeof(edge_t) * edges_.size());
+#endif
       if (edge_num > 0) {
         CHECK(io_adaptor->Read(edges_.data(), edge_num * sizeof(edge_t)));
       }
@@ -195,7 +206,9 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
       arc >> edges_;
     }
 
-    MemoryInspector::GetInstance().allocate(sizeof(edge_t) * edges_.size());
+    bucket_num_ = 1;
+    bucket_edge_offsets_.push_back(0);
+    bucket_edge_offsets_.push_back(edges_.size());
   }
 
   size_t GetTotalVerticesNum() const override {
@@ -206,7 +219,7 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
 
   size_t GetVerticesNum() const override { return vertices_.size(); }
 
-  const VCPartitioner<int64_t>& GetPartitioner() const { return partitioner_; }
+  const VCPartitioner<oid_t>& GetPartitioner() const { return partitioner_; }
 
   edge_bucket_t GetEdgesOfBucket(int src_bucket_id, int dst_bucket_id) const {
     int idx = src_bucket_id * bucket_num_ + dst_bucket_id;
@@ -220,7 +233,66 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
   int GetBucketNum() const { return bucket_num_; }
 
  private:
-  VCPartitioner<int64_t> partitioner_;
+  void buildBucket(int thread_num) {
+    if (bucket_num_ == thread_num) {
+      return;
+    }
+    std::vector<std::vector<size_t>> thread_bucket_edge_nums(thread_num);
+    std::vector<std::thread> threads;
+    std::atomic<size_t> edge_idx(0);
+    size_t edge_num = edges_.size();
+
+    oid_t src_begin = src_vertices_.begin_value();
+    size_t src_size = src_vertices_.size();
+    size_t src_chunk = (src_size + thread_num - 1) / thread_num;
+    oid_t dst_begin = dst_vertices_.begin_value();
+    size_t dst_size = dst_vertices_.size();
+    size_t dst_chunk = (dst_size + thread_num - 1) / thread_num;
+
+    for (int i = 0; i < thread_num; ++i) {
+      threads.emplace_back(
+          [&, this](int tid) {
+            thread_bucket_edge_nums[tid].clear();
+            thread_bucket_edge_nums[tid].resize(thread_num * thread_num, 0);
+            while (true) {
+              size_t idx = std::min(edge_idx.fetch_add(4096), edge_num);
+              size_t end = std::min(idx + 4096, edge_num);
+              if (idx == end) {
+                break;
+              }
+              while (idx < end) {
+                auto& edge = edges_[idx];
+                int src_bucket_id = (edge.src - src_begin) / src_chunk;
+                int dst_bucket_id = (edge.dst - dst_begin) / dst_chunk;
+                thread_bucket_edge_nums[tid][src_bucket_id * thread_num +
+                                             dst_bucket_id]++;
+                ++idx;
+              }
+            }
+          },
+          i);
+    }
+    for (auto& t : threads) {
+      t.join();
+    }
+    std::vector<size_t> bucket_edge_num(thread_num * thread_num, 0);
+    for (int i = 0; i < thread_num; ++i) {
+      for (int j = 0; j < thread_num * thread_num; ++j) {
+        bucket_edge_num[j] += thread_bucket_edge_nums[i][j];
+      }
+    }
+
+    bucket_num_ = thread_num;
+    bucket_edge_offsets_.clear();
+    edge_num = 0;
+    for (size_t i = 0; i < bucket_edge_num.size(); ++i) {
+      bucket_edge_offsets_.push_back(edge_num);
+      edge_num += bucket_edge_num[i];
+    }
+    bucket_edge_offsets_.push_back(edge_num);
+  }
+
+  VCPartitioner<oid_t> partitioner_;
   vertices_t src_vertices_;
   vertices_t dst_vertices_;
   both_vertices_t vertices_;

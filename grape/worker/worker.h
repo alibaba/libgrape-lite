@@ -82,8 +82,9 @@ class Worker {
   void Init(const CommSpec& comm_spec,
             const ParallelEngineSpec& pe_spec = DefaultParallelEngineSpec()) {
     auto& graph = *fragment_;
+    pe_spec_ = pe_spec;
     // prepare for the query
-    graph.PrepareToRunApp(comm_spec, prepare_conf_);
+    graph.PrepareToRunApp(comm_spec, prepare_conf_, pe_spec_);
 
     comm_spec_ = comm_spec;
     MPI_Barrier(comm_spec_.comm());
@@ -212,7 +213,7 @@ class Worker {
       std::is_base_of<MutationContext<fragment_t>, T>::value>::type
   processMutation() {
     context_->apply_mutation(fragment_, comm_spec_);
-    fragment_->PrepareToRunApp(comm_spec_, prepare_conf_);
+    fragment_->PrepareToRunApp(comm_spec_, prepare_conf_, pe_spec_);
   }
 
   template <typename T = context_t>
@@ -227,6 +228,7 @@ class Worker {
 
   CommSpec comm_spec_;
   PrepareConf prepare_conf_;
+  ParallelEngineSpec pe_spec_;
 };
 
 template <typename APP_T>

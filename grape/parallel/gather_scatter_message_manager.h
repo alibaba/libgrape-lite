@@ -73,8 +73,11 @@ class GatherScatterMessageManager : public MessageManagerBase {
   }
 
   void Finalize() override {
-    LOG(INFO) << "[frag-" << fid_ << "] gather comm: " << t0_gather_comm_
-              << ", gather calc: " << t1_gather_calc_;
+#ifdef PROFILING
+    VLOG(2) << "[frag-" << fid_ << "] gather comm: " << t0_gather_comm_
+            << " s, gather calc: " << t1_gather_calc_
+            << " s, scatter: " << t2_scatter_ << " s";
+#endif
   }
 
   void ForceContinue() override {
@@ -103,7 +106,9 @@ class GatherScatterMessageManager : public MessageManagerBase {
       LOG(FATAL) << "not implemented for non-POD type";
     }
 
+#ifdef PROFILING
     t0_gather_comm_ -= GetCurrentTime();
+#endif
     const auto& partitioner = frag.GetPartitioner();
     const auto& input_range = input.GetVertexRange();
     std::vector<MPI_Request> requests;
@@ -131,8 +136,10 @@ class GatherScatterMessageManager : public MessageManagerBase {
       auto src_vertices = partitioner.get_src_vertices(src_fid);
       if (output_range.IsSubsetOf(src_vertices)) {
         recv_buffers.emplace_back(output_size);
-        MemoryInspector::GetInstance().allocate(output_size *
-                                                sizeof(MESSAGE_T));
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+        // allocate memory for received messages
+        MemoryTracker::GetInstance().allocate(output_size * sizeof(MESSAGE_T));
+#endif
         sync_comm::irecv_buffer(recv_buffers.back().data(), output_size,
                                 src_fid, 0, comm_, requests);
         continue;
@@ -142,8 +149,10 @@ class GatherScatterMessageManager : public MessageManagerBase {
       auto dst_vertices = partitioner.get_dst_vertices(src_fid);
       if (output_range.IsSubsetOf(dst_vertices)) {
         recv_buffers.emplace_back(output_size);
-        MemoryInspector::GetInstance().allocate(output_size *
-                                                sizeof(MESSAGE_T));
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+        // allocate memory for received messages
+        MemoryTracker::GetInstance().allocate(output_size * sizeof(MESSAGE_T));
+#endif
         sync_comm::irecv_buffer(recv_buffers.back().data(), output_size,
                                 src_fid, 0, comm_, requests);
         continue;
@@ -153,9 +162,14 @@ class GatherScatterMessageManager : public MessageManagerBase {
     }
 
     MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+#ifdef PROFILING
     t0_gather_comm_ += GetCurrentTime();
+#endif
 
+#ifdef PROFILING
     t1_gather_calc_ -= GetCurrentTime();
+#endif
+
     MESSAGE_T* output_data = &output[*output_range.begin()];
     std::vector<std::thread> threads;
     int thread_num = std::thread::hardware_concurrency();
@@ -204,11 +218,16 @@ class GatherScatterMessageManager : public MessageManagerBase {
       thrd.join();
     }
 
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+    // deallocate memory for received messages
     for (auto& recv_buffer : recv_buffers) {
-      MemoryInspector::GetInstance().deallocate(recv_buffer.size() *
-                                                sizeof(MESSAGE_T));
+      MemoryTracker::GetInstance().deallocate(recv_buffer.size() *
+                                              sizeof(MESSAGE_T));
     }
+#endif
+#ifdef PROFILING
     t1_gather_calc_ += GetCurrentTime();
+#endif
   }
 
   template <typename GRAPH_T, typename MESSAGE_T>
@@ -216,6 +235,9 @@ class GatherScatterMessageManager : public MessageManagerBase {
       const GRAPH_T& frag,
       const typename GRAPH_T::template vertex_array_t<MESSAGE_T>& input,
       typename GRAPH_T::template both_vertex_array_t<MESSAGE_T>& output) {
+#ifdef PROFILING
+    t2_scatter_ -= GetCurrentTime();
+#endif
     if (!std::is_pod<MESSAGE_T>::value) {
       LOG(FATAL) << "not implemented for non-POD type";
     }
@@ -268,6 +290,9 @@ class GatherScatterMessageManager : public MessageManagerBase {
     }
 
     MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+#ifdef PROFILING
+    t2_scatter_ += GetCurrentTime();
+#endif
   }
 
  private:
@@ -284,8 +309,11 @@ class GatherScatterMessageManager : public MessageManagerBase {
   TerminateInfo terminate_info_;
   bool vote_terminate_;
 
+#ifdef PROFILING
   double t0_gather_comm_ = 0;
   double t1_gather_calc_ = 0;
+  double t2_scatter_ = 0;
+#endif
 };
 
 }  // namespace grape

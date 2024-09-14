@@ -583,8 +583,9 @@ class ImmutableEdgecutFragment
     io_adaptor->Close();
   }
 
-  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) override {
-    base_t::PrepareToRunApp(comm_spec, conf);
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
+                       const ParallelEngineSpec& pe_spec) override {
+    base_t::PrepareToRunApp(comm_spec, conf, pe_spec);
     if (conf.need_split_edges_by_fragment && !splited_edges_by_fragment_) {
       splitEdgesByFragment();
       splited_edges_by_fragment_ = true;

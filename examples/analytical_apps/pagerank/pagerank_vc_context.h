@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_VC_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_VC_CONTEXT_H_
 
-#include "grape/utils/memory_inspector.h"
+#include "grape/utils/memory_tracker.h"
 
 #include <iomanip>
 
@@ -34,14 +34,16 @@ class PageRankVCContext : public VertexDataContext<FRAG_T, double> {
     next_result.Init(fragment.Vertices());
     master_degree.Init(fragment.MasterVertices());
 
-    MemoryInspector::GetInstance().allocate(fragment.Vertices().size() *
-                                            sizeof(double));
-    MemoryInspector::GetInstance().allocate(fragment.Vertices().size() *
-                                            sizeof(double));
-    MemoryInspector::GetInstance().allocate(fragment.MasterVertices().size() *
-                                            sizeof(double));
-    MemoryInspector::GetInstance().allocate(fragment.MasterVertices().size() *
-                                            sizeof(int));
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+    MemoryTracker::GetInstance().allocate(fragment.Vertices().size() *
+                                          sizeof(double));
+    MemoryTracker::GetInstance().allocate(fragment.Vertices().size() *
+                                          sizeof(double));
+    MemoryTracker::GetInstance().allocate(fragment.MasterVertices().size() *
+                                          sizeof(double));
+    MemoryTracker::GetInstance().allocate(fragment.MasterVertices().size() *
+                                          sizeof(int));
+#endif
   }
 
   void Init(GatherScatterMessageManager& messages, double delta,
@@ -59,11 +61,11 @@ class PageRankVCContext : public VertexDataContext<FRAG_T, double> {
          << master_result[v] << std::endl;
     }
 
-    LOG(INFO) << "[frag-" << frag.fid() << "]: init degree: " << t0 << " s, "
-              << "calc master result: " << t2 << " s, "
-              << "propogate: " << t4 << " s, "
-              << "scatter: " << t7 << " s, "
-              << "reset next result: " << t11 << " s";
+#ifdef PROFILING
+    VLOG(2) << "[frag-" << frag.fid() << "]: init degree: " << t0 << " s, "
+            << "calc master result: " << t1 << " s, "
+            << "propogate: " << t2 << " s";
+#endif
   }
 
   typename FRAG_T::template both_vertex_array_t<double> curr_result;
@@ -79,11 +81,11 @@ class PageRankVCContext : public VertexDataContext<FRAG_T, double> {
 
   double dangling_sum = 0.0;
 
-  double t0 = 0;   // init degree
-  double t2 = 0;   // calc master result
-  double t4 = 0;   // propogate
-  double t7 = 0;   // scatter
-  double t11 = 0;  // reset next result
+#ifdef PROFILING
+  double t0 = 0;  // init degree
+  double t1 = 0;  // calc master result
+  double t2 = 0;  // propogate
+#endif
 };
 
 }  // namespace grape

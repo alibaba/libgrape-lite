@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef GRAPE_FRAGMENT_BASIC_VC_DS_FRAGMENT_LOADER_H_
 #define GRAPE_FRAGMENT_BASIC_VC_DS_FRAGMENT_LOADER_H_
 
-#include "grape/utils/memory_inspector.h"
+#include "grape/utils/memory_tracker.h"
 
 namespace grape {
 
@@ -83,17 +83,22 @@ class BasicVCDSFragmentLoader {
 
  public:
   explicit BasicVCDSFragmentLoader(const CommSpec& comm_spec, int64_t vnum,
-                                   int load_concurrency, int bucket_num)
+                                   int load_concurrency)
       : comm_spec_(comm_spec),
         partitioner_(comm_spec.fnum(), vnum),
-        bucket_num_(bucket_num),
-        bucketer_(partitioner_, bucket_num),
+        bucketer_(nullptr),
         vnum_(vnum),
         load_concurrency_(load_concurrency) {
     comm_spec_.Dup();
+
+    MPI_Allreduce(&load_concurrency_, &bucket_num_, 1, MPI_INT, MPI_MIN,
+                  comm_spec_.comm());
+    bucketer_ = std::unique_ptr<VCEdgeBucketer<oid_t>>(
+        new VCEdgeBucketer<oid_t>(partitioner_, bucket_num_));
+
     partition_bucket_edge_num_.resize(comm_spec_.fnum());
     for (auto& vec : partition_bucket_edge_num_) {
-      vec.resize(bucket_num * bucket_num, 0);
+      vec.resize(bucket_num_ * bucket_num_, 0);
     }
   }
 
@@ -111,36 +116,22 @@ class BasicVCDSFragmentLoader {
   }
 
   void RecordEdge(const oid_t& src, const oid_t& dst) {
-    auto pair = bucketer_.get_partition_bucket_id(src, dst);
+    auto pair = bucketer_->get_partition_bucket_id(src, dst);
     ++partition_bucket_edge_num_[pair.first][pair.second];
   }
 
   void AllocateBuffers() {
-    {
-      std::vector<std::vector<size_t>> partition_bucket_edge_num_out(
-          comm_spec_.fnum());
-      sync_comm::AllToAll(partition_bucket_edge_num_,
-                          partition_bucket_edge_num_out, comm_spec_.comm());
-      std::vector<size_t> partition_edge_num(bucket_num_ * bucket_num_, 0);
-      for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
-        for (size_t i = 0; i < bucket_num_ * bucket_num_; ++i) {
-          partition_edge_num[i] += partition_bucket_edge_num_out[fid][i];
-        }
+    for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
+      if (comm_spec_.FragToWorker(fid) == comm_spec_.worker_id()) {
+        MPI_Reduce(MPI_IN_PLACE, partition_bucket_edge_num_[fid].data(),
+                   partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
+                   MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
+      } else {
+        MPI_Reduce(partition_bucket_edge_num_[fid].data(), nullptr,
+                   partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
+                   MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
       }
-      partition_bucket_edge_num_[comm_spec_.fid()] =
-          std::move(partition_edge_num);
     }
-    // for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
-    //   if (comm_spec_.FragToWorker(fid) == comm_spec_.worker_id()) {
-    //     MPI_Reduce(MPI_IN_PLACE, partition_bucket_edge_num_[fid].data(),
-    //                partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
-    //                MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
-    //   } else {
-    //     MPI_Reduce(partition_bucket_edge_num_[fid].data(), nullptr,
-    //                partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
-    //                MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
-    //   }
-    // }
     size_t edge_num = 0;
     bucket_cursor_ =
         std::vector<std::atomic<size_t>>(bucket_num_ * bucket_num_);
@@ -149,7 +140,10 @@ class BasicVCDSFragmentLoader {
       edge_num += partition_bucket_edge_num_[comm_spec_.fid()][k];
     }
     edges_.resize(edge_num);
-    MemoryInspector::GetInstance().allocate((sizeof(edge_t)) * edge_num);
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+    // allocate memory for edges
+    MemoryTracker::GetInstance().allocate((sizeof(edge_t)) * edge_num);
+#endif
 
     got_edges_.SetProducerNum(2);
 
@@ -162,17 +156,26 @@ class BasicVCDSFragmentLoader {
         edges_to_frag_[fid].DisableComm();
       }
     }
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+    // allocate memory for edge shuffle-out buffer
+    MemoryTracker::GetInstance().allocate(
+        (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
+        shuffle_out_size);
+#endif
     for (int i = 0; i < load_concurrency_; ++i) {
       edge_move_threads_.emplace_back([this] {
         ShuffleBufferTuple<oid_t, oid_t, edata_t> cur;
         std::vector<std::vector<edge_t>> edges_cache(bucket_num_ * bucket_num_);
-        MemoryInspector::GetInstance().allocate(
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+        // allocate memory for thread local edge cache
+        MemoryTracker::GetInstance().allocate(
             (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * 4096);
+#endif
         while (got_edges_.Get(cur)) {
           size_t cur_size = cur.size();
           foreach_rval(cur, [&edges_cache, this](oid_t src, oid_t dst,
                                                  edata_t data) {
-            int bucket_id = bucketer_.get_bucket_id(src, dst);
+            int bucket_id = bucketer_->get_bucket_id(src, dst);
             edges_cache[bucket_id].emplace_back(src, dst, data);
             if (edges_cache[bucket_id].size() >= 4096) {
               size_t cursor = bucket_cursor_[bucket_id].fetch_add(
@@ -182,8 +185,11 @@ class BasicVCDSFragmentLoader {
               edges_cache[bucket_id].clear();
             }
           });
-          MemoryInspector::GetInstance().deallocate(
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+          // deallocate edge shuffle-in buffer
+          MemoryTracker::GetInstance().deallocate(
               (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * cur_size);
+#endif
         }
         for (int i = 0; i < bucket_num_ * bucket_num_; ++i) {
           if (!edges_cache[i].empty()) {
@@ -192,16 +198,16 @@ class BasicVCDSFragmentLoader {
                       edges_.begin() + cursor);
           }
         }
-        MemoryInspector::GetInstance().deallocate(
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+        // deallocate memory for thread local edge cache
+        MemoryTracker::GetInstance().deallocate(
             (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * 4096);
+#endif
       });
     }
     edge_recv_thread_ =
         std::thread(&BasicVCDSFragmentLoader::edgeRecvRoutine, this);
     recv_thread_running_ = true;
-    MemoryInspector::GetInstance().allocate(
-        (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
-        shuffle_out_size);
   }
 
   void AddEdge(const oid_t& src, const oid_t& dst, const edata_t& data) {
@@ -209,9 +215,12 @@ class BasicVCDSFragmentLoader {
     edges_to_frag_[fid].Emplace(src, dst, data);
     if (fid == comm_spec_.fid() &&
         edges_to_frag_[fid].buffers().size() >= shuffle_out_size) {
-      MemoryInspector::GetInstance().allocate(
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+      // allocate memory for edge shuffle-out(to self) buffer
+      MemoryTracker::GetInstance().allocate(
           (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *
           edges_to_frag_[fid].buffers().size());
+#endif
       got_edges_.Put(std::move(edges_to_frag_[fid].buffers()));
       edges_to_frag_[fid].Clear();
     }
@@ -225,9 +234,12 @@ class BasicVCDSFragmentLoader {
     edge_recv_thread_.join();
     recv_thread_running_ = false;
     edges_to_frag_.clear();
-    MemoryInspector::GetInstance().deallocate(
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+    // deallocate memory for edge shuffle-out buffer
+    MemoryTracker::GetInstance().deallocate(
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
         shuffle_out_size);
+#endif
     got_edges_.DecProducerNum();
     for (auto& thrd : edge_move_threads_) {
       thrd.join();
@@ -272,8 +284,7 @@ class BasicVCDSFragmentLoader {
     }
 
     fragment.reset(new fragment_t());
-    fragment->Init(comm_spec_, vnum_, std::move(edges_), bucket_num_,
-                   std::move(bucket_edge_offset));
+    fragment->Init(comm_spec_, vnum_, std::move(edges_));
   }
 
  private:
@@ -288,9 +299,12 @@ class BasicVCDSFragmentLoader {
         break;
       }
       CHECK_EQ(dst_fid, comm_spec_.fid());
-      MemoryInspector::GetInstance().allocate(
+#ifdef TRACKING_MEMORY_ALLOCATIONS
+      // allocate memory for edge shuffle-in buffer
+      MemoryTracker::GetInstance().allocate(
           (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *
           data_in.buffers().size());
+#endif
       got_edges_.Put(std::move(data_in.buffers()));
       data_in.Clear();
     }
@@ -302,7 +316,7 @@ class BasicVCDSFragmentLoader {
   CommSpec comm_spec_;
   VCPartitioner<oid_t> partitioner_;
   int bucket_num_;
-  VCEdgeBucketer<oid_t> bucketer_;
+  std::unique_ptr<VCEdgeBucketer<oid_t>> bucketer_;
 
   int64_t vnum_;
   int load_concurrency_;

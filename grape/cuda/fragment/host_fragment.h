@@ -119,8 +119,9 @@ class HostFragment : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
     __allocate_device_fragment__(comm_spec.local_id());
   }
 
-  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) {
-    base_t::PrepareToRunApp(comm_spec, conf);
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
+                       const ParallelEngineSpec& engine_spec) {
+    base_t::PrepareToRunApp(comm_spec, conf, pe_spec);
 
     Stream stream;
     if (conf.message_strategy ==

@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef GRAPE_FRAGMENT_BASIC_VC_FRAGMENT_LOADER_H_
 #define GRAPE_FRAGMENT_BASIC_VC_FRAGMENT_LOADER_H_
 
-#include "grape/utils/memory_inspector.h"
+#include "grape/utils/memory_tracker.h"
 
 namespace grape {
 
@@ -33,10 +33,10 @@ class BasicVCFragmentLoader {
 
  public:
   explicit BasicVCFragmentLoader(const CommSpec& comm_spec, int64_t vnum,
-                                 int load_concurrency, int bucket_num)
+                                 int load_concurrency)
       : comm_spec_(comm_spec),
         partitioner_(comm_spec.fnum(), vnum),
-        bucket_num_(bucket_num),
+        bucket_num_(load_concurrency),
         vnum_(vnum),
         load_concurrency_(load_concurrency) {
     comm_spec_.Dup();
@@ -50,10 +50,12 @@ class BasicVCFragmentLoader {
       }
     }
 
+#ifdef TRACKING_MEMORY_ALLOCATIONS
     // allocate shuffle out buffers
-    MemoryInspector::GetInstance().allocate(
+    MemoryTracker::GetInstance().allocate(
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
         shuffle_out_size);
+#endif
     edge_recv_thread_ =
         std::thread(&BasicVCFragmentLoader::edgeRecvRoutine, this);
     recv_thread_running_ = true;
@@ -97,14 +99,18 @@ class BasicVCFragmentLoader {
       got_edges_memory_usage +=
           buf.size() * (sizeof(oid_t) * 2 + sizeof(edata_t));
     }
+#ifdef TRACKING_MEMORY_ALLOCATIONS
     // allocate edges recv buffer
-    MemoryInspector::GetInstance().allocate(got_edges_memory_usage);
+    MemoryTracker::GetInstance().allocate(got_edges_memory_usage);
+#endif
 
     edges_to_frag_[comm_spec_.fid()].Clear();
+#ifdef TRACKING_MEMORY_ALLOCATIONS
     // deallocate shuffle out buffers
-    MemoryInspector::GetInstance().deallocate(
+    MemoryTracker::GetInstance().deallocate(
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
         shuffle_out_size);
+#endif
 
     std::vector<size_t> bucket_edge_num(bucket_num_ * bucket_num_, 0);
     {
@@ -157,15 +163,19 @@ class BasicVCFragmentLoader {
 
     std::vector<edge_t> edges;
     edges.resize(edge_num);
+#ifdef TRACKING_MEMORY_ALLOCATIONS
     // allocate edges buffer
-    MemoryInspector::GetInstance().allocate(sizeof(edge_t) * edge_num);
+    MemoryTracker::GetInstance().allocate(sizeof(edge_t) * edge_num);
+#endif
 
     {
       static constexpr size_t thread_local_cache_size = 4096;
+#ifdef TRACKING_MEMORY_ALLOCATIONS
       // allocate thread local cache
-      MemoryInspector::GetInstance().allocate(
+      MemoryTracker::GetInstance().allocate(
           sizeof(edge_t) * bucket_num_ * bucket_num_ * thread_local_cache_size *
           load_concurrency_);
+#endif
       std::vector<std::thread> insert_threads;
       for (int i = 0; i < load_concurrency_; ++i) {
         insert_threads.emplace_back(
@@ -210,13 +220,17 @@ class BasicVCFragmentLoader {
       for (auto& thrd : insert_threads) {
         thrd.join();
       }
+#ifdef TRACKING_MEMORY_ALLOCATIONS
       // deallocate thread local cache
-      MemoryInspector::GetInstance().deallocate(
+      MemoryTracker::GetInstance().deallocate(
           sizeof(edge_t) * bucket_num_ * bucket_num_ * thread_local_cache_size *
           load_concurrency_);
+#endif
       got_edges_.clear();
+#ifdef TRACKING_MEMORY_ALLOCATIONS
       // deallocate edges recv buffer
-      MemoryInspector::GetInstance().deallocate(got_edges_memory_usage);
+      MemoryTracker::GetInstance().deallocate(got_edges_memory_usage);
+#endif
     }
 
     {
@@ -248,8 +262,7 @@ class BasicVCFragmentLoader {
     }
 
     fragment.reset(new fragment_t());
-    fragment->Init(comm_spec_, vnum_, std::move(edges), bucket_num_,
-                   std::move(bucket_edge_offset));
+    fragment->Init(comm_spec_, vnum_, std::move(edges));
   }
 
  private:
