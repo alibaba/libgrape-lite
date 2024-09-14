@@ -24,7 +24,6 @@ template <typename FRAG_T>
 class BasicVCFragmentLoader {
   using fragment_t = FRAG_T;
   using oid_t = typename fragment_t::oid_t;
-  using vid_t = typename fragment_t::vid_t;
   using vdata_t = typename fragment_t::vdata_t;
   using edata_t = typename fragment_t::edata_t;
   using edge_t = typename fragment_t::edge_t;

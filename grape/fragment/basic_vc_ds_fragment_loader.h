@@ -74,7 +74,6 @@ template <typename FRAG_T>
 class BasicVCDSFragmentLoader {
   using fragment_t = FRAG_T;
   using oid_t = typename fragment_t::oid_t;
-  using vid_t = typename fragment_t::vid_t;
   using vdata_t = typename fragment_t::vdata_t;
   using edata_t = typename fragment_t::edata_t;
   using edge_t = typename fragment_t::edge_t;
@@ -117,17 +116,31 @@ class BasicVCDSFragmentLoader {
   }
 
   void AllocateBuffers() {
-    for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
-      if (comm_spec_.FragToWorker(fid) == comm_spec_.worker_id()) {
-        MPI_Reduce(MPI_IN_PLACE, partition_bucket_edge_num_[fid].data(),
-                   partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
-                   MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
-      } else {
-        MPI_Reduce(partition_bucket_edge_num_[fid].data(), nullptr,
-                   partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
-                   MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
+    {
+      std::vector<std::vector<size_t>> partition_bucket_edge_num_out(
+          comm_spec_.fnum());
+      sync_comm::AllToAll(partition_bucket_edge_num_,
+                          partition_bucket_edge_num_out, comm_spec_.comm());
+      std::vector<size_t> partition_edge_num(bucket_num_ * bucket_num_, 0);
+      for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
+        for (size_t i = 0; i < bucket_num_ * bucket_num_; ++i) {
+          partition_edge_num[i] += partition_bucket_edge_num_out[fid][i];
+        }
       }
+      partition_bucket_edge_num_[comm_spec_.fid()] =
+          std::move(partition_edge_num);
     }
+    // for (fid_t fid = 0; fid < comm_spec_.fnum(); ++fid) {
+    //   if (comm_spec_.FragToWorker(fid) == comm_spec_.worker_id()) {
+    //     MPI_Reduce(MPI_IN_PLACE, partition_bucket_edge_num_[fid].data(),
+    //                partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
+    //                MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
+    //   } else {
+    //     MPI_Reduce(partition_bucket_edge_num_[fid].data(), nullptr,
+    //                partition_bucket_edge_num_[fid].size(), MPI_LONG_LONG_INT,
+    //                MPI_SUM, comm_spec_.FragToWorker(fid), comm_spec_.comm());
+    //   }
+    // }
     size_t edge_num = 0;
     bucket_cursor_ =
         std::vector<std::atomic<size_t>>(bucket_num_ * bucket_num_);

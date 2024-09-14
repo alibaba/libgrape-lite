@@ -35,8 +35,8 @@ void CreateAndQueryVC(const CommSpec& comm_spec, const std::string& out_prefix,
   }
   graph_spec.single_scan = FLAGS_single_scan_load;
 
-  using FRAG_T = ImmutableVertexcutFragment<int64_t, uint32_t, grape::EmptyType,
-                                            grape::EmptyType>;
+  using FRAG_T =
+      ImmutableVertexcutFragment<int64_t, grape::EmptyType, grape::EmptyType>;
   std::shared_ptr<FRAG_T> fragment = LoadVertexcutGraph<FRAG_T>(
       FLAGS_efile, FLAGS_vertex_num, comm_spec, graph_spec);
   VLOG(1) << "[worker-" << comm_spec.worker_id() << "] after loading graph: "

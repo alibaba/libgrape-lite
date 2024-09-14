@@ -20,6 +20,7 @@ limitations under the License.
 
 #include <glog/logging.h>
 
+#include "grape/fragment/fragment_base.h"
 #include "grape/graph/edge.h"
 #include "grape/types.h"
 #include "grape/utils/memory_inspector.h"
@@ -31,34 +32,32 @@ namespace grape {
 
 // #define USE_EDGE_ARRAY
 
-template <typename OID_T, typename VID_T, typename VDATA_T, typename EDATA_T>
+template <typename OID_T, typename VDATA_T, typename EDATA_T>
 class ImmutableVertexcutFragment {};
 
-template <typename T>
-struct IteratorPair {
-  IteratorPair() : begin_(nullptr), end_(nullptr) {}
-  IteratorPair(const T* begin, const T* end) : begin_(begin), end_(end) {}
-
-  const T* begin() const { return begin_; }
-
-  const T* end() const { return end_; }
-
-  const T* begin_;
-  const T* end_;
-};
-
-template <typename VID_T>
-class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType>
+template <>
+class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     : public FragmentBase<int64_t, EmptyType, EmptyType> {
  public:
   using oid_t = int64_t;
-  using vid_t = VID_T;
   using edata_t = EmptyType;
   using vdata_t = EmptyType;
   using vertices_t = VertexRange<oid_t>;
   using both_vertices_t = DualVertexRange<oid_t>;
   using edge_t = Edge<oid_t, edata_t>;
   using base_t = FragmentBase<oid_t, vdata_t, edata_t>;
+
+  struct edge_bucket_t {
+    edge_bucket_t() : begin_(nullptr), end_(nullptr) {}
+    edge_bucket_t(const edge_t* begin, const edge_t* end)
+        : begin_(begin), end_(end) {}
+
+    const edge_t* begin() const { return begin_; }
+    const edge_t* end() const { return end_; }
+
+    const edge_t* begin_;
+    const edge_t* end_;
+  };
 
   static constexpr FragmentType fragment_type = FragmentType::kVertexCut;
   static constexpr LoadStrategy load_strategy = LoadStrategy::kOnlyOut;
@@ -209,14 +208,13 @@ class ImmutableVertexcutFragment<int64_t, VID_T, EmptyType, EmptyType>
 
   const VCPartitioner<int64_t>& GetPartitioner() const { return partitioner_; }
 
-  IteratorPair<edge_t> GetEdgesOfBucket(int src_bucket_id,
-                                        int dst_bucket_id) const {
+  edge_bucket_t GetEdgesOfBucket(int src_bucket_id, int dst_bucket_id) const {
     int idx = src_bucket_id * bucket_num_ + dst_bucket_id;
     if (static_cast<size_t>(idx) >= bucket_edge_offsets_.size()) {
-      return IteratorPair<edge_t>();
+      return edge_bucket_t();
     }
-    return IteratorPair<edge_t>(edges_.data() + bucket_edge_offsets_[idx],
-                                edges_.data() + bucket_edge_offsets_[idx + 1]);
+    return edge_bucket_t(edges_.data() + bucket_edge_offsets_[idx],
+                         edges_.data() + bucket_edge_offsets_[idx + 1]);
   }
 
   int GetBucketNum() const { return bucket_num_; }
