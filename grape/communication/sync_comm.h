@@ -95,8 +95,8 @@ static inline void send_buffer(const T* ptr, size_t len, int dst_worker_id,
   const size_t chunk_size_in_bytes = chunk_num * sizeof(T);
   int iter = len / chunk_num;
   size_t remaining = (len % chunk_num) * sizeof(T);
-  LOG(INFO) << "sending large buffer in " << iter + (remaining != 0)
-            << " iterations";
+  VLOG(10) << "sending large buffer in " << iter + (remaining != 0)
+           << " iterations";
   for (int i = 0; i < iter; ++i) {
     MPI_Send(ptr, chunk_size_in_bytes, MPI_CHAR, dst_worker_id, tag, comm);
     ptr += chunk_num;
@@ -120,8 +120,8 @@ static inline void isend_buffer(const T* ptr, size_t len, int dst_worker_id,
   const size_t chunk_size_in_bytes = chunk_num * sizeof(T);
   int iter = len / chunk_num;
   size_t remaining = (len % chunk_num) * sizeof(T);
-  LOG(INFO) << "isending large buffer in " << iter + (remaining != 0)
-            << " iterations";
+  VLOG(10) << "isending large buffer in " << iter + (remaining != 0)
+           << " iterations";
   for (int i = 0; i < iter; ++i) {
     MPI_Request req;
     MPI_Isend(ptr, chunk_size_in_bytes, MPI_CHAR, dst_worker_id, tag, comm,
@@ -147,8 +147,8 @@ static inline void recv_buffer(T* ptr, size_t len, int src_worker_id, int tag,
   const size_t chunk_size_in_bytes = chunk_num * sizeof(T);
   int iter = len / chunk_num;
   size_t remaining = (len % chunk_num) * sizeof(T);
-  LOG(INFO) << "recving large buffer in " << iter + (remaining != 0)
-            << " iterations";
+  VLOG(10) << "recving large buffer in " << iter + (remaining != 0)
+           << " iterations";
   for (int i = 0; i < iter; ++i) {
     MPI_Recv(ptr, chunk_size_in_bytes, MPI_CHAR, src_worker_id, tag, comm,
              MPI_STATUS_IGNORE);
@@ -177,8 +177,8 @@ static inline void irecv_buffer(T* ptr, size_t len, int src_worker_id, int tag,
   const size_t chunk_size_in_bytes = chunk_num * sizeof(T);
   int iter = len / chunk_num;
   size_t remaining = (len % chunk_num) * sizeof(T);
-  LOG(INFO) << "irecving large buffer in " << iter + (remaining != 0)
-            << " iterations";
+  VLOG(10) << "irecving large buffer in " << iter + (remaining != 0)
+           << " iterations";
   for (int i = 0; i < iter; ++i) {
     MPI_Irecv(ptr, chunk_size_in_bytes, MPI_CHAR, src_worker_id, tag, comm,
               &reqs[i]);
@@ -202,8 +202,8 @@ static inline void irecv_buffer(T* ptr, size_t len, int src_worker_id, int tag,
   const size_t chunk_size_in_bytes = chunk_num * sizeof(T);
   int iter = len / chunk_num;
   size_t remaining = (len % chunk_num) * sizeof(T);
-  LOG(INFO) << "irecving large buffer in " << iter + (remaining != 0)
-            << " iterations";
+  VLOG(10) << "irecving large buffer in " << iter + (remaining != 0)
+           << " iterations";
   for (int i = 0; i < iter; ++i) {
     MPI_Request req;
     MPI_Irecv(ptr, chunk_size_in_bytes, MPI_CHAR, src_worker_id, tag, comm,
@@ -236,8 +236,8 @@ static inline void bcast_buffer(T* ptr, size_t len, int root, MPI_Comm comm) {
   const size_t chunk_size_in_bytes = chunk_num * sizeof(T);
   int iter = len / chunk_num;
   size_t remaining = (len % chunk_num) * sizeof(T);
-  LOG(INFO) << "bcast large buffer in " << iter + (remaining != 0)
-            << " iterations";
+  VLOG(10) << "bcast large buffer in " << iter + (remaining != 0)
+           << " iterations";
   for (int i = 0; i < iter; ++i) {
     MPI_Bcast(ptr, chunk_size_in_bytes, MPI_CHAR, root, comm);
     ptr += chunk_num;
