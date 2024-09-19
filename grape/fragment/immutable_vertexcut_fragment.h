@@ -100,7 +100,7 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
 
 #ifdef USE_EDGE_ARRAY
     edges_.resize(edges.size());
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // reallocate memory for edges
     MemoryTracker::GetInstance().allocate(sizeof(edge_t) * edges_.size());
     MemoryTracker::GetInstance().deallocate(sizeof(edge_t) * edges_.size());
@@ -212,7 +212,7 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
 
     if (std::is_pod<edata_t>::value && std::is_pod<oid_t>::value) {
       edges_.resize(edge_num);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       MemoryTracker::GetInstance().allocate(sizeof(edge_t) * edges_.size());
 #endif
       if (edge_num > 0) {

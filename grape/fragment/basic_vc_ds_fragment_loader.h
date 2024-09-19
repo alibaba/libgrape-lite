@@ -140,7 +140,7 @@ class BasicVCDSFragmentLoader {
       edge_num += partition_bucket_edge_num_[comm_spec_.fid()][k];
     }
     edges_.resize(edge_num);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // allocate memory for edges
     MemoryTracker::GetInstance().allocate((sizeof(edge_t)) * edge_num);
 #endif
@@ -156,7 +156,7 @@ class BasicVCDSFragmentLoader {
         edges_to_frag_[fid].DisableComm();
       }
     }
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // allocate memory for edge shuffle-out buffer
     MemoryTracker::GetInstance().allocate(
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
@@ -167,7 +167,7 @@ class BasicVCDSFragmentLoader {
       edge_move_threads_.emplace_back([this] {
         ShuffleBufferTuple<oid_t, oid_t, edata_t> cur;
         std::vector<std::vector<edge_t>> edges_cache(bucket_num_ * bucket_num_);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
         // allocate memory for thread local edge cache
         MemoryTracker::GetInstance().allocate(
             (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *
@@ -187,7 +187,7 @@ class BasicVCDSFragmentLoader {
               edges_cache[bucket_id].clear();
             }
           });
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
           // deallocate edge shuffle-in buffer
           MemoryTracker::GetInstance().deallocate(
               (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * cur_size);
@@ -200,7 +200,7 @@ class BasicVCDSFragmentLoader {
                       edges_.begin() + cursor);
           }
         }
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
         // deallocate memory for thread local edge cache
         MemoryTracker::GetInstance().deallocate(
             (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *
@@ -218,7 +218,7 @@ class BasicVCDSFragmentLoader {
     edges_to_frag_[fid].Emplace(src, dst, data);
     if (fid == comm_spec_.fid() &&
         edges_to_frag_[fid].buffers().size() >= shuffle_out_size) {
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       // allocate memory for edge shuffle-out(to self) buffer
       MemoryTracker::GetInstance().allocate(
           (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *
@@ -237,7 +237,7 @@ class BasicVCDSFragmentLoader {
     edge_recv_thread_.join();
     recv_thread_running_ = false;
     edges_to_frag_.clear();
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // deallocate memory for edge shuffle-out buffer
     MemoryTracker::GetInstance().deallocate(
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
@@ -275,7 +275,7 @@ class BasicVCDSFragmentLoader {
         break;
       }
       CHECK_EQ(dst_fid, comm_spec_.fid());
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       // allocate memory for edge shuffle-in buffer
       MemoryTracker::GetInstance().allocate(
           (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *

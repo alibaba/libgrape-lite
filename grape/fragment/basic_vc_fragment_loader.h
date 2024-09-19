@@ -50,7 +50,7 @@ class BasicVCFragmentLoader {
       }
     }
 
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // allocate shuffle out buffers
     MemoryTracker::GetInstance().allocate(
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
@@ -99,13 +99,13 @@ class BasicVCFragmentLoader {
       got_edges_memory_usage +=
           buf.size() * (sizeof(oid_t) * 2 + sizeof(edata_t));
     }
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // allocate edges recv buffer
     MemoryTracker::GetInstance().allocate(got_edges_memory_usage);
 #endif
 
     edges_to_frag_[comm_spec_.fid()].Clear();
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // deallocate shuffle out buffers
     MemoryTracker::GetInstance().deallocate(
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
@@ -163,14 +163,14 @@ class BasicVCFragmentLoader {
 
     std::vector<edge_t> edges;
     edges.resize(edge_num);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // allocate edges buffer
     MemoryTracker::GetInstance().allocate(sizeof(edge_t) * edge_num);
 #endif
 
     {
       static constexpr size_t thread_local_cache_size = 128;
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       // allocate thread local cache
       MemoryTracker::GetInstance().allocate(
           sizeof(edge_t) * bucket_num_ * bucket_num_ * thread_local_cache_size *
@@ -223,14 +223,14 @@ class BasicVCFragmentLoader {
       for (auto& thrd : insert_threads) {
         thrd.join();
       }
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       // deallocate thread local cache
       MemoryTracker::GetInstance().deallocate(
           sizeof(edge_t) * bucket_num_ * bucket_num_ * thread_local_cache_size *
           load_concurrency_);
 #endif
       got_edges_.clear();
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       // deallocate edges recv buffer
       MemoryTracker::GetInstance().deallocate(got_edges_memory_usage);
 #endif

@@ -17,7 +17,7 @@ limitations under the License.
 
 namespace grape {
 
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
 
 MemoryTracker& MemoryTracker::GetInstance() {
   static MemoryTracker instance;

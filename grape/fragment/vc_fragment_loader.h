@@ -119,7 +119,7 @@ class VCFragmentLoader {
     if (comm_spec_.worker_id() == 0) {
       VLOG(1) << "finished constructing fragment, time: " << t2 << " s";
     }
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     VLOG(1) << "[frag-" << comm_spec_.fid() << "] after constructing fragment: "
             << MemoryTracker::GetInstance().GetMemoryUsageInfo();
 #endif
@@ -223,7 +223,7 @@ class VCFragmentLoader {
     if (comm_spec_.worker_id() == 0) {
       VLOG(1) << "finished constructing fragment, time: " << t2 << " s";
     }
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     VLOG(1) << "[frag-" << comm_spec_.fid() << "] after constructing fragment: "
             << MemoryTracker::GetInstance().GetMemoryUsageInfo();
 #endif

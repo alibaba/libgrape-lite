@@ -107,7 +107,7 @@ class GatherScatterMessageManager : public MessageManagerBase {
       fid_t src_fid = (fid_ + fnum_ - i) % fnum_;
       auto src_vertices = frag.GetPartitioner().get_src_vertices(src_fid);
       if (output_range.IsSubsetOf(src_vertices)) {
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
         // allocate memory for received messages
         MemoryTracker::GetInstance().allocate(output_size);
 #endif
@@ -119,7 +119,7 @@ class GatherScatterMessageManager : public MessageManagerBase {
       }
       auto dst_vertices = frag.GetPartitioner().get_dst_vertices(src_fid);
       if (output_range.IsSubsetOf(dst_vertices)) {
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
         // allocate memory for received messages
         MemoryTracker::GetInstance().allocate(output_size);
 #endif
@@ -267,7 +267,7 @@ class GatherScatterMessageManager : public MessageManagerBase {
       thrd.join();
     }
 
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // deallocate memory for received messages
     while (!from_heap.empty()) {
       MemoryTracker::GetInstance().deallocate(from_heap.front().size());
@@ -360,7 +360,7 @@ class GatherScatterMessageManager : public MessageManagerBase {
         }
       }
     }
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     // allocate memory for received messages
     MemoryTracker::GetInstance().allocate(size);
 #endif

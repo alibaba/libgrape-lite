@@ -20,8 +20,7 @@ limitations under the License.
 
 namespace grape {
 
-#define TRACKING_MEMORY_ALLOCATIONS
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
 
 struct MemoryTracker {
   static MemoryTracker& GetInstance();
