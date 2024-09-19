@@ -174,7 +174,6 @@ class BasicVCDSFragmentLoader {
             thread_local_cache_size);
 #endif
         while (got_edges_.Get(cur)) {
-          size_t cur_size = cur.size();
           foreach_rval(cur, [&edges_cache, this](oid_t src, oid_t dst,
                                                  edata_t data) {
             int bucket_id = bucketer_->get_bucket_id(src, dst);
@@ -190,7 +189,7 @@ class BasicVCDSFragmentLoader {
 #ifdef TRACKING_MEMORY
           // deallocate edge shuffle-in buffer
           MemoryTracker::GetInstance().deallocate(
-              (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * cur_size);
+              (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * cur.size());
 #endif
         }
         for (int i = 0; i < bucket_num_ * bucket_num_; ++i) {

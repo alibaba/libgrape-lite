@@ -55,7 +55,7 @@ class PageRankVC
 #endif
       typename fragment_t::template both_vertex_array_t<int> degree(
           frag.Vertices(), 0);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       // allocate degree array for both src and dst vertices
       MemoryTracker::GetInstance().allocate(frag.Vertices().size() *
                                             sizeof(int));
@@ -91,7 +91,7 @@ class PageRankVC
 
       messages.GatherMasterVertices<fragment_t, int, NumericSum<int>>(
           frag, degree, ctx.master_degree);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
       // deallocate degree array for both src and dst vertices
       MemoryTracker::GetInstance().deallocate(frag.Vertices().size() *
                                               sizeof(int));

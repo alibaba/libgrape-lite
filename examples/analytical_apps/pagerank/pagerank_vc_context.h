@@ -34,7 +34,7 @@ class PageRankVCContext : public VertexDataContext<FRAG_T, double> {
     next_result.Init(fragment.Vertices());
     master_degree.Init(fragment.MasterVertices());
 
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
     MemoryTracker::GetInstance().allocate(fragment.Vertices().size() *
                                           sizeof(double));
     MemoryTracker::GetInstance().allocate(fragment.Vertices().size() *

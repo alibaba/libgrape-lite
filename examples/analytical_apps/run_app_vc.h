@@ -41,7 +41,7 @@ void CreateAndQueryVC(const CommSpec& comm_spec, const std::string& out_prefix,
       ImmutableVertexcutFragment<int64_t, grape::EmptyType, grape::EmptyType>;
   std::shared_ptr<FRAG_T> fragment = LoadVertexcutGraph<FRAG_T>(
       FLAGS_efile, FLAGS_vertex_num, comm_spec, graph_spec);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
   VLOG(1) << "[worker-" << comm_spec.worker_id() << "] after loading graph: "
           << MemoryTracker::GetInstance().GetMemoryUsageInfo();
 #endif
@@ -49,7 +49,7 @@ void CreateAndQueryVC(const CommSpec& comm_spec, const std::string& out_prefix,
   auto app = std::make_shared<AppType>();
   DoQuery<FRAG_T, AppType, Args...>(fragment, app, comm_spec, spec, out_prefix,
                                     args...);
-#ifdef TRACKING_MEMORY_ALLOCATIONS
+#ifdef TRACKING_MEMORY
   VLOG(1) << "[worker-" << comm_spec.worker_id() << "] after query: "
           << MemoryTracker::GetInstance().GetMemoryUsageInfo();
 #endif
