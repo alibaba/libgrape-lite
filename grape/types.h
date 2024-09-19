@@ -57,6 +57,22 @@ to_enum(T value) noexcept {
   return static_cast<E>(value);
 }
 
+enum class FragmentType {
+  kEdgeCut = 0,
+  kVertexCut = 1,
+};
+
+template <typename FRAG_T>
+struct is_vertex_cut_fragment {
+  static constexpr bool value =
+      FRAG_T::fragment_type == FragmentType::kVertexCut;
+};
+
+template <typename FRAG_T>
+struct is_edge_cut_fragment {
+  static constexpr bool value = FRAG_T::fragment_type == FragmentType::kEdgeCut;
+};
+
 /**
  * @brief LoadStrategy specifies the which edges should be loadded when building
  * the graph from a location.
@@ -84,6 +100,7 @@ enum class MessageStrategy {
   kAlongIncomingEdgeToOuterVertex = 1,  /// from c to a;
   kAlongEdgeToOuterVertex = 2,          /// from a to b, a to c;
   kSyncOnOuterVertex = 3,               /// from b' to b and c' to c;
+  kGatherScatter = 4,  /// gather from b' to b and scatter from c' to c;
 };
 
 template <typename APP_T, typename GRAPH_T>
@@ -95,7 +112,8 @@ constexpr inline bool check_load_strategy_compatible() {
            (GRAPH_T::load_strategy == LoadStrategy::kOnlyIn))) ||
          ((APP_T::load_strategy == LoadStrategy::kOnlyOut) &&
           ((GRAPH_T::load_strategy == LoadStrategy::kBothOutIn) ||
-           (GRAPH_T::load_strategy == LoadStrategy::kOnlyOut)));
+           (GRAPH_T::load_strategy == LoadStrategy::kOnlyOut))) ||
+         (GRAPH_T::fragment_type == FragmentType::kVertexCut);
 }
 
 template <typename APP_T, typename GRAPH_T>
@@ -111,7 +129,9 @@ constexpr inline bool check_message_strategy_valid() {
            MessageStrategy::kAlongOutgoingEdgeToOuterVertex) &&
           ((GRAPH_T::load_strategy == LoadStrategy::kOnlyOut) ||
            (GRAPH_T::load_strategy == LoadStrategy::kBothOutIn))) ||
-         (APP_T::message_strategy == MessageStrategy::kSyncOnOuterVertex);
+         (APP_T::message_strategy == MessageStrategy::kSyncOnOuterVertex) ||
+         ((APP_T::message_strategy == MessageStrategy::kGatherScatter) &&
+          (GRAPH_T::fragment_type == FragmentType::kVertexCut));
 }
 
 template <typename APP_T, typename GRAPH_T>

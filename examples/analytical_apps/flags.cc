@@ -61,6 +61,9 @@ DEFINE_string(serialization_prefix, "",
 DEFINE_int32(app_concurrency, -1, "concurrency of application");
 DEFINE_int32(load_concurrency, 1, "concurrency of loading graph");
 
+DEFINE_bool(vc, false, "whether to use vertex-cut storage.");
+DEFINE_bool(single_scan_load, true, "whether to load graph in single scan.");
+
 DEFINE_string(lb, "cta",
               "Load balancing policy, these options can be used: "
               " none, cta, cm, wm, strict");

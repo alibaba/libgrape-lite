@@ -95,7 +95,7 @@ class HostFragment : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
 
   static constexpr grape::LoadStrategy load_strategy = _load_strategy;
 
-  HostFragment() : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
+  HostFragment() : FragmentBase<OID_T, VDATA_T, EDATA_T>() {}
 
   void Init(const CommSpec& comm_spec, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
@@ -119,8 +119,9 @@ class HostFragment : public ImmutableEdgecutFragment<OID_T, VID_T, VDATA_T,
     __allocate_device_fragment__(comm_spec.local_id());
   }
 
-  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) {
-    base_t::PrepareToRunApp(comm_spec, conf);
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
+                       const ParallelEngineSpec& engine_spec) {
+    base_t::PrepareToRunApp(comm_spec, conf, pe_spec);
 
     Stream stream;
     if (conf.message_strategy ==

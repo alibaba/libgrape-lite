@@ -56,11 +56,6 @@ class BCContext : public VertexDataContext<FRAG_T, float> {
       LOG(INFO) << "[frag-" << frag.fid()
                 << "] BC(0) = " << centrality_value[s];
     }
-#ifdef PROFILING
-    VLOG(2) << "preprocess_time: " << preprocess_time << "s.";
-    VLOG(2) << "exec_time: " << exec_time << "s.";
-    VLOG(2) << "postprocess_time: " << postprocess_time << "s.";
-#endif
   }
 
   oid_t source_id;

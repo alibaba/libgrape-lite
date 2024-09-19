@@ -49,11 +49,6 @@ class BFSOptContext : public VertexDataContext<FRAG_T, int64_t> {
     for (auto v : inner_vertices) {
       os << frag.GetId(v) << " " << partial_result[v] << std::endl;
     }
-#ifdef PROFILING
-    VLOG(2) << "preprocess_time: " << preprocess_time << "s.";
-    VLOG(2) << "exec_time: " << exec_time << "s.";
-    VLOG(2) << "postprocess_time: " << postprocess_time << "s.";
-#endif
   }
 
   oid_t source_id;

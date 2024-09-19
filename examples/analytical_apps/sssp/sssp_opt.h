@@ -56,10 +56,6 @@ class SSSPOpt : public ParallelAppBase<FRAG_T, SSSPOptContext<FRAG_T>,
     vertex_t source;
     bool native_source = frag.GetInnerVertex(ctx.source_id, source);
 
-#ifdef PROFILING
-    ctx.exec_time -= GetCurrentTime();
-#endif
-
     ctx.next_modified.ParallelClear(GetThreadPool());
 
     // Get the channel. Messages assigned to this channel will be sent by the
@@ -83,17 +79,9 @@ class SSSPOpt : public ParallelAppBase<FRAG_T, SSSPOptContext<FRAG_T>,
       }
     }
 
-#ifdef PROFILING
-    ctx.exec_time += GetCurrentTime();
-    ctx.postprocess_time -= GetCurrentTime();
-#endif
-
     messages.ForceContinue();
 
     ctx.next_modified.Swap(ctx.curr_modified);
-#ifdef PROFILING
-    ctx.postprocess_time += GetCurrentTime();
-#endif
   }
 
   /**
@@ -109,10 +97,6 @@ class SSSPOpt : public ParallelAppBase<FRAG_T, SSSPOptContext<FRAG_T>,
 
     auto& channels = messages.Channels();
 
-#ifdef PROFILING
-    ctx.preprocess_time -= GetCurrentTime();
-#endif
-
     ctx.next_modified.ParallelClear(GetThreadPool());
 
     // parallel process and reduce the received messages
@@ -123,11 +107,6 @@ class SSSPOpt : public ParallelAppBase<FRAG_T, SSSPOptContext<FRAG_T>,
             ctx.curr_modified.Insert(u);
           }
         });
-
-#ifdef PROFILING
-    ctx.preprocess_time += GetCurrentTime();
-    ctx.exec_time -= GetCurrentTime();
-#endif
 
     // incremental evaluation.
     ForEach(ctx.curr_modified, inner_vertices,
@@ -146,10 +125,6 @@ class SSSPOpt : public ParallelAppBase<FRAG_T, SSSPOptContext<FRAG_T>,
 
     // put messages into channels corresponding to the destination fragments.
 
-#ifdef PROFILING
-    ctx.exec_time += GetCurrentTime();
-    ctx.postprocess_time -= GetCurrentTime();
-#endif
     auto outer_vertices = frag.OuterVertices();
     ForEach(ctx.next_modified, outer_vertices,
             [&channels, &frag, &ctx](int tid, vertex_t v) {
@@ -164,9 +139,6 @@ class SSSPOpt : public ParallelAppBase<FRAG_T, SSSPOptContext<FRAG_T>,
     }
 
     ctx.next_modified.Swap(ctx.curr_modified);
-#ifdef PROFILING
-    ctx.postprocess_time += GetCurrentTime();
-#endif
   }
 
   void EstimateMessageSize(const fragment_t& frag, size_t& send_size,

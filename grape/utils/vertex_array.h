@@ -122,6 +122,9 @@ bool operator==(Vertex<T> const& lhs, Vertex<T> const& rhs) {
 }
 
 template <typename T>
+class DualVertexRange;
+
+template <typename T>
 class VertexRange {
  public:
   using vertex_t = Vertex<T>;
@@ -211,6 +214,18 @@ class VertexRange {
     return begin_ <= v.GetValue() && v.GetValue() < end_;
   }
 
+  inline bool IsSubsetOf(const VertexRange<T>& rhs) const {
+    return rhs.begin_ <= begin_ && end_ <= rhs.end_;
+  }
+
+  bool IsSubsetOf(const DualVertexRange<T>& rhs) const;
+
+  inline bool OverlapWith(const VertexRange<T>& rhs) const {
+    return begin_ < rhs.end_ && end_ > rhs.begin_;
+  }
+
+  bool OverlapWith(const DualVertexRange<T>& rhs) const;
+
   inline friend InArchive& operator<<(InArchive& in_archive,
                                       const VertexRange<T>& range) {
     in_archive << range.begin_ << range.end_;
@@ -221,6 +236,10 @@ class VertexRange {
                                        VertexRange<T>& range) {
     out_archive >> range.begin_ >> range.end_;
     return out_archive;
+  }
+
+  std::string to_string() const {
+    return "[" + std::to_string(begin_) + ", " + std::to_string(end_) + ")";
   }
 
  private:
@@ -335,6 +354,10 @@ class DualVertexRange {
            (tail_begin_ <= v.GetValue() && v.GetValue() < tail_end_);
   }
 
+  bool OverlapWith(const VertexRange<VID_T>& rhs) const {
+    return head().OverlapWith(rhs) || tail().OverlapWith(rhs);
+  }
+
   VID_T size() const {
     return (head_end_ - head_begin_) + (tail_end_ - tail_begin_);
   }
@@ -351,6 +374,12 @@ class DualVertexRange {
     out_archive >> range.head_begin_ >> range.head_end_ >> range.tail_begin_ >>
         range.tail_end_;
     return out_archive;
+  }
+
+  std::string to_string() const {
+    return "[" + std::to_string(head_begin_) + ", " +
+           std::to_string(head_end_) + "), [" + std::to_string(tail_begin_) +
+           " " + std::to_string(tail_end_) + ")";
   }
 
  private:
@@ -512,6 +541,13 @@ class VertexArray<DualVertexRange<VID_T>, T> {
     tail_.SetValue(value);
   }
 
+  DualVertexRange<VID_T> GetVertexRange() const {
+    return DualVertexRange<VID_T>(head_.GetVertexRange().begin_value(),
+                                  head_.GetVertexRange().end_value(),
+                                  tail_.GetVertexRange().begin_value(),
+                                  tail_.GetVertexRange().end_value());
+  }
+
  private:
   void initMid() { mid_ = head_.GetVertexRange().end_value(); }
 
@@ -519,6 +555,16 @@ class VertexArray<DualVertexRange<VID_T>, T> {
   VertexArray<VertexRange<VID_T>, T> tail_;
   VID_T mid_;
 };
+
+template <typename T>
+bool VertexRange<T>::IsSubsetOf(const DualVertexRange<T>& rhs) const {
+  return IsSubsetOf(rhs.head()) || IsSubsetOf(rhs.tail());
+}
+
+template <typename T>
+bool VertexRange<T>::OverlapWith(const DualVertexRange<T>& rhs) const {
+  return OverlapWith(rhs.head()) || OverlapWith(rhs.tail());
+}
 
 }  // namespace grape
 

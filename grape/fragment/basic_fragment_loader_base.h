@@ -42,6 +42,7 @@ struct LoadGraphSpec {
   IdxerType idxer_type;
 
   int load_concurrency;
+  bool single_scan;
 
   void set_directed(bool val = true) { directed = val; }
   void set_rebalance(bool flag, int weight) {
@@ -103,6 +104,7 @@ inline LoadGraphSpec DefaultLoadGraphSpec() {
   spec.partitioner_type = PartitionerType::kHashPartitioner;
   spec.idxer_type = IdxerType::kHashMapIdxer;
   spec.load_concurrency = 1;
+  spec.single_scan = true;
   return spec;
 }
 

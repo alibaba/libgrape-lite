@@ -19,6 +19,8 @@ limitations under the License.
 #include <stdlib.h>
 #include <sys/mman.h>
 
+#include <limits>
+
 #include <glog/logging.h>
 
 #ifdef USE_HUGEPAGES

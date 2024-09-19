@@ -29,6 +29,7 @@ limitations under the License.
 #include "grape/config.h"
 #include "grape/parallel/auto_parallel_message_manager.h"
 #include "grape/parallel/batch_shuffle_message_manager.h"
+#include "grape/parallel/gather_scatter_message_manager.h"
 #include "grape/parallel/parallel_engine.h"
 #include "grape/parallel/parallel_message_manager.h"
 #include "grape/parallel/parallel_message_manager_opt.h"
@@ -81,8 +82,9 @@ class Worker {
   void Init(const CommSpec& comm_spec,
             const ParallelEngineSpec& pe_spec = DefaultParallelEngineSpec()) {
     auto& graph = *fragment_;
+    pe_spec_ = pe_spec;
     // prepare for the query
-    graph.PrepareToRunApp(comm_spec, prepare_conf_);
+    graph.PrepareToRunApp(comm_spec, prepare_conf_, pe_spec_);
 
     comm_spec_ = comm_spec;
     MPI_Barrier(comm_spec_.comm());
@@ -211,7 +213,7 @@ class Worker {
       std::is_base_of<MutationContext<fragment_t>, T>::value>::type
   processMutation() {
     context_->apply_mutation(fragment_, comm_spec_);
-    fragment_->PrepareToRunApp(comm_spec_, prepare_conf_);
+    fragment_->PrepareToRunApp(comm_spec_, prepare_conf_, pe_spec_);
   }
 
   template <typename T = context_t>
@@ -226,6 +228,7 @@ class Worker {
 
   CommSpec comm_spec_;
   PrepareConf prepare_conf_;
+  ParallelEngineSpec pe_spec_;
 };
 
 template <typename APP_T>
@@ -240,6 +243,9 @@ using AutoWorker =
 
 template <typename APP_T>
 using BatchShuffleWorker = Worker<APP_T, BatchShuffleMessageManager>;
+
+template <typename APP_T>
+using GatherScatterWorker = Worker<APP_T, GatherScatterMessageManager>;
 
 }  // namespace grape
 

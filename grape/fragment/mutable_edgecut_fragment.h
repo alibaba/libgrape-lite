@@ -87,8 +87,7 @@ class MutableEdgecutFragment
   template <typename T>
   using vertex_array_t = VertexArray<vertices_t, T>;
 
-  MutableEdgecutFragment()
-      : FragmentBase<OID_T, VID_T, VDATA_T, EDATA_T, traits_t>() {}
+  MutableEdgecutFragment() : FragmentBase<OID_T, VDATA_T, EDATA_T>() {}
   virtual ~MutableEdgecutFragment() = default;
 
   using base_t::buildCSR;
@@ -152,7 +151,7 @@ class MutableEdgecutFragment
   void Init(const CommSpec& comm_spec, bool directed,
             std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
             std::vector<internal_vertex_t>& vertices,
-            std::vector<edge_t>& edges) override {
+            std::vector<edge_t>& edges) {
     init(comm_spec.fid(), directed, std::move(vm_ptr));
 
     ovnum_ = 0;
@@ -231,7 +230,15 @@ class MutableEdgecutFragment
     }
   }
 
+  void ParallelInit(const CommSpec& comm_spec, bool directed,
+                    std::unique_ptr<VertexMap<OID_T, VID_T>>&& vm_ptr,
+                    std::vector<internal_vertex_t>& vertices,
+                    std::vector<edge_t>& edges, int concurrency) {
+    Init(comm_spec, directed, std::move(vm_ptr), vertices, edges);
+  }
+
   using base_t::Gid2Lid;
+  using base_t::Gid2Vertex;
   using base_t::ie_;
   using base_t::oe_;
   using base_t::vm_ptr_;
@@ -473,8 +480,9 @@ class MutableEdgecutFragment
     io_adaptor->Close();
   }
 
-  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf) override {
-    base_t::PrepareToRunApp(comm_spec, conf);
+  void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
+                       const ParallelEngineSpec& pe_spec) override {
+    base_t::PrepareToRunApp(comm_spec, conf, pe_spec);
     if (conf.need_split_edges_by_fragment) {
       LOG(FATAL) << "MutableEdgecutFragment cannot split edges by fragment";
     } else if (conf.need_split_edges) {
@@ -511,30 +519,6 @@ class MutableEdgecutFragment
 
   VID_T GetOuterVertexGid(vertex_t v) const override {
     return ovgid_[outerVertexLidToIndex(v.GetValue())];
-  }
-
-  inline bool Gid2Vertex(const VID_T& gid, vertex_t& v) const override {
-    fid_t fid = id_parser_.get_fragment_id(gid);
-    if (fid == fid_) {
-      v.SetValue(id_parser_.get_local_id(gid));
-      return true;
-    } else {
-      auto iter = ovg2i_.find(gid);
-      if (iter != ovg2i_.end()) {
-        v.SetValue(iter->second);
-        return true;
-      } else {
-        return false;
-      }
-    }
-  }
-
-  inline VID_T Vertex2Gid(const vertex_t& v) const override {
-    if (IsInnerVertex(v)) {
-      return id_parser_.generate_global_id(fid_, v.GetValue());
-    } else {
-      return ovgid_[outerVertexLidToIndex(v.GetValue())];
-    }
   }
 
  public:

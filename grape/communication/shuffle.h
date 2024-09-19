@@ -105,6 +105,12 @@ struct ShuffleBufferTuple : public ShuffleBufferTuple<Rest...> {
                      typename ShuffleBuffer<Rest>::type&&... bx)
       : first(std::move(b0)), ShuffleBufferTuple<Rest...>(std::move(bx)...) {}
 
+  ShuffleBufferTuple& operator=(ShuffleBufferTuple&& rhs) {
+    *static_cast<ShuffleBufferTuple<Rest...>*>(this) = std::move(rhs);
+    first = std::move(rhs.first);
+    return *this;
+  }
+
   static constexpr size_t tuple_size =
       ShuffleBufferTuple<Rest...>::tuple_size + 1;
 
@@ -178,6 +184,11 @@ struct ShuffleBufferTuple<First> {
       : first(b0) {}
   explicit ShuffleBufferTuple(typename ShuffleBuffer<First>::type&& b0)
       : first(std::move(b0)) {}
+
+  ShuffleBufferTuple& operator=(ShuffleBufferTuple&& rhs) {
+    first = std::move(rhs.first);
+    return *this;
+  }
 
   static constexpr size_t tuple_size = 1;
 

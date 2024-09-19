@@ -59,66 +59,11 @@ limitations under the License.
 #include "sssp/sssp.h"
 #include "sssp/sssp_auto.h"
 #include "timer.h"
+#include "utils.h"
 #include "wcc/wcc.h"
 #include "wcc/wcc_auto.h"
 
-#ifndef __AFFINITY__
-#define __AFFINITY__ false
-#endif
-
 namespace grape {
-
-void Init() {
-  if (FLAGS_deserialize && FLAGS_serialization_prefix.empty()) {
-    LOG(FATAL) << "Please assign a serialization prefix.";
-  } else if (FLAGS_efile.empty()) {
-    LOG(FATAL) << "Please assign input edge file.";
-  }
-
-  if (!FLAGS_out_prefix.empty() && access(FLAGS_out_prefix.c_str(), 0) != 0) {
-    mkdir(FLAGS_out_prefix.c_str(), 0777);
-  }
-
-  InitMPIComm();
-  CommSpec comm_spec;
-  comm_spec.Init(MPI_COMM_WORLD);
-  if (comm_spec.worker_id() == kCoordinatorRank) {
-    VLOG(1) << "Workers of libgrape-lite initialized.";
-  }
-}
-
-void Finalize() {
-  FinalizeMPIComm();
-  VLOG(1) << "Workers finalized.";
-}
-
-template <typename FRAG_T, typename APP_T, typename... Args>
-void DoQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP_T> app,
-             const CommSpec& comm_spec, const ParallelEngineSpec& spec,
-             const std::string& out_prefix, Args... args) {
-  timer_next("load application");
-  auto worker = APP_T::CreateWorker(app, fragment);
-  worker->Init(comm_spec, spec);
-  MPI_Barrier(comm_spec.comm());
-  timer_next("run algorithm");
-  worker->Query(std::forward<Args>(args)...);
-  timer_next("print output");
-  if (!out_prefix.empty()) {
-    std::ofstream ostream;
-    std::string output_path =
-        grape::GetResultFilename(out_prefix, fragment->fid());
-    ostream.open(output_path);
-    worker->Output(ostream);
-    ostream.close();
-    worker->Finalize();
-    VLOG(1) << "Worker-" << comm_spec.worker_id()
-            << " finished: " << output_path;
-  } else {
-    worker->Finalize();
-    VLOG(1) << "Worker-" << comm_spec.worker_id() << " finished without output";
-  }
-  timer_end();
-}
 
 template <typename FRAG_T, typename APP1_T, typename APP2_T, typename... Args>
 void DoDualQuery(std::shared_ptr<FRAG_T> fragment, std::shared_ptr<APP1_T> app1,
