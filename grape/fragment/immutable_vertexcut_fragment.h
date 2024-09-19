@@ -75,7 +75,8 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
   using base_t::fnum_;
 
   void Init(const CommSpec& comm_spec, int64_t vnum,
-            std::vector<edge_t>&& edges) {
+            std::vector<edge_t>&& edges, int bucket_num = 1,
+            std::vector<size_t>&& bucket_edge_offsets = {}) {
     base_t::init(comm_spec.fid(), comm_spec.fnum(), false);
 
     partitioner_.init(comm_spec.fnum(), vnum);
@@ -109,15 +110,35 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     edges_ = std::move(edges);
 #endif
 
-    bucket_num_ = 1;
-    bucket_edge_offsets_.push_back(0);
-    bucket_edge_offsets_.push_back(edges_.size());
+    bucket_num_ = bucket_num;
+    if (bucket_num_ == 1) {
+      bucket_edge_offsets_.push_back(0);
+      bucket_edge_offsets_.push_back(edges_.size());
+    } else {
+      bucket_edge_offsets_ = std::move(bucket_edge_offsets);
+    }
   }
 
   void PrepareToRunApp(const CommSpec& comm_spec, PrepareConf conf,
                        const ParallelEngineSpec& pe_spec) override {
     if (bucket_num_ < static_cast<int>(pe_spec.thread_num)) {
       buildBucket(pe_spec.thread_num);
+    }
+    oid_t src_begin = src_vertices_.begin_value();
+    size_t src_size = src_vertices_.size();
+    size_t src_chunk = (src_size + pe_spec.thread_num - 1) / pe_spec.thread_num;
+    oid_t dst_begin = dst_vertices_.begin_value();
+    size_t dst_size = dst_vertices_.size();
+    size_t dst_chunk = (dst_size + pe_spec.thread_num - 1) / pe_spec.thread_num;
+    for (int src_i = 0; src_i < bucket_num_; ++src_i) {
+      for (int dst_i = 0; dst_i < bucket_num_; ++dst_i) {
+        for (auto& e : GetEdgesOfBucket(src_i, dst_i)) {
+          int src_bucket_id = (e.src - src_begin) / src_chunk;
+          int dst_bucket_id = (e.dst - dst_begin) / dst_chunk;
+          CHECK_EQ(src_bucket_id, src_i);
+          CHECK_EQ(dst_bucket_id, dst_i);
+        }
+      }
     }
   }
 
@@ -147,20 +168,18 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
 
     InArchive arc;
     arc << edges_.size();
-    arc << src_vertices_ << dst_vertices_ << vertices_ << master_vertices_;
+    arc << src_vertices_ << dst_vertices_ << vertices_ << master_vertices_
+        << bucket_num_ << bucket_edge_offsets_;
     CHECK(io_adaptor->WriteArchive(arc));
     arc.Clear();
 
     partitioner_.serialize(io_adaptor);
 
     if (std::is_pod<edata_t>::value && std::is_pod<oid_t>::value) {
-      LOG(INFO) << "is pod";
       if (!edges_.empty()) {
         io_adaptor->Write(edges_.data(), edges_.size() * sizeof(edge_t));
       }
     } else {
-      LOG(FATAL) << "is not pod";
-
       arc << edges_;
       if (!arc.Empty()) {
         CHECK(io_adaptor->WriteArchive(arc));
@@ -186,12 +205,12 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     arc >> edge_num;
     CHECK_EQ(fid_, comm_spec.fid());
     CHECK_EQ(fnum_, comm_spec.fnum());
-    arc >> src_vertices_ >> dst_vertices_ >> vertices_ >> master_vertices_;
+    arc >> src_vertices_ >> dst_vertices_ >> vertices_ >> master_vertices_ >>
+        bucket_num_ >> bucket_edge_offsets_;
 
     partitioner_.deserialize(io_adaptor);
 
     if (std::is_pod<edata_t>::value && std::is_pod<oid_t>::value) {
-      LOG(INFO) << "is pod";
       edges_.resize(edge_num);
 #ifdef TRACKING_MEMORY_ALLOCATIONS
       MemoryTracker::GetInstance().allocate(sizeof(edge_t) * edges_.size());
@@ -200,15 +219,10 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
         CHECK(io_adaptor->Read(edges_.data(), edge_num * sizeof(edge_t)));
       }
     } else {
-      LOG(FATAL) << "is not pod";
       arc.Clear();
       CHECK(io_adaptor->ReadArchive(arc));
       arc >> edges_;
     }
-
-    bucket_num_ = 1;
-    bucket_edge_offsets_.push_back(0);
-    bucket_edge_offsets_.push_back(edges_.size());
   }
 
   size_t GetTotalVerticesNum() const override {
@@ -237,11 +251,6 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     if (bucket_num_ == thread_num) {
       return;
     }
-    std::vector<std::vector<size_t>> thread_bucket_edge_nums(thread_num);
-    std::vector<std::thread> threads;
-    std::atomic<size_t> edge_idx(0);
-    size_t edge_num = edges_.size();
-
     oid_t src_begin = src_vertices_.begin_value();
     size_t src_size = src_vertices_.size();
     size_t src_chunk = (src_size + thread_num - 1) / thread_num;
@@ -249,47 +258,68 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
     size_t dst_size = dst_vertices_.size();
     size_t dst_chunk = (dst_size + thread_num - 1) / thread_num;
 
-    for (int i = 0; i < thread_num; ++i) {
-      threads.emplace_back(
-          [&, this](int tid) {
-            thread_bucket_edge_nums[tid].clear();
-            thread_bucket_edge_nums[tid].resize(thread_num * thread_num, 0);
-            while (true) {
-              size_t idx = std::min(edge_idx.fetch_add(4096), edge_num);
-              size_t end = std::min(idx + 4096, edge_num);
-              if (idx == end) {
-                break;
-              }
-              while (idx < end) {
-                auto& edge = edges_[idx];
-                int src_bucket_id = (edge.src - src_begin) / src_chunk;
-                int dst_bucket_id = (edge.dst - dst_begin) / dst_chunk;
-                thread_bucket_edge_nums[tid][src_bucket_id * thread_num +
-                                             dst_bucket_id]++;
-                ++idx;
-              }
-            }
-          },
-          i);
-    }
-    for (auto& t : threads) {
-      t.join();
-    }
     std::vector<size_t> bucket_edge_num(thread_num * thread_num, 0);
-    for (int i = 0; i < thread_num; ++i) {
-      for (int j = 0; j < thread_num * thread_num; ++j) {
-        bucket_edge_num[j] += thread_bucket_edge_nums[i][j];
+    {
+      std::vector<std::vector<size_t>> thread_bucket_edge_nums(thread_num);
+      std::vector<std::thread> threads;
+      std::atomic<size_t> edge_idx(0);
+      size_t edge_num = edges_.size();
+
+      for (int i = 0; i < thread_num; ++i) {
+        threads.emplace_back(
+            [&, this](int tid) {
+              thread_bucket_edge_nums[tid].clear();
+              thread_bucket_edge_nums[tid].resize(thread_num * thread_num, 0);
+              while (true) {
+                size_t idx = std::min(edge_idx.fetch_add(4096), edge_num);
+                size_t end = std::min(idx + 4096, edge_num);
+                if (idx == end) {
+                  break;
+                }
+                while (idx < end) {
+                  auto& edge = edges_[idx];
+                  int src_bucket_id = (edge.src - src_begin) / src_chunk;
+                  int dst_bucket_id = (edge.dst - dst_begin) / dst_chunk;
+                  thread_bucket_edge_nums[tid][src_bucket_id * thread_num +
+                                               dst_bucket_id]++;
+                  ++idx;
+                }
+              }
+            },
+            i);
+      }
+      for (auto& t : threads) {
+        t.join();
+      }
+      for (int i = 0; i < thread_num; ++i) {
+        for (int j = 0; j < thread_num * thread_num; ++j) {
+          bucket_edge_num[j] += thread_bucket_edge_nums[i][j];
+        }
       }
     }
 
     bucket_num_ = thread_num;
     bucket_edge_offsets_.clear();
-    edge_num = 0;
+    size_t edge_num = 0;
     for (size_t i = 0; i < bucket_edge_num.size(); ++i) {
       bucket_edge_offsets_.push_back(edge_num);
       edge_num += bucket_edge_num[i];
     }
     bucket_edge_offsets_.push_back(edge_num);
+    std::sort(edges_.begin(), edges_.end(),
+              [&](const edge_t& a, const edge_t& b) {
+                int src_bucket_id_a = (a.src - src_begin) / src_chunk;
+                int src_bucket_id_b = (b.src - src_begin) / src_chunk;
+
+                if (src_bucket_id_a != src_bucket_id_b) {
+                  return src_bucket_id_a < src_bucket_id_b;
+                }
+
+                int dst_bucket_id_a = (a.dst - dst_begin) / dst_chunk;
+                int dst_bucket_id_b = (b.dst - dst_begin) / dst_chunk;
+
+                return dst_bucket_id_a < dst_bucket_id_b;
+              });
   }
 
   VCPartitioner<oid_t> partitioner_;

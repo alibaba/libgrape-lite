@@ -162,6 +162,7 @@ class BasicVCDSFragmentLoader {
         (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * comm_spec_.fnum() *
         shuffle_out_size);
 #endif
+    static constexpr size_t thread_local_cache_size = 128;
     for (int i = 0; i < load_concurrency_; ++i) {
       edge_move_threads_.emplace_back([this] {
         ShuffleBufferTuple<oid_t, oid_t, edata_t> cur;
@@ -169,7 +170,8 @@ class BasicVCDSFragmentLoader {
 #ifdef TRACKING_MEMORY_ALLOCATIONS
         // allocate memory for thread local edge cache
         MemoryTracker::GetInstance().allocate(
-            (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * 4096);
+            (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *
+            thread_local_cache_size);
 #endif
         while (got_edges_.Get(cur)) {
           size_t cur_size = cur.size();
@@ -177,7 +179,7 @@ class BasicVCDSFragmentLoader {
                                                  edata_t data) {
             int bucket_id = bucketer_->get_bucket_id(src, dst);
             edges_cache[bucket_id].emplace_back(src, dst, data);
-            if (edges_cache[bucket_id].size() >= 4096) {
+            if (edges_cache[bucket_id].size() >= thread_local_cache_size) {
               size_t cursor = bucket_cursor_[bucket_id].fetch_add(
                   edges_cache[bucket_id].size());
               std::copy(edges_cache[bucket_id].begin(),
@@ -201,7 +203,8 @@ class BasicVCDSFragmentLoader {
 #ifdef TRACKING_MEMORY_ALLOCATIONS
         // deallocate memory for thread local edge cache
         MemoryTracker::GetInstance().deallocate(
-            (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) * 4096);
+            (sizeof(oid_t) + sizeof(oid_t) + sizeof(edata_t)) *
+            thread_local_cache_size);
 #endif
       });
     }
@@ -255,36 +258,9 @@ class BasicVCDSFragmentLoader {
     }
     bucket_edge_offset.emplace_back(en);
 
-    {
-      std::atomic<int> d2_bucket_idx(0);
-      int d2_bucket_num = bucket_num_ * bucket_num_;
-      std::vector<std::thread> sort_threads;
-      for (int i = 0; i < load_concurrency_; ++i) {
-        sort_threads.emplace_back(
-            [this, &d2_bucket_idx, d2_bucket_num,
-             &bucket_edge_offset](int tid) {
-              while (true) {
-                int idx = d2_bucket_idx.fetch_add(1);
-                if (idx >= d2_bucket_num) {
-                  break;
-                }
-                std::sort(edges_.begin() + bucket_edge_offset[idx],
-                          edges_.begin() + bucket_edge_offset[idx + 1],
-                          [](const edge_t& a, const edge_t& b) {
-                            return a.src < b.src ||
-                                   (a.src == b.src && a.dst < b.dst);
-                          });
-              }
-            },
-            i);
-      }
-      for (auto& thrd : sort_threads) {
-        thrd.join();
-      }
-    }
-
     fragment.reset(new fragment_t());
-    fragment->Init(comm_spec_, vnum_, std::move(edges_));
+    fragment->Init(comm_spec_, vnum_, std::move(edges_), bucket_num_,
+                   std::move(bucket_edge_offset));
   }
 
  private:
