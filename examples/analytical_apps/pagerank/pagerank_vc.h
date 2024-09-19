@@ -129,6 +129,9 @@ class PageRankVC
 
   void IncEval(const fragment_t& frag, context_t& ctx,
                message_manager_t& messages) {
+    if (ctx.step == 0) {
+      messages.AllocateGatherBuffers<fragment_t, double>(frag);
+    }
     ++ctx.step;
 
     double base = (1.0 - ctx.delta) / ctx.graph_vnum +
