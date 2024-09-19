@@ -329,7 +329,6 @@ class GatherScatterMessageManager : public MessageManagerBase {
       if (master_vertices.IsSubsetOf(output_range)) {
         MESSAGE_T* output_data = &output[*master_vertices.begin()];
         size_t output_size = master_vertices.size();
-        // sync_comm::recv_buffer(output_data, output_size, src_fid, 0, comm_);
         sync_comm::irecv_buffer(output_data, output_size, src_fid, 0, comm_,
                                 requests);
       } else {
