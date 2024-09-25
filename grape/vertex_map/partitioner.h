@@ -269,8 +269,9 @@ template <typename OID_T>
 struct VCPartitioner {};
 
 template <>
-struct VCPartitioner<int64_t> {
-  using vertices_t = VertexRange<int64_t>;
+struct VCPartitioner<uint64_t> {
+  using oid_t = uint64_t;
+  using vertices_t = VertexRange<oid_t>;
 
  public:
   VCPartitioner() {}
@@ -287,11 +288,11 @@ struct VCPartitioner<int64_t> {
     vchunk_ = master_vchunk_ * fnum_sr_;
   }
 
-  fid_t get_edge_partition(const int64_t& src, const int64_t& dst) const {
+  fid_t get_edge_partition(const oid_t& src, const oid_t& dst) const {
     return coord_to_fid(get_vertex_coord(src), get_vertex_coord(dst));
   }
 
-  fid_t get_vertex_coord(const int64_t& v) const { return v / vchunk_; }
+  fid_t get_vertex_coord(const oid_t& v) const { return v / vchunk_; }
 
   fid_t coord_to_fid(const fid_t& src, const fid_t& dst) const {
     return src * fnum_sr_ + dst;

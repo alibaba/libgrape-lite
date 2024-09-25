@@ -36,13 +36,16 @@ template <typename OID_T, typename VDATA_T, typename EDATA_T>
 class ImmutableVertexcutFragment {};
 
 template <>
-class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
-    : public FragmentBase<int64_t, EmptyType, EmptyType> {
+class ImmutableVertexcutFragment<uint64_t, EmptyType, EmptyType>
+    : public FragmentBase<uint64_t, EmptyType, EmptyType> {
  public:
-  using oid_t = int64_t;
+  using oid_t = uint64_t;
+  using vid_t = uint64_t;
   using edata_t = EmptyType;
   using vdata_t = EmptyType;
+  using vertex_t = Vertex<vid_t>;
   using vertices_t = VertexRange<oid_t>;
+  using vertex_range_t = VertexRange<vid_t>;
   using both_vertices_t = DualVertexRange<oid_t>;
   using edge_t = Edge<oid_t, edata_t>;
   using base_t = FragmentBase<oid_t, vdata_t, edata_t>;
@@ -73,6 +76,10 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
 
   using base_t::fid_;
   using base_t::fnum_;
+
+  inline const EmptyType& GetData(const vertex_t& v) const {
+    return data_;
+  }
 
   void Init(const CommSpec& comm_spec, int64_t vnum,
             std::vector<edge_t>&& edges, int bucket_num = 1,
@@ -147,6 +154,11 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
   const both_vertices_t& Vertices() const { return vertices_; }
 
   const vertices_t& MasterVertices() const { return master_vertices_; }
+
+  // FIXME(siyuan): This is temporary solution to make compile pass
+  // const vertices_t& Vertices() const { return master_vertices_; }
+  const vertices_t& InnerVertices() const { return master_vertices_; }
+
 
 #ifdef USE_EDGE_ARRAY
   const Array<edge_t, Allocator<edge_t>>& GetEdges() const { return edges_; }
@@ -245,6 +257,9 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
   }
 
   int GetBucketNum() const { return bucket_num_; }
+  oid_t GetId(const Vertex<oid_t>& v) const {
+    return v.GetValue(); 
+  }
 
  private:
   void buildBucket(int thread_num) {
@@ -334,6 +349,7 @@ class ImmutableVertexcutFragment<int64_t, EmptyType, EmptyType>
 #endif
   int bucket_num_;
   std::vector<size_t> bucket_edge_offsets_;
+  EmptyType data_;
 };
 
 }  // namespace grape

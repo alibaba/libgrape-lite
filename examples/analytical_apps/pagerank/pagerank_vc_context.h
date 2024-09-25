@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_VC_CONTEXT_H_
 #define EXAMPLES_ANALYTICAL_APPS_PAGERANK_PAGERANK_VC_CONTEXT_H_
 
+#include "grape/grape.h"
 #include "grape/utils/memory_tracker.h"
 
 #include <iomanip>
@@ -24,9 +25,8 @@ namespace grape {
 
 template <typename FRAG_T>
 class PageRankVCContext : public VertexDataContext<FRAG_T, double> {
-  using oid_t = typename FRAG_T::oid_t;
-
  public:
+  using oid_t = typename FRAG_T::oid_t;
   explicit PageRankVCContext(const FRAG_T& fragment)
       : VertexDataContext<FRAG_T, double>(fragment),
         master_result(this->data()) {
@@ -64,7 +64,7 @@ class PageRankVCContext : public VertexDataContext<FRAG_T, double> {
 #ifdef PROFILING
     VLOG(2) << "[frag-" << frag.fid() << "]: init degree: " << t0 << " s, "
             << "calc master result: " << t1 << " s, "
-            << "propogate: " << t2 << " s";
+            << "propagate: " << t2 << " s";
 #endif
   }
 
