@@ -77,9 +77,7 @@ class ImmutableVertexcutFragment<uint64_t, EmptyType, EmptyType>
   using base_t::fid_;
   using base_t::fnum_;
 
-  inline const EmptyType& GetData(const vertex_t& v) const {
-    return data_;
-  }
+  inline const EmptyType& GetData(const vertex_t& v) const { return data_; }
 
   void Init(const CommSpec& comm_spec, int64_t vnum,
             std::vector<edge_t>&& edges, int bucket_num = 1,
@@ -153,12 +151,8 @@ class ImmutableVertexcutFragment<uint64_t, EmptyType, EmptyType>
   const vertices_t& DestinationVertices() const { return dst_vertices_; }
   const both_vertices_t& Vertices() const { return vertices_; }
 
-  const vertices_t& MasterVertices() const { return master_vertices_; }
-
-  // FIXME(siyuan): This is temporary solution to make compile pass
-  // const vertices_t& Vertices() const { return master_vertices_; }
   const vertices_t& InnerVertices() const { return master_vertices_; }
-
+  const vertices_t& MasterVertices() const { return master_vertices_; }
 
 #ifdef USE_EDGE_ARRAY
   const Array<edge_t, Allocator<edge_t>>& GetEdges() const { return edges_; }
@@ -257,9 +251,7 @@ class ImmutableVertexcutFragment<uint64_t, EmptyType, EmptyType>
   }
 
   int GetBucketNum() const { return bucket_num_; }
-  oid_t GetId(const Vertex<oid_t>& v) const {
-    return v.GetValue(); 
-  }
+  oid_t GetId(const Vertex<oid_t>& v) const { return v.GetValue(); }
 
  private:
   void buildBucket(int thread_num) {
