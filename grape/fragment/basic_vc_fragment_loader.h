@@ -119,7 +119,7 @@ class BasicVCFragmentLoader {
       std::vector<std::thread> scan_threads;
       for (int i = 0; i < load_concurrency_; ++i) {
         scan_threads.emplace_back(
-            [this, &bucket_edge_num, &thread_local_bucket_edge_num](int tid) {
+            [this, &thread_local_bucket_edge_num](int tid) {
               auto& vec = thread_local_bucket_edge_num[tid];
               vec.clear();
               vec.resize(bucket_num_ * bucket_num_, 0);

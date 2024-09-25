@@ -38,7 +38,7 @@ void CreateAndQueryVC(const CommSpec& comm_spec, const std::string& out_prefix,
   graph_spec.load_concurrency = FLAGS_load_concurrency;
 
   using FRAG_T =
-      ImmutableVertexcutFragment<int64_t, grape::EmptyType, grape::EmptyType>;
+      ImmutableVertexcutFragment<uint64_t, grape::EmptyType, grape::EmptyType>;
   std::shared_ptr<FRAG_T> fragment = LoadVertexcutGraph<FRAG_T>(
       FLAGS_efile, FLAGS_vertex_num, comm_spec, graph_spec);
 #ifdef TRACKING_MEMORY
