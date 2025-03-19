@@ -411,10 +411,12 @@ class BatchShuffleMessageManager : public MessageManagerBase {
           }
           fid_t src_fid = (fid_ + fnum_ - got) % fnum_;
           auto range = frag.OuterVertices(src_fid);
-          sync_comm::irecv_buffer<char>(
-              reinterpret_cast<char*>(&data[*range.begin()]),
-              range.size() * sizeof(DATA_T), comm_spec_.FragToWorker(src_fid),
-              0, comm_, &recv_reqs_[req_offsets[src_fid]]);
+          if (range.size() != 0) {
+            sync_comm::irecv_buffer<char>(
+                reinterpret_cast<char*>(&data[*range.begin()]),
+                range.size() * sizeof(DATA_T), comm_spec_.FragToWorker(src_fid),
+                0, comm_, &recv_reqs_[req_offsets[src_fid]]);
+          }
         }
       });
     }
