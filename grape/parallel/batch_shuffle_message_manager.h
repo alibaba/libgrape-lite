@@ -262,7 +262,9 @@ class BatchShuffleMessageManager : public MessageManagerBase {
    * is, messages from all other fragments are received.
    */
   void UpdateOuterVertices() {
-    MPI_Waitall(recv_reqs_.size(), &recv_reqs_[0], MPI_STATUSES_IGNORE);
+    if (!recv_reqs_.empty()) {
+      MPI_Waitall(recv_reqs_.size(), &recv_reqs_[0], MPI_STATUSES_IGNORE);
+    }
   }
 
   /**
@@ -272,6 +274,10 @@ class BatchShuffleMessageManager : public MessageManagerBase {
    * @return Source fragment id.
    */
   fid_t UpdatePartialOuterVertices() {
+    if (recv_reqs_.empty()) {
+      return kInvalidFid;
+    }
+
     int index;
     fid_t ret;
     while (true) {

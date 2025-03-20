@@ -112,14 +112,16 @@ class PageRankLocal
         ctx.preprocess_time += GetCurrentTime();
         ctx.exec_time -= GetCurrentTime();
 #endif
-        ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
-          double cur = ctx.next_result[u];
-          auto es = frag.GetOutgoingAdjList(u, src_fid);
-          for (auto& e : es) {
-            cur += ctx.result[e.get_neighbor()];
-          }
-          ctx.next_result[u] = cur;
-        });
+        if (src_fid != kInvalidFid) {
+          ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
+            double cur = ctx.next_result[u];
+            auto es = frag.GetOutgoingAdjList(u, src_fid);
+            for (auto& e : es) {
+              cur += ctx.result[e.get_neighbor()];
+            }
+            ctx.next_result[u] = cur;
+          });
+        }
 #ifdef PROFILING
         ctx.exec_time += GetCurrentTime();
 #endif
@@ -133,27 +135,31 @@ class PageRankLocal
         ctx.preprocess_time += GetCurrentTime();
         ctx.exec_time -= GetCurrentTime();
 #endif
-        if (last_step) {
-          ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
-            double cur = ctx.next_result[u];
-            auto es = frag.GetOutgoingAdjList(u, src_fid);
-            for (auto& e : es) {
-              cur += ctx.result[e.get_neighbor()];
-            }
-            ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
-          });
-        } else {
-          ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
-            double cur = ctx.next_result[u];
-            auto es = frag.GetOutgoingAdjList(u, src_fid);
-            for (auto& e : es) {
-              cur += ctx.result[e.get_neighbor()];
-            }
-            ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
-            int en = frag.GetLocalOutDegree(u);
-            ctx.next_result[u] =
-                en > 0 ? ctx.next_result[u] / en : ctx.next_result[u];
-          });
+        if (src_fid != kInvalidFid) {
+          if (last_step) {
+            ForEach(inner_vertices,
+                    [src_fid, &frag, &ctx](int tid, vertex_t u) {
+                      double cur = ctx.next_result[u];
+                      auto es = frag.GetOutgoingAdjList(u, src_fid);
+                      for (auto& e : es) {
+                        cur += ctx.result[e.get_neighbor()];
+                      }
+                      ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
+                    });
+          } else {
+            ForEach(inner_vertices,
+                    [src_fid, &frag, &ctx](int tid, vertex_t u) {
+                      double cur = ctx.next_result[u];
+                      auto es = frag.GetOutgoingAdjList(u, src_fid);
+                      for (auto& e : es) {
+                        cur += ctx.result[e.get_neighbor()];
+                      }
+                      ctx.next_result[u] = 1 - ctx.delta + ctx.delta * cur;
+                      int en = frag.GetLocalOutDegree(u);
+                      ctx.next_result[u] =
+                          en > 0 ? ctx.next_result[u] / en : ctx.next_result[u];
+                    });
+          }
         }
 #ifdef PROFILING
         ctx.exec_time += GetCurrentTime();
@@ -183,14 +189,16 @@ class PageRankLocal
         ctx.preprocess_time += GetCurrentTime();
         ctx.exec_time -= GetCurrentTime();
 #endif
-        ForEach(frag.OuterVertices(src_fid),
-                [&frag, &ctx](int tid, vertex_t u) {
-                  double cur = ctx.result[u] * ctx.delta;
-                  auto es = frag.GetIncomingAdjList(u);
-                  for (auto& e : es) {
-                    atomic_add(ctx.next_result[e.get_neighbor()], cur);
-                  }
-                });
+        if (src_fid != kInvalidFid) {
+          ForEach(frag.OuterVertices(src_fid),
+                  [&frag, &ctx](int tid, vertex_t u) {
+                    double cur = ctx.result[u] * ctx.delta;
+                    auto es = frag.GetIncomingAdjList(u);
+                    for (auto& e : es) {
+                      atomic_add(ctx.next_result[e.get_neighbor()], cur);
+                    }
+                  });
+        }
 #ifdef PROFILING
         ctx.exec_time += GetCurrentTime();
 #endif

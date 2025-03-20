@@ -112,6 +112,9 @@ class PageRankDirected
 
       for (fid_t i = 2; i < frag.fnum(); ++i) {
         fid_t src_fid = messages.UpdatePartialOuterVertices();
+        if (src_fid == kInvalidFid) {
+          continue;
+        }
         ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
           double cur = ctx.next_result[u];
           auto es = frag.GetIncomingAdjList(u, src_fid);
@@ -123,22 +126,24 @@ class PageRankDirected
       }
 
       fid_t src_fid = messages.UpdatePartialOuterVertices();
-      ForEach(inner_vertices, [src_fid, &frag, &ctx, base, &dangling_sums](
-                                  int tid, vertex_t u) {
-        double cur = ctx.next_result[u];
-        auto es = frag.GetIncomingAdjList(u, src_fid);
-        for (auto& e : es) {
-          cur += ctx.result[e.get_neighbor()];
-        }
-        int en = frag.GetLocalOutDegree(u);
-        cur = ctx.delta * cur + base;
-        if (en == 0) {
-          dangling_sums[tid] += cur;
-          ctx.next_result[u] = cur;
-        } else {
-          ctx.next_result[u] = cur / en;
-        }
-      });
+      if (src_fid != kInvalidFid) {
+        ForEach(inner_vertices, [src_fid, &frag, &ctx, base, &dangling_sums](
+                                    int tid, vertex_t u) {
+          double cur = ctx.next_result[u];
+          auto es = frag.GetIncomingAdjList(u, src_fid);
+          for (auto& e : es) {
+            cur += ctx.result[e.get_neighbor()];
+          }
+          int en = frag.GetLocalOutDegree(u);
+          cur = ctx.delta * cur + base;
+          if (en == 0) {
+            dangling_sums[tid] += cur;
+            ctx.next_result[u] = cur;
+          } else {
+            ctx.next_result[u] = cur / en;
+          }
+        });
+      }
     } else {
       // If the fragment is sparse or there is only one fragment, one round of
       // iterating inner vertices is prefered.

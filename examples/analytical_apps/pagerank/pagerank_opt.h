@@ -134,14 +134,16 @@ class PageRankOpt : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
         ctx.preprocess_time += GetCurrentTime();
         ctx.exec_time -= GetCurrentTime();
 #endif
-        ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
-          double cur = ctx.next_result[u];
-          auto es = frag.GetOutgoingAdjList(u, src_fid);
-          for (auto& e : es) {
-            cur += ctx.result[e.get_neighbor()];
-          }
-          ctx.next_result[u] = cur;
-        });
+        if (src_fid != kInvalidFid) {
+          ForEach(inner_vertices, [src_fid, &frag, &ctx](int tid, vertex_t u) {
+            double cur = ctx.next_result[u];
+            auto es = frag.GetOutgoingAdjList(u, src_fid);
+            for (auto& e : es) {
+              cur += ctx.result[e.get_neighbor()];
+            }
+            ctx.next_result[u] = cur;
+          });
+        }
 #ifdef PROFILING
         ctx.exec_time += GetCurrentTime();
 #endif
@@ -155,31 +157,33 @@ class PageRankOpt : public BatchShuffleAppBase<FRAG_T, PageRankContext<FRAG_T>>,
       ctx.preprocess_time += GetCurrentTime();
       ctx.exec_time -= GetCurrentTime();
 #endif
-      if (ctx.step != ctx.max_round) {
-        ForEach(inner_vertices,
-                [src_fid, &frag, &ctx, base](int tid, vertex_t u) {
-                  double cur = ctx.next_result[u];
-                  auto es = frag.GetOutgoingAdjList(u, src_fid);
-                  for (auto& e : es) {
-                    cur += ctx.result[e.get_neighbor()];
-                  }
-                  int en = frag.GetLocalOutDegree(u);
-                  ctx.result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
-                });
+      if (src_fid != kInvalidFid) {
+        if (ctx.step != ctx.max_round) {
+          ForEach(inner_vertices, [src_fid, &frag, &ctx, base](int tid,
+                                                               vertex_t u) {
+            double cur = ctx.next_result[u];
+            auto es = frag.GetOutgoingAdjList(u, src_fid);
+            for (auto& e : es) {
+              cur += ctx.result[e.get_neighbor()];
+            }
+            int en = frag.GetLocalOutDegree(u);
+            ctx.result[u] = en > 0 ? (ctx.delta * cur + base) / en : base;
+          });
 
-        messages.SyncInnerVertices<fragment_t, double>(frag, ctx.result,
-                                                       thread_num());
-      } else {
-        ForEach(inner_vertices,
-                [src_fid, &frag, &ctx, base](int tid, vertex_t u) {
-                  double cur = ctx.next_result[u];
-                  auto es = frag.GetOutgoingAdjList(u, src_fid);
-                  for (auto& e : es) {
-                    cur += ctx.result[e.get_neighbor()];
-                  }
-                  int en = frag.GetLocalOutDegree(u);
-                  ctx.result[u] = en > 0 ? (ctx.delta * cur + base) : base;
-                });
+          messages.SyncInnerVertices<fragment_t, double>(frag, ctx.result,
+                                                         thread_num());
+        } else {
+          ForEach(inner_vertices,
+                  [src_fid, &frag, &ctx, base](int tid, vertex_t u) {
+                    double cur = ctx.next_result[u];
+                    auto es = frag.GetOutgoingAdjList(u, src_fid);
+                    for (auto& e : es) {
+                      cur += ctx.result[e.get_neighbor()];
+                    }
+                    int en = frag.GetLocalOutDegree(u);
+                    ctx.result[u] = en > 0 ? (ctx.delta * cur + base) : base;
+                  });
+        }
       }
 #ifdef PROFILING
       ctx.exec_time += GetCurrentTime();

@@ -38,6 +38,7 @@ namespace gflags = google;
 
 // type alias
 using fid_t = unsigned;
+const fid_t kInvalidFid = std::numeric_limits<fid_t>::max();
 
 #ifdef USE_HUGEPAGES
 template <typename T>
