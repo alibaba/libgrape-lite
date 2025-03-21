@@ -278,6 +278,20 @@ class BatchShuffleMessageManager : public MessageManagerBase {
       return kInvalidFid;
     }
 
+    bool updateDone = true;
+    for (fid_t i = 0; i < fnum_; ++i) {
+      if (remaining_reqs_[i] > 0) {
+        updateDone = false;
+        break;
+      }
+    }
+    if (updateDone) {
+      remaining_frags_ = 0;
+      recv_reqs_.clear();
+      recv_from_.clear();
+      return kInvalidFid;
+    }
+
     int index;
     fid_t ret;
     while (true) {
