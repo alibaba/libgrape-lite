@@ -62,7 +62,8 @@ class SyncBuffer : public ISyncBuffer {
   bool updated(size_t begin, size_t length) const override {
     auto iter = range_.begin() + begin;
     while (length-- && iter != range_.end()) {
-      if (updated_[*iter++]) {
+      if (updated_[*iter]) {
+        iter++;
         return true;
       }
     }
