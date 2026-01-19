@@ -6,6 +6,10 @@
 #  LIBGRAPELITE_INCLUDE_DIRS        - include directories for libgrape-lite
 #  LIBGRAPELITE_LIBRARIES           - libraries to link against
 
+if(@glog_FOUND@)
+    find_package(glog REQUIRED)
+endif()
+
 set(LIBGRAPELITE_HOME "${CMAKE_CURRENT_LIST_DIR}/../../..")
 include("${CMAKE_CURRENT_LIST_DIR}/libgrapelite-targets.cmake")
 
