@@ -167,11 +167,17 @@ set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads REQUIRED)
 
 # find glog---------------------------------------------------------------------
-include("cmake/FindGlog.cmake")
-if (NOT GLOG_FOUND)
-  message(FATAL_ERROR "glog not found, please install the glog library")
+find_package(glog 0.7.0 QUIET)
+if (glog_FOUND)
+  set(GLOG_LIBRARIES glog::glog)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 else ()
-  include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
+  include("cmake/FindGlog.cmake")
+  if (NOT GLOG_FOUND)
+    message(FATAL_ERROR "glog not found, please install the glog library")
+  else ()
+    include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
+  endif ()
 endif ()
 
 # find gflags-------------------------------------------------------------------

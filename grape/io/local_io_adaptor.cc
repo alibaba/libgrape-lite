@@ -16,6 +16,7 @@ limitations under the License.
 #include "grape/io/local_io_adaptor.h"
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <string>
 
